@@ -28,7 +28,15 @@ public class UserLoginRequest
     public string password { get; set; } = "password123";
 }
 
+public class PasswordChangeRequest
+{
+    public string old { get; set; } = "";
+    public string @new { get; set; } = "";
+}
+
+
 [ApiController]
+[Tags("Auth")]
 [Route("api/auth")]
 public class AuthController : ControllerBase
 {
@@ -42,9 +50,51 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// GET /api/auth: Lấy toàn bộ danh sách tài khoản trong SQL Server kèm trạm phụ trách.
+    /// GET /api/auth/me: Kiểm tra thông tin phiên đăng nhập của người dùng hiện tại
     /// </summary>
+    [HttpGet("me")]
+    public IActionResult GetMe()
+    {
+        var cur = GetCurrentUser();
+        if (cur == null) return Unauthorized(new { ok = false, error = "Chưa đăng nhập" });
+        return Ok(new
+        {
+            ok = true,
+            user = new
+            {
+                id = cur.Id,
+                username = cur.Username,
+                full_name = cur.FullName,
+                role = cur.Role,
+                station_ids = _store.GetStationIdsForUser(cur.Id)
+            }
+        });
+    }
+
+    /// <summary>
+    /// PUT /api/auth/password: Đổi mật khẩu tài khoản đang đăng nhập (Chuẩn RESTful PUT)
+    /// </summary>
+    [HttpPut("password")]
+    public IActionResult ChangePassword([FromBody] PasswordChangeRequest req)
+    {
+        var cur = GetCurrentUser();
+        if (cur == null) return Unauthorized(new { ok = false, error = "Chưa đăng nhập" });
+        var userInDb = _db.Users.Find(cur.Id);
+        if (userInDb == null || userInDb.Password != req.old)
+        {
+            return BadRequest(new { ok = false, error = "Mật khẩu cũ không đúng" });
+        }
+        if (string.IsNullOrWhiteSpace(req.@new))
+        {
+            return BadRequest(new { ok = false, error = "Mật khẩu mới không được để trống" });
+        }
+        userInDb.Password = req.@new.Trim();
+        _db.SaveChanges();
+        return Ok(new { ok = true, message = "Đổi mật khẩu thành công" });
+    }
+
     [HttpGet]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public IActionResult Get([FromQuery] string? action)
     {
         // Nếu App Flutter gọi ?action=me -> trả về tài khoản hiện tại
@@ -84,10 +134,8 @@ public class AuthController : ControllerBase
     }
 
 
-    /// <summary>
-    /// POST /api/auth: Đăng nhập (nếu ?action=login) hoặc Tạo tài khoản mới lưu trực tiếp vào SQL Server (SSMS)
-    /// </summary>
     [HttpPost]
+    [ApiExplorerSettings(IgnoreApi = true)]
     public IActionResult Post([FromQuery] string? action, [FromBody] UserCreateRequest req)
     {
         // 1. App Flutter đăng nhập bằng POST /api/auth?action=login
@@ -161,77 +209,6 @@ public class AuthController : ControllerBase
                 role = newUser.Role,
                 station_ids = _store.GetStationIdsForUser(newUser.Id)
             }
-        });
-    }
-
-    /// <summary>
-    /// DELETE /api/auth/users/{id} hoặc DELETE /api/users/{id}: Xóa tài khoản nhân viên (Admin only)
-    /// </summary>
-    [HttpDelete("users/{id}")]
-    [HttpDelete("/api/users/{id}")]
-    public IActionResult DeleteUser(int id)
-    {
-        var cur = GetCurrentUser();
-        if (cur != null && cur.Role != "admin") return Forbid();
-
-        var target = _db.Users.Find(id);
-        if (target == null) return NotFound(new { ok = false, error = "Không tìm thấy người dùng" });
-        if (target.Id == 1 || string.Equals(target.Username, "admin", StringComparison.OrdinalIgnoreCase))
-        {
-            return BadRequest(new { ok = false, error = "Không thể xóa tài khoản Quản trị viên tối cao!" });
-        }
-
-        _db.Users.Remove(target);
-        var assigns = _db.StationAssignments.Where(a => a.UserId == id).ToList();
-        _db.StationAssignments.RemoveRange(assigns);
-        _db.SaveChanges();
-
-        _store.Users.RemoveAll(u => u.Id == id);
-        _store.Assignments.RemoveAll(a => a.UserId == id);
-
-        return Ok(new { ok = true, message = $"Đã xóa thành công người dùng '{target.Username}'" });
-    }
-
-    /// <summary>
-    /// GET /api/users/{id}/stations: Xem danh sách các trạm nhân viên {id} đang phụ trách
-    /// </summary>
-    [HttpGet("/api/users/{id}/stations")]
-    public IActionResult GetUserStations(int id)
-    {
-        var stationIds = _store.GetStationIdsForUser(id);
-        var stations = _store.Devices.Where(d => stationIds.Contains(d.Id)).Select(d => new
-        {
-            id = d.Id,
-            device_code = d.DeviceCode,
-            name = d.Name,
-            location = d.Location,
-            status = d.Status,
-            online = d.Online,
-            relay_label = d.RelayLabel,
-            relay_state = d.RelayState
-        }).ToList();
-
-        return Ok(new { ok = true, user_id = id, total = stations.Count, stations });
-    }
-
-    /// <summary>
-    /// PUT /api/users/{id}/stations: Cập nhật danh sách trạm phân công cho nhân viên {id} (Admin only)
-    /// </summary>
-    [HttpPut("/api/users/{id}/stations")]
-    public IActionResult UpdateUserStations(int id, [FromBody] UpdateStationsRequest req)
-    {
-        var cur = GetCurrentUser();
-        if (cur != null && cur.Role != "admin") return Forbid();
-
-        var target = _db.Users.Find(id);
-        if (target == null) return NotFound(new { ok = false, error = "Không tìm thấy người dùng" });
-
-        _store.SetUserStations(id, req.station_ids ?? new List<int>(), _db);
-        return Ok(new
-        {
-            ok = true,
-            message = $"Đã cập nhật phân công trạm cho '{target.Username}'",
-            station_ids = _store.GetStationIdsForUser(id)
         });
     }
 

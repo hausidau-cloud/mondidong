@@ -291,12 +291,12 @@ class Session extends ChangeNotifier {
   }
 
   Future<void> changePassword(String oldPw, String newPw) async {
-    await post('auth.php?action=password', {'old': oldPw, 'new': newPw});
+    await put('auth/password', {'old': oldPw, 'new': newPw});
   }
 
   /// Lay danh sach toan bo nguoi dung trong he thong kem cac tram phu trach
   Future<List<AppUser>> users() async {
-    final j = await get('auth');
+    final j = await get('users');
     return ((j['users'] as List?) ?? const []).map((e) => AppUser.fromJson(e as Map<String, dynamic>)).toList();
   }
 
@@ -308,7 +308,7 @@ class Session extends ChangeNotifier {
     String role = 'viewer',
     List<int> stationIds = const [],
   }) async {
-    await post('auth', {
+    await post('users', {
       'username': username,
       'password': password,
       'full_name': fullName,
@@ -331,7 +331,8 @@ class Session extends ChangeNotifier {
 
   /// Go nhan vien ra khoi tram
   Future<void> removeStationViewer(int stationId, int userId) async {
-    await delete('devices/$stationId/viewers/$userId');
+    await delete('stations/$stationId/viewers/$userId');
   }
 }
+
 
