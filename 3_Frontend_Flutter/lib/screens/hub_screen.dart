@@ -357,7 +357,6 @@ class _HubScreenState extends State<HubScreen> {
   }
 
   Widget _filters(List<Station> list) {
-    if (list.isEmpty) return const SizedBox.shrink();
     final items = [
       ('all', 'Tất cả', list.length),
       for (final s in list) (s.id.toString(), s.name, 1),
@@ -382,25 +381,27 @@ class _HubScreenState extends State<HubScreen> {
             ),
         ],
       ),
-      const SizedBox(height: 10),
-      SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: Row(children: [
-          for (final it in items)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                selected: _filter == it.$1,
-                onSelected: (_) => setState(() => _filter = it.$1),
-                label: Text(it.$1 == 'all' ? '${it.$2}  ${it.$3}' : it.$2),
-                labelStyle: TextStyle(
-                  color: _filter == it.$1 ? AppColors.bg : AppColors.text2,
-                  fontWeight: FontWeight.w700,
+      if (list.isNotEmpty) ...[
+        const SizedBox(height: 10),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(children: [
+            for (final it in items)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  selected: _filter == it.$1,
+                  onSelected: (_) => setState(() => _filter = it.$1),
+                  label: Text(it.$1 == 'all' ? '${it.$2}  ${it.$3}' : it.$2),
+                  labelStyle: TextStyle(
+                    color: _filter == it.$1 ? AppColors.bg : AppColors.text2,
+                    fontWeight: FontWeight.w700,
+                  ),
                 ),
               ),
-            ),
-        ]),
-      ),
+          ]),
+        ),
+      ],
     ]);
   }
 
@@ -421,7 +422,12 @@ class _HubScreenState extends State<HubScreen> {
           ),
         );
       }
-      return const SliverToBoxAdapter(child: EmptyState(icon: Icons.sensors_off_rounded, text: 'Chưa có trạm nào'));
+      return const SliverToBoxAdapter(
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: 36),
+          child: EmptyState(icon: Icons.sensors_off_rounded, text: 'Chưa có trạm giám sát nào'),
+        ),
+      );
     }
     final cols = math.max(1, ((width - hPad * 2 - (width >= 900 ? 92 : 0)) / 380).floor());
     return SliverPadding(
