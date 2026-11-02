@@ -41,32 +41,6 @@ public class AppDbContext : DbContext
                 Role = "admin"
             }
         );
-
-        // Seed initial device PICO-01
-        modelBuilder.Entity<Device>().HasData(
-            new Device
-            {
-                Id = 1,
-                DeviceCode = "PICO-01",
-                ApiKey = "a1b2c3d4e5f60718293a4b5c6d7e8f90",
-                Name = "Trạm Pico 2 W - Phòng Lab",
-                Profile = "cabinet",
-                Location = "Phòng Thực Nghiệm IoT",
-                Description = "Giám sát nhiệt độ, độ ẩm SHT30, que inox DS18B20 và quang trở",
-                RelayLabel = "Bóng đèn 220V / Rơ-le",
-                RelayMode = "AUTO",
-                RelayState = 0,
-                Status = "OFFLINE",
-                AirTempMax = 40.0,
-                AirHumMax = 75.0,
-                ProbeTempMin = 0.0,
-                ProbeTempMax = 60.0,
-                DewMargin = 3.0,
-                Hysteresis = 1.5,
-                SendInterval = 3,
-                OfflineAfter = 60
-            }
-        );
     }
 }
 

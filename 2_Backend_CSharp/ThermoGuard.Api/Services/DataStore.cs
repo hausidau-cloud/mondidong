@@ -101,62 +101,7 @@ public class DataStore
         // Fallback default user if empty
         if (Users.Count == 0)
         {
-            Users.Add(new AppUser { Id = 1, Username = "admin", Password = "password123", FullName = "Quản trị viên", Role = "admin" });
-        }
-
-        // Fallback default device if empty
-        if (Devices.Count == 0)
-        {
-            Devices.Add(new Device
-            {
-                Id = 1,
-                DeviceCode = "PICO-01",
-                ApiKey = "a1b2c3d4e5f60718293a4b5c6d7e8f90",
-                Name = "Trạm Pico 2 W - Phòng Lab",
-                Profile = "cabinet",
-                RelayLabel = "Bóng đèn 220V / Rơ-le",
-                RelayMode = "AUTO",
-                RelayState = 0,
-                Status = "OFFLINE"
-            });
-        }
-
-        // Fallback default assignment (viewer -> Station 1)
-        if (Assignments.Count == 0)
-        {
-            Assignments.Add(new StationAssignment { Id = 1, UserId = 2, DeviceId = 1, AssignedAt = TimeHelper.VnNow });
-        }
-
-        // Fallback default station if empty
-        if (Stations.Count == 0)
-        {
-            var defaultSt = new StationItem
-            {
-                Id = 1,
-                Name = "Trạm Pico 2 W - Phòng Lab",
-                Location = "Phòng Lab IoT",
-                Description = "Hệ thống giám sát nhiệt độ, độ ẩm, que nước và ánh sáng",
-                RelayLabel = "Bóng đèn 220V / Rơ-le",
-                CreatedAt = TimeHelper.VnNowStr
-            };
-            Stations.Add(defaultSt);
-            try
-            {
-                using var scope = _scopeFactory.CreateScope();
-                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-                if (!db.Stations.Any())
-                {
-                    db.Stations.Add(defaultSt);
-                    db.SaveChanges();
-                }
-            }
-            catch { }
-        }
-
-        var pico01 = Devices.FirstOrDefault(d => d.DeviceCode == "PICO-01");
-        if (pico01 != null && pico01.StationId == null)
-        {
-            pico01.StationId = 1;
+            Users.Add(new AppUser { Id = 1, Username = "admin", Password = "password123", FullName = "Quản trị viên Hệ thống", Role = "admin" });
         }
     }
 
