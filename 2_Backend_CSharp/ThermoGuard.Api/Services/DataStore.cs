@@ -604,5 +604,25 @@ public class DataStore
             }
         });
     }
+
+    public void AddDevice(Device dev)
+    {
+        lock (_lock)
+        {
+            Devices.RemoveAll(d => d.Id == dev.Id || string.Equals(d.DeviceCode, dev.DeviceCode, StringComparison.OrdinalIgnoreCase));
+            Devices.Add(dev);
+        }
+    }
+
+    public void DeleteDevice(int id)
+    {
+        lock (_lock)
+        {
+            Devices.RemoveAll(d => d.Id == id);
+            Assignments.RemoveAll(a => a.DeviceId == id);
+            Readings.RemoveAll(r => r.DeviceId == id);
+            Alerts.RemoveAll(a => a.DeviceId == id);
+        }
+    }
 }
 

@@ -4,6 +4,7 @@ import '../core/api.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../widgets/common.dart';
+import 'devices_screen.dart';
 import 'staff_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -87,6 +88,14 @@ class SettingsScreen extends StatelessWidget {
                 const SizedBox(height: 16),
                 Card(
                   child: Column(children: [
+                    ListTile(
+                      leading: const Icon(Icons.developer_board_rounded, color: AppColors.probe),
+                      title: const Text('Quản lý thiết bị phần cứng IoT'),
+                      subtitle: const Text('Mã thiết bị Pico 2 W, API Key HMAC, thêm / xóa thiết bị', style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DevicesScreen())),
+                    ),
+                    const Divider(height: 1),
                     ListTile(
                       leading: const Icon(Icons.people_alt_rounded, color: AppColors.accent),
                       title: const Text('Quản lý nhân sự & Phân công trạm'),

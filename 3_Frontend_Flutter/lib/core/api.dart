@@ -333,6 +333,67 @@ class Session extends ChangeNotifier {
   Future<void> removeStationViewer(int stationId, int userId) async {
     await delete('stations/$stationId/viewers/$userId');
   }
+
+  /// Them tram giam sat moi (Admin only)
+  Future<Map<String, dynamic>> createStation({
+    required String deviceCode,
+    required String name,
+    String? location,
+    String? relayLabel,
+    String? description,
+    List<int>? viewerIds,
+  }) async {
+    final j = await post('stations', {
+      'device_code': deviceCode,
+      'name': name,
+      'location': location ?? 'Phòng Lab',
+      'relay_label': relayLabel ?? 'Rơ-le / Thiết bị',
+      'description': description ?? 'Trạm giám sát IoT',
+      'viewer_ids': ?viewerIds,
+    });
+    return j;
+  }
+
+  /// Cap nhat thong tin tram (Admin only)
+  Future<void> updateStation(int stationId, Map<String, dynamic> data) async {
+    await put('stations/$stationId', data);
+  }
+
+  /// Xoa tram giam sat khoi he thong (Admin only)
+  Future<void> deleteStation(int stationId) async {
+    await delete('stations/$stationId');
+  }
+
+  /// Lay danh sach toan bo thiet bi phan cung IoT (Admin only)
+  Future<List<Station>> devices() async {
+    final j = await get('devices');
+    return ((j['devices'] as List?) ?? const []).map((e) => Station.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Them thiet bi phan cung moi (Admin only)
+  Future<Map<String, dynamic>> createDevice({
+    required String deviceCode,
+    required String name,
+    String? location,
+    String? relayLabel,
+    String? description,
+    String? apiKey,
+  }) async {
+    final j = await post('devices', {
+      'device_code': deviceCode,
+      'name': name,
+      'location': location ?? 'Phòng Lab',
+      'relay_label': relayLabel ?? 'Rơ-le / Thiết bị',
+      'description': description ?? 'Thiết bị phần cứng IoT',
+      'api_key': ?apiKey,
+    });
+    return j;
+  }
+
+  /// Xoa thiet bi phan cung (Admin only)
+  Future<void> deleteDevice(int deviceId) async {
+    await delete('devices/$deviceId');
+  }
 }
 
 

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/api.dart';
 import '../core/format.dart';
@@ -67,6 +68,216 @@ class _HubScreenState extends State<HubScreen> {
     ));
   }
 
+  void _showAddStationDialog() {
+    final codeCtrl = TextEditingController(text: 'PICO-02');
+    final nameCtrl = TextEditingController(text: 'Trạm Pico 2 W số 2');
+    final locCtrl = TextEditingController(text: 'Phòng Thí Nghiệm B');
+    final relayCtrl = TextEditingController(text: 'Bóng đèn 220V / Rơ-le');
+    bool busy = false;
+    String? err;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: AppColors.surface,
+          title: Row(children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: AppColors.accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.add_to_photos_rounded, color: AppColors.accent, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Thêm trạm giám sát mới', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+          ]),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 440,
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (err != null)
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 14),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: AppColors.danger.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+                    child: Row(children: [
+                      const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(err!, style: const TextStyle(color: AppColors.danger, fontSize: 13))),
+                    ]),
+                  ),
+                const Text('Tên trạm hiển thị', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'VD: Trạm Pico 2 W số 2',
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text('Mã trạm (Device Code)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: codeCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    hintText: 'VD: PICO-02',
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text('Vị trí đặt trạm', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: locCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'VD: Phòng Thí Nghiệm B / Nhà màng',
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text('Thiết bị điều khiển Relay', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: relayCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'VD: Máy bơm / Quạt thông gió / Đèn sưởi',
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  '💡 Hệ thống sẽ tự động tạo mã bảo mật API Key riêng cho trạm này để bạn cấu hình vào mạch Pico 2 W.',
+                  style: TextStyle(fontSize: 11.5, color: AppColors.muted, height: 1.4),
+                ),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: busy ? null : () => Navigator.pop(ctx),
+              child: const Text('Hủy', style: TextStyle(color: AppColors.muted)),
+            ),
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      if (nameCtrl.text.trim().isEmpty || codeCtrl.text.trim().isEmpty) {
+                        setDState(() => err = 'Vui lòng nhập Tên trạm và Mã trạm');
+                        return;
+                      }
+                      setDState(() {
+                        busy = true;
+                        err = null;
+                      });
+                      try {
+                        final res = await Session.I.createStation(
+                          deviceCode: codeCtrl.text.trim().toUpperCase(),
+                          name: nameCtrl.text.trim(),
+                          location: locCtrl.text.trim(),
+                          relayLabel: relayCtrl.text.trim(),
+                        );
+                        if (!mounted || !ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        _load();
+                        final apiKey = res['api_key']?.toString() ?? '';
+                        _showCreatedSuccessDialog(nameCtrl.text.trim(), codeCtrl.text.trim().toUpperCase(), apiKey);
+                      } catch (e) {
+                        setDState(() {
+                          busy = false;
+                          err = e.toString().replaceFirst('Exception: ', '');
+                        });
+                      }
+                    },
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: const Color(0xFF04131D),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: busy
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Tạo trạm mới', style: TextStyle(fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showCreatedSuccessDialog(String name, String code, String apiKey) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: AppColors.surface,
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: AppColors.ok.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.check_circle_rounded, color: AppColors.ok, size: 24),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(child: Text('Tạo trạm thành công! 🎉', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+        ]),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Trạm "$name" ($code) đã được thêm thành công và đồng bộ trực tiếp lên Database.', style: const TextStyle(fontSize: 13.5, height: 1.4)),
+          const SizedBox(height: 16),
+          const Text('API KEY CHO PHẦN CỨNG PICO 2 W:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.muted)),
+          const SizedBox(height: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: AppColors.bg,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.border),
+            ),
+            child: Row(children: [
+              Expanded(
+                child: SelectableText(
+                  apiKey,
+                  style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w700, color: AppColors.accent, fontSize: 13),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.accent),
+                tooltip: 'Sao chép',
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: apiKey));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Đã sao chép API Key vào khay nhớ tạm!'), duration: Duration(seconds: 2)),
+                  );
+                },
+              ),
+            ]),
+          ),
+          const SizedBox(height: 10),
+          const Text('💡 Dán mã API Key này vào file config.py trên mạch Pico 2 W để nạp dữ liệu có chữ ký HMAC.', style: TextStyle(fontSize: 12, color: AppColors.text2, height: 1.4)),
+        ]),
+        actions: [
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx),
+            style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            child: const Text('Đã hiểu / Hoàn tất'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final list = _stations;
@@ -127,13 +338,31 @@ class _HubScreenState extends State<HubScreen> {
   }
 
   Widget _filters(List<Station> list) {
-    int c(String p) => list.where((s) => s.profile == p).length;
+    if (list.isEmpty) return const SizedBox.shrink();
     final items = [
       ('all', 'Tất cả', list.length),
-      for (final p in ProfileStyle.all) (p, ProfileStyle.of(p).label, c(p)),
+      for (final s in list) (s.id.toString(), s.name, 1),
     ];
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      const Text('Trạm giám sát', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+      Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text('Trạm giám sát', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+          if (Session.I.isAdmin)
+            FilledButton.tonalIcon(
+              onPressed: _showAddStationDialog,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Thêm trạm', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              style: FilledButton.styleFrom(
+                backgroundColor: AppColors.accent.withValues(alpha: 0.15),
+                foregroundColor: AppColors.accent,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                visualDensity: VisualDensity.compact,
+              ),
+            ),
+        ],
+      ),
       const SizedBox(height: 10),
       SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -144,7 +373,7 @@ class _HubScreenState extends State<HubScreen> {
               child: ChoiceChip(
                 selected: _filter == it.$1,
                 onSelected: (_) => setState(() => _filter = it.$1),
-                label: Text('${it.$2}  ${it.$3}'),
+                label: Text(it.$1 == 'all' ? '${it.$2}  ${it.$3}' : it.$2),
                 labelStyle: TextStyle(
                   color: _filter == it.$1 ? AppColors.bg : AppColors.text2,
                   fontWeight: FontWeight.w700,
@@ -157,7 +386,10 @@ class _HubScreenState extends State<HubScreen> {
   }
 
   Widget _grid(List<Station> all, double width, double hPad) {
-    final list = all.where((s) => _filter == 'all' || s.profile == _filter).toList();
+    var list = all.where((s) => _filter == 'all' || s.id.toString() == _filter).toList();
+    if (list.isEmpty && all.isNotEmpty && _filter != 'all') {
+      list = all;
+    }
     if (list.isEmpty) {
       if (all.isEmpty && !Session.I.isAdmin) {
         return const SliverToBoxAdapter(
@@ -170,7 +402,7 @@ class _HubScreenState extends State<HubScreen> {
           ),
         );
       }
-      return const SliverToBoxAdapter(child: EmptyState(icon: Icons.sensors_off_rounded, text: 'Chưa có trạm nào trong nhóm này'));
+      return const SliverToBoxAdapter(child: EmptyState(icon: Icons.sensors_off_rounded, text: 'Chưa có trạm nào'));
     }
     final cols = math.max(1, ((width - hPad * 2 - (width >= 900 ? 92 : 0)) / 380).floor());
     return SliverPadding(
@@ -183,11 +415,57 @@ class _HubScreenState extends State<HubScreen> {
           mainAxisExtent: 318,
         ),
         delegate: SliverChildBuilderDelegate(
-          (ctx, i) => StationCard(station: list[i], onTap: () => _open(list[i])),
+          (ctx, i) => StationCard(
+            station: list[i],
+            onTap: () => _open(list[i]),
+            onDelete: () => _deleteStation(list[i]),
+          ),
           childCount: list.length,
         ),
       ),
     );
+  }
+
+  Future<void> _deleteStation(Station s) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: AppColors.surface,
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: AppColors.danger.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 22),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(child: Text('Xác nhận xóa trạm', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+        ]),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa trạm "${s.name}" (${s.code}) khỏi hệ thống?\nToàn bộ phân công và dữ liệu liên quan sẽ bị xóa khỏi Database.',
+          style: const TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy', style: TextStyle(color: AppColors.muted))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            child: const Text('Xóa trạm'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await Session.I.deleteStation(s.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã xóa trạm "${s.name}" thành công!')));
+      _load();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.danger));
+      }
+    }
   }
 }
 
@@ -329,7 +607,8 @@ class _Kpis extends StatelessWidget {
 class StationCard extends StatelessWidget {
   final Station station;
   final VoidCallback onTap;
-  const StationCard({super.key, required this.station, required this.onTap});
+  final VoidCallback? onDelete;
+  const StationCard({super.key, required this.station, required this.onTap, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -366,8 +645,19 @@ class StationCard extends StatelessWidget {
                       Text('${s.code} · ${s.location ?? p.label}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
                     ]),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 6),
                   StatusPill(s.status, dense: true),
+                  if (Session.I.isAdmin && onDelete != null) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline_rounded, size: 20, color: AppColors.muted),
+                      tooltip: 'Xóa trạm này',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      onPressed: onDelete,
+                    ),
+                  ],
                 ]),
                 const SizedBox(height: 14),
                 Opacity(

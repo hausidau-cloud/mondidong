@@ -47,13 +47,16 @@ class ProfileStyle {
   final Color color;
   const ProfileStyle(this.label, this.probeLabel, this.relayVerb, this.icon, this.relayIcon, this.color);
 
-  static ProfileStyle of(String p) => switch (p) {
-        'aquarium' => const ProfileStyle('Hồ cá / Thủy canh', 'Nhiệt độ nước', 'Quạt / Bơm', Icons.set_meal_rounded, Icons.toys_rounded, AppColors.dew),
-        'pharma' => const ProfileStyle('Tủ bảo quản', 'Nhiệt độ lõi tủ', 'Còi', Icons.vaccines_rounded, Icons.campaign_rounded, AppColors.hum),
-        _ => const ProfileStyle('Hệ thống giám sát IoT', 'Nhiệt độ nước', 'Rơ-le / Bơm', Icons.water_drop_rounded, Icons.toys_rounded, AppColors.probe),
-      };
+  static ProfileStyle of(String p) => const ProfileStyle(
+        'Trạm giám sát IoT',
+        'Nhiệt độ nước',
+        'Rơ-le / Bơm',
+        Icons.water_drop_rounded,
+        Icons.toys_rounded,
+        AppColors.probe,
+      );
 
-  static const all = ['cabinet', 'aquarium', 'pharma'];
+  static const all = ['cabinet'];
 }
 
 const alertTypeLabels = {

@@ -269,11 +269,11 @@ class _Hero extends StatelessWidget {
             SizedBox(
               width: 620,
               child: Row(children: [
-                scenario(Icons.dns_rounded, AppColors.air, 'Tủ điện / Server', 'Quá nhiệt, đọng sương'),
+                scenario(Icons.dns_rounded, AppColors.air, 'Phòng Lab / Tủ điện', 'Quá nhiệt, đọng sương'),
                 const SizedBox(width: 12),
-                scenario(Icons.set_meal_rounded, AppColors.dew, 'Hồ cá / Thủy canh', 'Nhiệt độ nước'),
+                scenario(Icons.water_drop_rounded, AppColors.dew, 'Môi trường Nước & Đất', 'DS18B20 + Độ ẩm đất + pH'),
                 const SizedBox(width: 12),
-                scenario(Icons.vaccines_rounded, AppColors.hum, 'Tủ vắc-xin', 'Dải 2–8°C'),
+                scenario(Icons.sensors_rounded, AppColors.hum, 'Không khí & Quang trở', 'SHT30 + Quang trở LDR'),
               ]),
             ),
           ]),

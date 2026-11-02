@@ -287,6 +287,50 @@ API_KEY     = "$apiKey"''';
     }
   }
 
+  Future<void> _deleteStation(Station s) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: AppColors.surface,
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(color: AppColors.danger.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+            child: const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 22),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(child: Text('Xác nhận xóa trạm', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+        ]),
+        content: Text(
+          'Bạn có chắc chắn muốn xóa trạm "${s.name}" (${s.code}) khỏi hệ thống?\nToàn bộ phân công và dữ liệu liên quan sẽ bị xóa khỏi Database.',
+          style: const TextStyle(fontSize: 13.5, height: 1.4),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy', style: TextStyle(color: AppColors.muted))),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+            child: const Text('Xóa trạm'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _busy = true);
+    try {
+      await Session.I.deleteStation(s.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Đã xóa trạm "${s.name}" thành công!')));
+      Navigator.of(context).pop();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _busy = false);
+        toast(context, e.toString(), error: true);
+      }
+    }
+  }
+
   Widget _deviceInfo(Station s, bool admin) {
     Widget row(String k, String v) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 6),
@@ -340,6 +384,12 @@ API_KEY     = "$apiKey"''';
             ),
             if (locked && s.allowedIp != null)
               OutlinedButton.icon(onPressed: _busy ? null : () => _unlockIp(s), icon: const Icon(Icons.lock_reset_rounded, size: 18), label: const Text('Mở khóa IP')),
+            OutlinedButton.icon(
+              onPressed: _busy ? null : () => _deleteStation(s),
+              icon: const Icon(Icons.delete_forever_rounded, size: 18),
+              label: const Text('Xóa trạm này'),
+              style: OutlinedButton.styleFrom(foregroundColor: AppColors.danger),
+            ),
           ]),
           if (s.securityEvents.isNotEmpty) ...[
             const SizedBox(height: 16),
