@@ -63,6 +63,7 @@ public class DevicesController : ControllerBase
             ["air_hum"] = d.AirHum,
             ["dew_point"] = d.DewPoint,
             ["probe_temp"] = d.ProbeTemp,
+            ["pico_temp"] = d.PicoTemp,
             ["light_raw"] = d.LightRaw,
             ["light_pct"] = d.LightPct,
             ["air_temp_max"] = d.AirTempMax,

@@ -7,7 +7,7 @@ WIFI_LIST = [
     ("_hhau.05_", "00000000"),
     ("iPhone", "88888888"),
     ("Bekind Coffee", "camonquykhach"),
-    ("Ten_WiFi_Nha_Ban", "Mat_Khau_WiFi"),
+    ("Quan Buu", "0777803936"),
 ]
 
 # 2. DIA CHI BACKEND C# (Cloud Server Render hoac Localhost)
