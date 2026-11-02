@@ -187,26 +187,36 @@ public class DevicesController : ControllerBase
         if (cur != null && cur.Role != "admin") return Forbid();
 
         var dev = _db.Devices.Find(id);
-        if (dev == null) return NotFound(new { ok = false, error = "Không tìm thấy thiết bị" });
+        var storeDev = _store.GetDevice(id);
+        if (dev == null && storeDev == null)
+        {
+            return NotFound(new { ok = false, error = "Không tìm thấy thiết bị" });
+        }
 
-        var assigns = _db.StationAssignments.Where(a => a.DeviceId == id).ToList();
-        if (assigns.Count > 0) _db.StationAssignments.RemoveRange(assigns);
+        if (dev != null)
+        {
+            var assigns = _db.StationAssignments.Where(a => a.DeviceId == id).ToList();
+            if (assigns.Count > 0) _db.StationAssignments.RemoveRange(assigns);
 
-        var readings = _db.Readings.Where(r => r.DeviceId == id).ToList();
-        if (readings.Count > 0) _db.Readings.RemoveRange(readings);
+            var readings = _db.Readings.Where(r => r.DeviceId == id).ToList();
+            if (readings.Count > 0) _db.Readings.RemoveRange(readings);
 
-        var alerts = _db.Alerts.Where(a => a.DeviceId == id).ToList();
-        if (alerts.Count > 0) _db.Alerts.RemoveRange(alerts);
+            var alerts = _db.Alerts.Where(a => a.DeviceId == id).ToList();
+            if (alerts.Count > 0) _db.Alerts.RemoveRange(alerts);
 
-        _db.Devices.Remove(dev);
-        _db.SaveChanges();
+            _db.Devices.Remove(dev);
+            _db.SaveChanges();
+        }
+
+        var devName = dev?.Name ?? storeDev?.Name ?? "Thiết bị";
+        var devCode = dev?.DeviceCode ?? storeDev?.DeviceCode ?? "";
 
         _store.DeleteDevice(id);
 
         return Ok(new
         {
             ok = true,
-            message = $"Đã xóa thành công thiết bị '{dev.Name}' ({dev.DeviceCode})!"
+            message = $"Đã xóa thành công thiết bị '{devName}' ({devCode})!"
         });
     }
 
