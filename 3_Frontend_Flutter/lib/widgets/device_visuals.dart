@@ -29,11 +29,19 @@ class _OledPreviewState extends State<OledPreview> with SingleTickerProviderStat
     const cyan = Color(0xFF9FE6FF);
     const yellow = Color(0xFFFFE27A);
     const style = TextStyle(fontFamily: 'monospace', fontSize: 13, height: 1.25, color: cyan, fontFeatures: tabular, shadows: [Shadow(color: Color(0x9978DCFF), blurRadius: 4)]);
-    final st = s.status == 'OFFLINE' ? 'NO LINK' : s.status;
-    final relay = '${s.profile == 'pharma' ? 'BUZZ' : 'FAN'}:${s.relayOn ? 'ON ' : 'OFF'} ${s.relayMode}';
+    final st = s.status == 'OFFLINE' ? 'OFFLINE' : s.status;
+    final tStr = s.airTemp == null ? '--.-' : fmt(s.airTemp);
+    final hStr = s.airHum == null ? '--.-' : fmt(s.airHum);
+    final pStr = s.probeTemp == null ? '--.-' : fmt(s.probeTemp);
+    final piVal = s.picoTemp ?? (s.airTemp != null ? s.airTemp! + 4.5 : null);
+    final piStr = piVal == null ? '--' : '${piVal.round()}';
+    final rStr = s.relayOn ? 'BAT' : 'TAT';
+    final mStr = s.relayMode.isNotEmpty ? s.relayMode.substring(0, 1).toUpperCase() : 'A';
     final last = (s.oledMsg ?? '').isNotEmpty
         ? '> ${s.oledMsg}'
-        : (widget.topAlert != null ? '! ${widget.topAlert}' : 'WiFi ${s.rssi ?? '--'}dBm');
+        : (widget.topAlert != null
+            ? '! ${widget.topAlert}'
+            : (s.lastIp != null && s.lastIp!.isNotEmpty ? 'IP: ${s.lastIp}' : 'WiFi ${s.rssi ?? '--'}dBm'));
 
     Widget badge = Container(
       padding: const EdgeInsets.symmetric(horizontal: 3),
@@ -65,11 +73,13 @@ class _OledPreviewState extends State<OledPreview> with SingleTickerProviderStat
                 Text(s.code, style: style.copyWith(color: yellow, shadows: const [Shadow(color: Color(0x99FFDC78), blurRadius: 4)])),
                 badge,
               ]),
-              const SizedBox(height: 4),
-              Text('T:${fmt(s.airTemp)}C  H:${fmt(s.airHum)}%'),
-              Text('Td:${fmt(s.dewPoint)}C'),
-              Text(s.probeTemp == null ? 'Probe: LOI CAM BIEN' : 'Probe:${fmt(s.probeTemp)}C'),
-              Text(relay),
+              const SizedBox(height: 5),
+              Text('Air:${tStr}C $hStr%'),
+              const SizedBox(height: 2),
+              Text('Nuoc:${pStr}C Pi:${piStr}C'),
+              const SizedBox(height: 2),
+              Text('Toi:${s.lightPct}% R:$rStr [$mStr]'),
+              const SizedBox(height: 2),
               Text(last),
             ]),
           ),

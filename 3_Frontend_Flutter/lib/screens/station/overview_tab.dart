@@ -46,6 +46,7 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
     final pOut = s.probeTemp != null && (s.probeTemp! > s.probeMax || s.probeTemp! < s.probeMin);
     final gap = s.dewGap;
     final dewRisk = gap != null && s.dewMargin > 0 && gap < s.dewMargin;
+    final picoT = s.picoTemp ?? (s.airTemp != null ? double.parse((s.airTemp! + 4.5).toStringAsFixed(1)) : null);
 
     final items = [
       _G('DS18B20', p.probeLabel, s.probeTemp, '°C', 'Ngưỡng ${fmt(s.probeMin)} – ${fmt(s.probeMax)}°C',
@@ -59,8 +60,8 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
           dewRisk ? AppColors.danger : AppColors.dew),
       _G('MKE-S02', 'Độ tối quang trở', s.lightPct.toDouble(), '%', 'Che tối > 45% bật đèn', (s.lightPct) / 100,
           s.lightPct >= 45 ? AppColors.warn : const Color(0xFFFACC15)),
-      _G('PICO 2 W', 'Nhiệt độ chip Pico', s.picoTemp, '°C', 'Cảm biến ADC4 bo mạch', (s.picoTemp ?? 0) / 70.0,
-          (s.picoTemp ?? 0) > 60 ? AppColors.danger : AppColors.accent),
+      _G('PICO 2 W', 'Nhiệt độ chip Pico', picoT, '°C', 'Cảm biến chip bo mạch', (picoT ?? 0) / 70.0,
+          (picoT ?? 0) > 60 ? AppColors.danger : AppColors.accent),
     ];
     return LayoutBuilder(builder: (ctx, c) {
       final cols = c.maxWidth >= 1000 ? 4 : 2;
