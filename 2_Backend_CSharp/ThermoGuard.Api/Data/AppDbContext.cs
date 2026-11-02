@@ -37,14 +37,6 @@ public class AppDbContext : DbContext
                 Password = "password123",
                 FullName = "Quản trị viên Hệ thống",
                 Role = "admin"
-            },
-            new AppUser
-            {
-                Id = 2,
-                Username = "viewer",
-                Password = "password123",
-                FullName = "Người xem",
-                Role = "viewer"
             }
         );
 
@@ -71,17 +63,6 @@ public class AppDbContext : DbContext
                 Hysteresis = 1.5,
                 SendInterval = 3,
                 OfflineAfter = 60
-            }
-        );
-
-        // Seed initial assignment: viewer -> Station 1
-        modelBuilder.Entity<StationAssignment>().HasData(
-            new StationAssignment
-            {
-                Id = 1,
-                UserId = 2,
-                DeviceId = 1,
-                AssignedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
             }
         );
     }

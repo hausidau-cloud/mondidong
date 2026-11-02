@@ -78,7 +78,6 @@ public class DataStore
         if (Users.Count == 0)
         {
             Users.Add(new AppUser { Id = 1, Username = "admin", Password = "password123", FullName = "Quản trị viên", Role = "admin" });
-            Users.Add(new AppUser { Id = 2, Username = "viewer", Password = "password123", FullName = "Người xem", Role = "viewer" });
         }
 
         // Fallback default device if empty
