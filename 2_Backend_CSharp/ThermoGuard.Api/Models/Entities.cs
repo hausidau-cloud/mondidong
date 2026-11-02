@@ -31,7 +31,27 @@ public class AppUser
 
     [JsonPropertyName("token_expires")]
     public DateTime? TokenExpires { get; set; }
+
+    [NotMapped]
+    [JsonPropertyName("station_ids")]
+    public List<int> StationIds { get; set; } = new();
 }
+
+public class StationAssignment
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("user_id")]
+    public int UserId { get; set; }
+
+    [JsonPropertyName("device_id")]
+    public int DeviceId { get; set; }
+
+    [JsonPropertyName("assigned_at")]
+    public DateTime AssignedAt { get; set; } = TimeHelper.VnNow;
+}
+
 
 public class Device
 {

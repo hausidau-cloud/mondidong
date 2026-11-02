@@ -6,6 +6,7 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../staff_screen.dart';
 import 'station_screen.dart';
 
 class ConfigTab extends StatefulWidget {
@@ -305,12 +306,13 @@ API_KEY     = "$apiKey"''';
         row('Chu kỳ gửi', '${s.sendInterval} giây'),
         row('Firmware', s.firmware ?? '—'),
         row('Lần cuối', '${ddmmHhmm(s.lastSeen)} (${ago(s.lastSeen)})'),
+        row('Nhân viên trực', s.viewers.isEmpty ? 'Chưa phân công (Unassigned)' : s.viewers.map((u) => u.fullName).join(', ')),
         if (admin) ...[
           const Divider(height: 28),
           Row(children: [
             const Icon(Icons.shield_rounded, size: 18, color: AppColors.accent),
             const SizedBox(width: 8),
-            const Expanded(child: Text('Bảo mật thiết bị', style: TextStyle(fontWeight: FontWeight.w700))),
+            const Expanded(child: Text('Bảo mật & Phân công trạm', style: TextStyle(fontWeight: FontWeight.w700))),
             Chip(
               visualDensity: VisualDensity.compact,
               label: Text(locked ? 'Khóa theo IP' : 'Không khóa IP', style: const TextStyle(fontSize: 12)),
@@ -324,6 +326,11 @@ API_KEY     = "$apiKey"''';
           row('Kiểu xác thực', (s.ingestAuth ?? 'hmac') == 'hmac' ? 'Ký HMAC (an toàn)' : 'API key trần (cũ)'),
           const SizedBox(height: 10),
           Wrap(spacing: 10, runSpacing: 10, children: [
+            OutlinedButton.icon(
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffScreen())),
+              icon: const Icon(Icons.people_alt_rounded, size: 18),
+              label: const Text('Phân công nhân sự'),
+            ),
             OutlinedButton.icon(onPressed: _busy ? null : () => _revealKey(s), icon: const Icon(Icons.vpn_key_rounded, size: 18), label: const Text('Xem / sao chép config.py')),
             OutlinedButton.icon(
               onPressed: _busy ? null : () => _rotateKey(s),

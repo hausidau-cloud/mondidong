@@ -4,6 +4,7 @@ import '../core/api.dart';
 import '../core/format.dart';
 import '../core/theme.dart';
 import '../widgets/common.dart';
+import 'staff_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -82,6 +83,20 @@ class SettingsScreen extends StatelessWidget {
                   ),
                 ]),
               ),
+              if (Session.I.isAdmin) ...[
+                const SizedBox(height: 16),
+                Card(
+                  child: Column(children: [
+                    ListTile(
+                      leading: const Icon(Icons.people_alt_rounded, color: AppColors.accent),
+                      title: const Text('Quản lý nhân sự & Phân công trạm'),
+                      subtitle: const Text('Thêm nhân viên, đổi trạm phụ trách, xóa tài khoản', style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                      trailing: const Icon(Icons.chevron_right_rounded),
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const StaffScreen())),
+                    ),
+                  ]),
+                ),
+              ],
               const SizedBox(height: 16),
               const SectionCard(
                 title: 'Về hệ thống',

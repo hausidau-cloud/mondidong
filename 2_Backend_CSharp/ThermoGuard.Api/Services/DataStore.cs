@@ -17,6 +17,7 @@ public class DataStore
     public List<ReadingRecord> Readings { get; } = new();
     public List<AlertItem> Alerts { get; } = new();
     public List<RelayLogItem> RelayLogs { get; } = new();
+    public List<StationAssignment> Assignments { get; } = new();
     public Dictionary<string, AppUser> ActiveSessions { get; } = new();
 
     private long _nextReadingId = 1;
@@ -51,6 +52,10 @@ public class DataStore
                 Readings.AddRange(history);
                 _nextReadingId = (history.MaxBy(r => r.Id)?.Id ?? 0) + 1;
             }
+            if (db.StationAssignments.Any())
+            {
+                Assignments.AddRange(db.StationAssignments.AsNoTracking().ToList());
+            }
         }
         catch (Exception ex)
         {
@@ -80,7 +85,92 @@ public class DataStore
                 Status = "OFFLINE"
             });
         }
+
+        // Fallback default assignment (viewer -> Station 1)
+        if (Assignments.Count == 0)
+        {
+            Assignments.Add(new StationAssignment { Id = 1, UserId = 2, DeviceId = 1, AssignedAt = TimeHelper.VnNow });
+        }
     }
+
+    public List<int> GetStationIdsForUser(int userId)
+    {
+        lock (_lock)
+        {
+            return Assignments.Where(a => a.UserId == userId).Select(a => a.DeviceId).Distinct().ToList();
+        }
+    }
+
+    public List<int> GetUserIdsForStation(int deviceId)
+    {
+        lock (_lock)
+        {
+            return Assignments.Where(a => a.DeviceId == deviceId).Select(a => a.UserId).Distinct().ToList();
+        }
+    }
+
+    public void SetUserStations(int userId, IEnumerable<int> stationIds, AppDbContext? db = null)
+    {
+        lock (_lock)
+        {
+            Assignments.RemoveAll(a => a.UserId == userId);
+            foreach (var sid in stationIds)
+            {
+                Assignments.Add(new StationAssignment
+                {
+                    Id = Assignments.Count > 0 ? Assignments.Max(a => a.Id) + 1 : 1,
+                    UserId = userId,
+                    DeviceId = sid,
+                    AssignedAt = TimeHelper.VnNow
+                });
+            }
+
+            if (db != null)
+            {
+                try
+                {
+                    var existing = db.StationAssignments.Where(a => a.UserId == userId).ToList();
+                    db.StationAssignments.RemoveRange(existing);
+                    foreach (var sid in stationIds)
+                    {
+                        db.StationAssignments.Add(new StationAssignment
+                        {
+                            UserId = userId,
+                            DeviceId = sid,
+                            AssignedAt = TimeHelper.VnNow
+                        });
+                    }
+                    db.SaveChanges();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(">> Note SetUserStations DB: " + ex.Message);
+                }
+            }
+        }
+    }
+
+    public void RemoveAssignment(int deviceId, int userId, AppDbContext? db = null)
+    {
+        lock (_lock)
+        {
+            Assignments.RemoveAll(a => a.DeviceId == deviceId && a.UserId == userId);
+            if (db != null)
+            {
+                try
+                {
+                    var existing = db.StationAssignments.Where(a => a.DeviceId == deviceId && a.UserId == userId).ToList();
+                    db.StationAssignments.RemoveRange(existing);
+                    db.SaveChanges();
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(">> Note RemoveAssignment DB: " + ex.Message);
+                }
+            }
+        }
+    }
+
 
     public static string ComputeHmacSha256(string key, string message)
     {

@@ -14,6 +14,12 @@ public class UserCreateRequest
     public string role { get; set; } = "viewer";
     public string? old { get; set; }
     public string? @new { get; set; }
+    public List<int>? station_ids { get; set; }
+}
+
+public class UpdateStationsRequest
+{
+    public List<int> station_ids { get; set; } = new();
 }
 
 public class UserLoginRequest
@@ -36,7 +42,7 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// GET /api/auth: Lấy toàn bộ danh sách tài khoản trong SQL Server (SSMS).
+    /// GET /api/auth: Lấy toàn bộ danh sách tài khoản trong SQL Server kèm trạm phụ trách.
     /// </summary>
     [HttpGet]
     public IActionResult Get([FromQuery] string? action)
@@ -53,18 +59,20 @@ public class AuthController : ControllerBase
                     id = cur.Id,
                     username = cur.Username,
                     full_name = cur.FullName,
-                    role = cur.Role
+                    role = cur.Role,
+                    station_ids = _store.GetStationIdsForUser(cur.Id)
                 } : null
             });
         }
 
-        // Mặc định bấm Try it out trên Swagger -> Trả về tất cả tài khoản trong Database
-        var allUsers = _db.Users.AsNoTracking().Select(u => new
+        // Mặc định bấm Try it out trên Swagger -> Trả về tất cả tài khoản trong Database kèm trạm
+        var allUsers = _db.Users.AsNoTracking().ToList().Select(u => new
         {
             id = u.Id,
             username = u.Username,
             full_name = u.FullName,
-            role = u.Role
+            role = u.Role,
+            station_ids = _store.GetStationIdsForUser(u.Id)
         }).ToList();
 
         return Ok(new
@@ -74,6 +82,7 @@ public class AuthController : ControllerBase
             users = allUsers
         });
     }
+
 
     /// <summary>
     /// POST /api/auth: Đăng nhập (nếu ?action=login) hoặc Tạo tài khoản mới lưu trực tiếp vào SQL Server (SSMS)
@@ -130,17 +139,99 @@ public class AuthController : ControllerBase
         _db.Users.Add(newUser);
         _db.SaveChanges();
 
+        // Đồng bộ vào DataStore in-memory
+        _store.Users.RemoveAll(u => u.Id == newUser.Id);
+        _store.Users.Add(newUser);
+
+        // Gán trạm nếu có truyền station_ids
+        if (req.station_ids != null && req.station_ids.Count > 0)
+        {
+            _store.SetUserStations(newUser.Id, req.station_ids, _db);
+        }
+
         return Ok(new
         {
             ok = true,
-            message = $"Đã tạo thành công tài khoản '{newUser.Username}' và lưu vào SQL Server!",
+            message = $"Đã tạo thành công tài khoản '{newUser.Username}' và phân công trạm!",
             user = new
             {
                 id = newUser.Id,
                 username = newUser.Username,
                 full_name = newUser.FullName,
-                role = newUser.Role
+                role = newUser.Role,
+                station_ids = _store.GetStationIdsForUser(newUser.Id)
             }
+        });
+    }
+
+    /// <summary>
+    /// DELETE /api/auth/users/{id} hoặc DELETE /api/users/{id}: Xóa tài khoản nhân viên (Admin only)
+    /// </summary>
+    [HttpDelete("users/{id}")]
+    [HttpDelete("/api/users/{id}")]
+    public IActionResult DeleteUser(int id)
+    {
+        var cur = GetCurrentUser();
+        if (cur != null && cur.Role != "admin") return Forbid();
+
+        var target = _db.Users.Find(id);
+        if (target == null) return NotFound(new { ok = false, error = "Không tìm thấy người dùng" });
+        if (target.Id == 1 || string.Equals(target.Username, "admin", StringComparison.OrdinalIgnoreCase))
+        {
+            return BadRequest(new { ok = false, error = "Không thể xóa tài khoản Quản trị viên tối cao!" });
+        }
+
+        _db.Users.Remove(target);
+        var assigns = _db.StationAssignments.Where(a => a.UserId == id).ToList();
+        _db.StationAssignments.RemoveRange(assigns);
+        _db.SaveChanges();
+
+        _store.Users.RemoveAll(u => u.Id == id);
+        _store.Assignments.RemoveAll(a => a.UserId == id);
+
+        return Ok(new { ok = true, message = $"Đã xóa thành công người dùng '{target.Username}'" });
+    }
+
+    /// <summary>
+    /// GET /api/users/{id}/stations: Xem danh sách các trạm nhân viên {id} đang phụ trách
+    /// </summary>
+    [HttpGet("/api/users/{id}/stations")]
+    public IActionResult GetUserStations(int id)
+    {
+        var stationIds = _store.GetStationIdsForUser(id);
+        var stations = _store.Devices.Where(d => stationIds.Contains(d.Id)).Select(d => new
+        {
+            id = d.Id,
+            device_code = d.DeviceCode,
+            name = d.Name,
+            location = d.Location,
+            status = d.Status,
+            online = d.Online,
+            relay_label = d.RelayLabel,
+            relay_state = d.RelayState
+        }).ToList();
+
+        return Ok(new { ok = true, user_id = id, total = stations.Count, stations });
+    }
+
+    /// <summary>
+    /// PUT /api/users/{id}/stations: Cập nhật danh sách trạm phân công cho nhân viên {id} (Admin only)
+    /// </summary>
+    [HttpPut("/api/users/{id}/stations")]
+    public IActionResult UpdateUserStations(int id, [FromBody] UpdateStationsRequest req)
+    {
+        var cur = GetCurrentUser();
+        if (cur != null && cur.Role != "admin") return Forbid();
+
+        var target = _db.Users.Find(id);
+        if (target == null) return NotFound(new { ok = false, error = "Không tìm thấy người dùng" });
+
+        _store.SetUserStations(id, req.station_ids ?? new List<int>(), _db);
+        return Ok(new
+        {
+            ok = true,
+            message = $"Đã cập nhật phân công trạm cho '{target.Username}'",
+            station_ids = _store.GetStationIdsForUser(id)
         });
     }
 
@@ -175,7 +266,8 @@ public class AuthController : ControllerBase
                 id = user.Id,
                 username = user.Username,
                 full_name = user.FullName,
-                role = user.Role
+                role = user.Role,
+                station_ids = _store.GetStationIdsForUser(user.Id)
             }
         });
     }
@@ -200,3 +292,4 @@ public class AuthController : ControllerBase
         return null;
     }
 }
+

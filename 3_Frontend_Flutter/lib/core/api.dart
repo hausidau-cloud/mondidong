@@ -133,6 +133,9 @@ class Session extends ChangeNotifier {
   Future<Map<String, dynamic>> post(String path, Map<String, dynamic> body) =>
       _send(() => http.post(_uri(path), headers: _headers, body: jsonEncode(body)));
 
+  Future<Map<String, dynamic>> put(String path, Map<String, dynamic> body) =>
+      _send(() => http.put(_uri(path), headers: _headers, body: jsonEncode(body)));
+
   Future<Map<String, dynamic>> delete(String path) => _send(() => http.delete(_uri(path), headers: _headers));
 
   Future<Map<String, dynamic>> _send(Future<http.Response> Function() fn) async {
@@ -290,4 +293,45 @@ class Session extends ChangeNotifier {
   Future<void> changePassword(String oldPw, String newPw) async {
     await post('auth.php?action=password', {'old': oldPw, 'new': newPw});
   }
+
+  /// Lay danh sach toan bo nguoi dung trong he thong kem cac tram phu trach
+  Future<List<AppUser>> users() async {
+    final j = await get('auth');
+    return ((j['users'] as List?) ?? const []).map((e) => AppUser.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Tao nhan vien moi (viewer) va gan tram truc tiep
+  Future<void> createUser({
+    required String username,
+    required String password,
+    required String fullName,
+    String role = 'viewer',
+    List<int> stationIds = const [],
+  }) async {
+    await post('auth', {
+      'username': username,
+      'password': password,
+      'full_name': fullName,
+      'role': role,
+      'station_ids': stationIds,
+    });
+  }
+
+  /// Cap nhat / doi danh sach tram cho 1 nhan vien
+  Future<void> updateUserStations(int userId, List<int> stationIds) async {
+    await put('users/$userId/stations', {
+      'station_ids': stationIds,
+    });
+  }
+
+  /// Xoa tai khoan nhan vien khoi he thong
+  Future<void> deleteUser(int userId) async {
+    await delete('users/$userId');
+  }
+
+  /// Go nhan vien ra khoi tram
+  Future<void> removeStationViewer(int stationId, int userId) async {
+    await delete('devices/$stationId/viewers/$userId');
+  }
 }
+

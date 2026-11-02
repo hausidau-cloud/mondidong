@@ -159,6 +159,17 @@ class _HubScreenState extends State<HubScreen> {
   Widget _grid(List<Station> all, double width, double hPad) {
     final list = all.where((s) => _filter == 'all' || s.profile == _filter).toList();
     if (list.isEmpty) {
+      if (all.isEmpty && !Session.I.isAdmin) {
+        return const SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.symmetric(vertical: 40),
+            child: EmptyState(
+              icon: Icons.assignment_late_outlined,
+              text: 'Bạn chưa được phân công trạm giám sát nào.\nVui lòng liên hệ Quản trị viên để được gán trạm phụ trách.',
+            ),
+          ),
+        );
+      }
       return const SliverToBoxAdapter(child: EmptyState(icon: Icons.sensors_off_rounded, text: 'Chưa có trạm nào trong nhóm này'));
     }
     final cols = math.max(1, ((width - hPad * 2 - (width >= 900 ? 92 : 0)) / 380).floor());

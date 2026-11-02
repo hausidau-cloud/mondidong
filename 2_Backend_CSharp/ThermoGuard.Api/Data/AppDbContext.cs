@@ -14,6 +14,7 @@ public class AppDbContext : DbContext
     public DbSet<ReadingRecord> Readings { get; set; } = null!;
     public DbSet<AlertItem> Alerts { get; set; } = null!;
     public DbSet<RelayLogItem> RelayLogs { get; set; } = null!;
+    public DbSet<StationAssignment> StationAssignments { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -25,6 +26,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<ReadingRecord>().HasKey(r => r.Id);
         modelBuilder.Entity<AlertItem>().HasKey(a => a.Id);
         modelBuilder.Entity<RelayLogItem>().HasKey(l => l.Id);
+        modelBuilder.Entity<StationAssignment>().HasKey(s => s.Id);
 
         // Seed initial admin user
         modelBuilder.Entity<AppUser>().HasData(
@@ -71,5 +73,17 @@ public class AppDbContext : DbContext
                 OfflineAfter = 60
             }
         );
+
+        // Seed initial assignment: viewer -> Station 1
+        modelBuilder.Entity<StationAssignment>().HasData(
+            new StationAssignment
+            {
+                Id = 1,
+                UserId = 2,
+                DeviceId = 1,
+                AssignedAt = new DateTime(2025, 1, 1, 0, 0, 0, DateTimeKind.Utc)
+            }
+        );
     }
 }
+

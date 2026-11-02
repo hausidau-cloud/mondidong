@@ -6,6 +6,7 @@ namespace ThermoGuard.Api.Controllers;
 
 [ApiController]
 [Route("api/devices")]
+[Route("api/stations")]
 public class DevicesController : ControllerBase
 {
     private readonly DataStore _store;
@@ -15,15 +16,38 @@ public class DevicesController : ControllerBase
         _store = store;
     }
 
+    private AppUser? GetCurrentUser()
+    {
+        var authHeader = Request.Headers.Authorization.ToString();
+        if (authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var token = authHeader["Bearer ".Length..].Trim();
+            if (_store.ActiveSessions.TryGetValue(token, out var user)) return user;
+        }
+        return null;
+    }
+
     [HttpGet]
     public IActionResult Get([FromQuery] int? id)
     {
+        var curUser = GetCurrentUser();
+        List<int>? allowedStationIds = null;
+        if (curUser != null && curUser.Role == "viewer")
+        {
+            allowedStationIds = _store.GetStationIdsForUser(curUser.Id);
+        }
+
         if (id.HasValue)
         {
+            if (allowedStationIds != null && !allowedStationIds.Contains(id.Value))
+            {
+                return Forbid();
+            }
+
             var dev = _store.GetDevice(id.Value);
             if (dev == null)
             {
-                return NotFound(new { ok = false, error = "Không tìm thấy thiết bị" });
+                return NotFound(new { ok = false, error = "Không tìm thấy thiết bị / trạm" });
             }
 
             var devDict = BuildDevicePublic(dev);
@@ -34,14 +58,45 @@ public class DevicesController : ControllerBase
             return Ok(new { ok = true, device = devDict });
         }
 
-        var list = _store.Devices.Select(d =>
+        var source = _store.Devices.AsEnumerable();
+        if (allowedStationIds != null)
+        {
+            source = source.Where(d => allowedStationIds.Contains(d.Id));
+        }
+
+        var list = source.Select(d =>
         {
             var item = BuildDevicePublic(d);
             item["spark"] = _store.GetSpark(d.Id);
             return item;
         }).ToList();
 
-        return Ok(new { ok = true, devices = list });
+        return Ok(new { ok = true, total = list.Count, devices = list, stations = list });
+    }
+
+    [HttpGet("{id}/viewers")]
+    public IActionResult GetViewers(int id)
+    {
+        var viewerIds = _store.GetUserIdsForStation(id);
+        var viewers = _store.Users.Where(u => viewerIds.Contains(u.Id)).Select(u => new
+        {
+            id = u.Id,
+            username = u.Username,
+            full_name = u.FullName,
+            role = u.Role
+        }).ToList();
+
+        return Ok(new { ok = true, station_id = id, total = viewers.Count, viewers });
+    }
+
+    [HttpDelete("{deviceId}/viewers/{userId}")]
+    public IActionResult RemoveViewer(int deviceId, int userId, [FromServices] Data.AppDbContext db)
+    {
+        var cur = GetCurrentUser();
+        if (cur != null && cur.Role != "admin") return Forbid();
+
+        _store.RemoveAssignment(deviceId, userId, db);
+        return Ok(new { ok = true, message = "Đã gỡ nhân viên khỏi trạm" });
     }
 
     private Dictionary<string, object?> BuildDevicePublic(Device d)
@@ -82,7 +137,16 @@ public class DevicesController : ControllerBase
             ["firmware"] = d.Firmware,
             ["oled_msg"] = d.OledMsg,
             ["key_version"] = 1,
-            ["ingest_auth"] = "hmac"
+            ["ingest_auth"] = "hmac",
+            ["viewer_ids"] = _store.GetUserIdsForStation(d.Id),
+            ["viewers"] = _store.Users.Where(u => _store.GetUserIdsForStation(d.Id).Contains(u.Id)).Select(u => new
+            {
+                id = u.Id,
+                username = u.Username,
+                full_name = u.FullName,
+                role = u.Role
+            }).ToList()
         };
     }
 }
+

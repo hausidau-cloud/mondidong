@@ -27,17 +27,32 @@ class AppUser {
   final String username;
   final String fullName;
   final String role;
-  AppUser({required this.id, required this.username, required this.fullName, required this.role});
+  final List<int> stationIds;
+  AppUser({
+    required this.id,
+    required this.username,
+    required this.fullName,
+    required this.role,
+    this.stationIds = const [],
+  });
 
   factory AppUser.fromJson(Map<String, dynamic> j) => AppUser(
         id: toInt(j['id']),
         username: (j['username'] ?? '').toString(),
         fullName: (j['full_name'] ?? '').toString(),
         role: (j['role'] ?? 'viewer').toString(),
+        stationIds: ((j['station_ids'] as List?) ?? const []).map((e) => toInt(e)).toList(),
       );
 
-  Map<String, dynamic> toJson() => {'id': id, 'username': username, 'full_name': fullName, 'role': role};
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'username': username,
+        'full_name': fullName,
+        'role': role,
+        'station_ids': stationIds,
+      };
 }
+
 
 class RelayLog {
   final String action; // ON | OFF
@@ -130,6 +145,8 @@ class Station {
   final List<double?> spark;
   final List<RelayLog> relayLogs;
   final Stats24h? stats;
+  final List<AppUser> viewers;
+  final List<int> viewerIds;
 
   Station({
     required this.id,
@@ -175,6 +192,8 @@ class Station {
     this.spark = const [],
     this.relayLogs = const [],
     this.stats,
+    this.viewers = const [],
+    this.viewerIds = const [],
   });
 
   factory Station.fromJson(Map<String, dynamic> j) => Station(
@@ -221,6 +240,8 @@ class Station {
         spark: ((j['spark'] as List?) ?? const []).map(toDbl).toList(),
         relayLogs: ((j['relay_logs'] as List?) ?? const []).map((e) => RelayLog.fromJson(e as Map<String, dynamic>)).toList(),
         stats: j['stats24h'] is Map<String, dynamic> ? Stats24h.fromJson(j['stats24h'] as Map<String, dynamic>) : null,
+        viewers: ((j['viewers'] as List?) ?? const []).map((e) => AppUser.fromJson(e as Map<String, dynamic>)).toList(),
+        viewerIds: ((j['viewer_ids'] as List?) ?? const []).map((e) => toInt(e)).toList(),
       );
 
   /// Bien an toan suong: T - Td
