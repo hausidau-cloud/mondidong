@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 import '../core/api.dart';
 import '../core/format.dart';
@@ -69,11 +68,10 @@ class _HubScreenState extends State<HubScreen> {
   }
 
   void _showAddStationDialog() {
-    final codeCtrl = TextEditingController();
     final nameCtrl = TextEditingController();
     final locCtrl = TextEditingController();
     final relayCtrl = TextEditingController(text: 'Bóng đèn 220V / Rơ-le');
-    final keyCtrl = TextEditingController();
+    final descCtrl = TextEditingController();
     bool busy = false;
     String? err;
 
@@ -111,11 +109,10 @@ class _HubScreenState extends State<HubScreen> {
                 InkWell(
                   onTap: () {
                     setDState(() {
-                      codeCtrl.text = 'PICO-01';
-                      nameCtrl.text = 'Trạm Pico 2 W - Phòng Lab';
-                      locCtrl.text = 'Phòng Thực Nghiệm IoT';
-                      relayCtrl.text = 'Bóng đèn 220V / Rơ-le';
-                      keyCtrl.text = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+                      nameCtrl.text = 'Trạm Nhà Màng Thực Nghiệm';
+                      locCtrl.text = 'Khu Thực Nghiệm Công Nghệ Cao';
+                      relayCtrl.text = 'Bóng đèn 220V / Quạt thông gió';
+                      descCtrl.text = 'Giám sát nhiệt độ, độ ẩm và kiểm soát sưởi';
                     });
                   },
                   borderRadius: BorderRadius.circular(10),
@@ -133,7 +130,7 @@ class _HubScreenState extends State<HubScreen> {
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '⚡ Bấm vào đây để tự điền nhanh thông tin mạch Pico 2 W có sẵn',
+                            '⚡ Bấm vào đây để điền nhanh thông tin trạm mẫu',
                             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent),
                           ),
                         ),
@@ -146,21 +143,7 @@ class _HubScreenState extends State<HubScreen> {
                 TextField(
                   controller: nameCtrl,
                   decoration: InputDecoration(
-                    hintText: 'VD: Trạm Pico 2 W số 2',
-                    filled: true,
-                    fillColor: AppColors.bg,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text('Mã trạm (Device Code)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: codeCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: InputDecoration(
-                    hintText: 'VD: PICO-02',
+                    hintText: 'VD: Trạm Nhà Màng 1, Trạm Phòng Lab B',
                     filled: true,
                     fillColor: AppColors.bg,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -173,7 +156,7 @@ class _HubScreenState extends State<HubScreen> {
                 TextField(
                   controller: locCtrl,
                   decoration: InputDecoration(
-                    hintText: 'VD: Phòng Thí Nghiệm B / Nhà màng',
+                    hintText: 'VD: Phòng Thí Nghiệm B / Nhà màng tầng 2',
                     filled: true,
                     fillColor: AppColors.bg,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -186,7 +169,7 @@ class _HubScreenState extends State<HubScreen> {
                 TextField(
                   controller: relayCtrl,
                   decoration: InputDecoration(
-                    hintText: 'VD: Máy bơm / Quạt thông gió / Đèn sưởi',
+                    hintText: 'VD: Bóng đèn 220V / Máy bơm / Quạt',
                     filled: true,
                     fillColor: AppColors.bg,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -194,12 +177,12 @@ class _HubScreenState extends State<HubScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                const Text('Khóa bí mật API Key HMAC (Tùy chọn)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const Text('Mô tả trạm (Tùy chọn)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
                 const SizedBox(height: 6),
                 TextField(
-                  controller: keyCtrl,
+                  controller: descCtrl,
                   decoration: InputDecoration(
-                    hintText: 'Để trống để tự tạo, hoặc dán key từ config.py',
+                    hintText: 'VD: Trạm theo dõi vi khí hậu và bảo quản sản phẩm',
                     filled: true,
                     fillColor: AppColors.bg,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -208,7 +191,7 @@ class _HubScreenState extends State<HubScreen> {
                 ),
                 const SizedBox(height: 10),
                 const Text(
-                  '💡 Nếu để trống, hệ thống sẽ tự sinh API Key mới. Khóa này phải trùng với API_KEY trong config.py trên Pico 2 W.',
+                  '💡 Sau khi tạo trạm, bạn có thể vào trang "Quản lý thiết bị" để gán mạch vi điều khiển (Pico 2 W / ESP32) vào trạm này.',
                   style: TextStyle(fontSize: 11.5, color: AppColors.muted, height: 1.4),
                 ),
               ]),
@@ -223,8 +206,8 @@ class _HubScreenState extends State<HubScreen> {
               onPressed: busy
                   ? null
                   : () async {
-                      if (nameCtrl.text.trim().isEmpty || codeCtrl.text.trim().isEmpty) {
-                        setDState(() => err = 'Vui lòng nhập Tên trạm và Mã trạm');
+                      if (nameCtrl.text.trim().isEmpty) {
+                        setDState(() => err = 'Vui lòng nhập Tên trạm giám sát');
                         return;
                       }
                       setDState(() {
@@ -232,18 +215,16 @@ class _HubScreenState extends State<HubScreen> {
                         err = null;
                       });
                       try {
-                        final res = await Session.I.createStation(
-                          deviceCode: codeCtrl.text.trim().toUpperCase(),
+                        await Session.I.createStation(
                           name: nameCtrl.text.trim(),
-                          location: locCtrl.text.trim(),
-                          relayLabel: relayCtrl.text.trim(),
-                          apiKey: keyCtrl.text.trim().isNotEmpty ? keyCtrl.text.trim() : null,
+                          location: locCtrl.text.trim().isNotEmpty ? locCtrl.text.trim() : null,
+                          relayLabel: relayCtrl.text.trim().isNotEmpty ? relayCtrl.text.trim() : null,
+                          description: descCtrl.text.trim().isNotEmpty ? descCtrl.text.trim() : null,
                         );
                         if (!mounted || !ctx.mounted) return;
                         Navigator.pop(ctx);
                         _load();
-                        final apiKey = res['api_key']?.toString() ?? '';
-                        _showCreatedSuccessDialog(nameCtrl.text.trim(), codeCtrl.text.trim().toUpperCase(), apiKey);
+                        _showCreatedSuccessDialog(nameCtrl.text.trim(), locCtrl.text.trim());
                       } catch (e) {
                         setDState(() {
                           busy = false;
@@ -266,7 +247,7 @@ class _HubScreenState extends State<HubScreen> {
     );
   }
 
-  void _showCreatedSuccessDialog(String name, String code, String apiKey) {
+  void _showCreatedSuccessDialog(String name, String location) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -282,38 +263,28 @@ class _HubScreenState extends State<HubScreen> {
           const Expanded(child: Text('Tạo trạm thành công! 🎉', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
         ]),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Trạm "$name" ($code) đã được thêm thành công và đồng bộ trực tiếp lên Database.', style: const TextStyle(fontSize: 13.5, height: 1.4)),
-          const SizedBox(height: 16),
-          const Text('API KEY CHO PHẦN CỨNG PICO 2 W:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.muted)),
-          const SizedBox(height: 6),
+          Text('Trạm "$name"${location.isNotEmpty ? " ($location)" : ""} đã được tạo thành công!', style: const TextStyle(fontSize: 13.5, height: 1.4)),
+          const SizedBox(height: 14),
           Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: AppColors.bg,
               borderRadius: BorderRadius.circular(10),
               border: Border.all(color: AppColors.border),
             ),
-            child: Row(children: [
-              Expanded(
-                child: SelectableText(
-                  apiKey,
-                  style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w700, color: AppColors.accent, fontSize: 13),
+            child: const Row(
+              children: [
+                Icon(Icons.info_outline_rounded, size: 20, color: AppColors.accent),
+                SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Bước tiếp theo: Vào "Quản lý thiết bị" để thêm vi điều khiển (Pico 2 W / ESP32) và chọn gán vào trạm này.',
+                    style: TextStyle(fontSize: 12, color: AppColors.text2, height: 1.4),
+                  ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.accent),
-                tooltip: 'Sao chép',
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: apiKey));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Đã sao chép API Key vào khay nhớ tạm!'), duration: Duration(seconds: 2)),
-                  );
-                },
-              ),
-            ]),
+              ],
+            ),
           ),
-          const SizedBox(height: 10),
-          const Text('💡 Dán mã API Key này vào file config.py trên mạch Pico 2 W để nạp dữ liệu có chữ ký HMAC.', style: TextStyle(fontSize: 12, color: AppColors.text2, height: 1.4)),
         ]),
         actions: [
           FilledButton(
@@ -690,11 +661,11 @@ class StationCard extends StatelessWidget {
                   Expanded(
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
-                      Text('${s.code} · ${s.location ?? p.label}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                      Text(s.code.isNotEmpty ? '${s.code} · ${s.location ?? p.label}' : 'Chưa gắn vi điều khiển · ${s.location ?? p.label}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
                     ]),
                   ),
                   const SizedBox(width: 6),
-                  StatusPill(s.status, dense: true),
+                  StatusPill(s.code.isEmpty ? 'UNASSIGNED' : s.status, dense: true),
                   if (Session.I.isAdmin && onDelete != null) ...[
                     const SizedBox(width: 4),
                     IconButton(

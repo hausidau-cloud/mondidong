@@ -36,6 +36,7 @@ class StatusStyle {
         'OK' => const StatusStyle('Ổn định', AppColors.ok, Icons.verified_user_rounded),
         'WARNING' => const StatusStyle('Cảnh báo', AppColors.warn, Icons.warning_amber_rounded),
         'DANGER' => const StatusStyle('Nguy hiểm', AppColors.danger, Icons.emergency_rounded),
+        'UNASSIGNED' => const StatusStyle('Chờ thiết bị', AppColors.off, Icons.developer_board_off_rounded),
         _ => const StatusStyle('Mất kết nối', AppColors.off, Icons.wifi_off_rounded),
       };
 }

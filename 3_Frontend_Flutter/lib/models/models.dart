@@ -147,6 +147,11 @@ class Station {
   final Stats24h? stats;
   final List<AppUser> viewers;
   final List<int> viewerIds;
+  final int? stationId;
+  final String? stationName;
+  final int? deviceId;
+  final String? deviceCode;
+  final String? deviceName;
 
   Station({
     required this.id,
@@ -194,6 +199,11 @@ class Station {
     this.stats,
     this.viewers = const [],
     this.viewerIds = const [],
+    this.stationId,
+    this.stationName,
+    this.deviceId,
+    this.deviceCode,
+    this.deviceName,
   });
 
   factory Station.fromJson(Map<String, dynamic> j) => Station(
@@ -207,7 +217,7 @@ class Station {
         relayMode: (j['relay_mode'] ?? 'AUTO').toString(),
         status: (j['status'] ?? 'OFFLINE').toString(),
         relayOn: toBool(j['relay_state']),
-        online: j['online'] == true || (j['status'] != null && j['status'] != 'OFFLINE'),
+        online: j['online'] == true || (j['status'] != null && j['status'] != 'OFFLINE' && j['status'] != 'UNASSIGNED'),
         airTemp: toDbl(j['air_temp']),
         airHum: toDbl(j['air_hum']),
         dewPoint: toDbl(j['dew_point']),
@@ -242,6 +252,11 @@ class Station {
         stats: j['stats24h'] is Map<String, dynamic> ? Stats24h.fromJson(j['stats24h'] as Map<String, dynamic>) : null,
         viewers: ((j['viewers'] as List?) ?? const []).map((e) => AppUser.fromJson(e as Map<String, dynamic>)).toList(),
         viewerIds: ((j['viewer_ids'] as List?) ?? const []).map((e) => toInt(e)).toList(),
+        stationId: j['station_id'] != null ? toInt(j['station_id']) : null,
+        stationName: j['station_name']?.toString(),
+        deviceId: j['device_id'] != null ? toInt(j['device_id']) : null,
+        deviceCode: j['device_code']?.toString(),
+        deviceName: j['device_name']?.toString(),
       );
 
   /// Bien an toan suong: T - Td

@@ -161,13 +161,14 @@ class Session extends ChangeNotifier {
 
   // ------------------------------------------------------------------ API nghiep vu
   Future<List<Station>> stations() async {
-    final j = await get('devices.php');
-    return (j['devices'] as List).map((e) => Station.fromJson(e as Map<String, dynamic>)).toList();
+    final j = await get('stations');
+    final raw = ((j['stations'] ?? j['devices']) as List?) ?? [];
+    return raw.map((e) => Station.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<Station> station(int id) async {
-    final j = await get('devices.php?id=$id');
-    return Station.fromJson(j['device'] as Map<String, dynamic>);
+    final j = await get('stations?id=$id');
+    return Station.fromJson((j['station'] ?? j['device']) as Map<String, dynamic>);
   }
 
   Future<Series> series(int id, String range) async {
@@ -336,21 +337,17 @@ class Session extends ChangeNotifier {
 
   /// Them tram giam sat moi (Admin only)
   Future<Map<String, dynamic>> createStation({
-    required String deviceCode,
     required String name,
     String? location,
     String? relayLabel,
     String? description,
-    String? apiKey,
     List<int>? viewerIds,
   }) async {
     final j = await post('stations', {
-      'device_code': deviceCode,
       'name': name,
       'location': location ?? 'Phòng Lab',
-      'relay_label': relayLabel ?? 'Rơ-le / Thiết bị',
+      'relay_label': relayLabel ?? 'Bóng đèn 220V / Rơ-le',
       'description': description ?? 'Trạm giám sát IoT',
-      'api_key': ?apiKey,
       'viewer_ids': ?viewerIds,
     });
     return j;
@@ -376,6 +373,7 @@ class Session extends ChangeNotifier {
   Future<Map<String, dynamic>> createDevice({
     required String deviceCode,
     required String name,
+    int? stationId,
     String? location,
     String? relayLabel,
     String? description,
@@ -384,12 +382,18 @@ class Session extends ChangeNotifier {
     final j = await post('devices', {
       'device_code': deviceCode,
       'name': name,
+      'station_id': ?stationId,
       'location': location ?? 'Phòng Lab',
       'relay_label': relayLabel ?? 'Rơ-le / Thiết bị',
       'description': description ?? 'Thiết bị phần cứng IoT',
       'api_key': ?apiKey,
     });
     return j;
+  }
+
+  /// Cap nhat thong tin thiet bi phan cung (Admin only)
+  Future<void> updateDevice(int deviceId, Map<String, dynamic> data) async {
+    await put('devices/$deviceId', data);
   }
 
   /// Xoa thiet bi phan cung (Admin only)

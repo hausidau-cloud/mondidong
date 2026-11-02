@@ -16,6 +16,7 @@ class DevicesScreen extends StatefulWidget {
 
 class _DevicesScreenState extends State<DevicesScreen> {
   List<Station>? _devices;
+  List<Station>? _stations;
   bool _loading = true;
   String? _error;
 
@@ -31,10 +32,14 @@ class _DevicesScreenState extends State<DevicesScreen> {
       _error = null;
     });
     try {
-      final list = await Session.I.devices();
+      final results = await Future.wait([
+        Session.I.devices(),
+        Session.I.stations(),
+      ]);
       if (!mounted) return;
       setState(() {
-        _devices = list;
+        _devices = results[0];
+        _stations = results[1];
         _loading = false;
       });
     } catch (e) {
@@ -52,6 +57,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     final locCtrl = TextEditingController();
     final relayCtrl = TextEditingController(text: 'Bóng đèn 220V / Rơ-le');
     final keyCtrl = TextEditingController();
+    int? selectedStationId = _stations != null && _stations!.isNotEmpty ? _stations!.first.id : null;
     bool busy = false;
     String? err;
 
@@ -90,7 +96,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   onTap: () {
                     setDState(() {
                       codeCtrl.text = 'PICO-01';
-                      nameCtrl.text = 'Trạm Pico 2 W - Phòng Lab';
+                      nameCtrl.text = 'Mạch Vi Điều Khiển Pico 2 W số 1';
                       locCtrl.text = 'Phòng Thực Nghiệm IoT';
                       relayCtrl.text = 'Bóng đèn 220V / Rơ-le';
                       keyCtrl.text = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
@@ -119,7 +125,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     ),
                   ),
                 ),
-                const Text('Mã thiết bị (Device Code)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const Text('Mã thiết bị phần cứng (Device Code)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: codeCtrl,
@@ -133,7 +139,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                const Text('Tên thiết bị hiển thị', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const Text('Tên thiết bị vi điều khiển', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: nameCtrl,
@@ -146,7 +152,35 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                const Text('Vị trí lắp đặt', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const Text('Chọn Trạm giám sát kết nối', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<int?>(
+                  initialValue: selectedStationId,
+                  dropdownColor: AppColors.surface,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                  items: [
+                    const DropdownMenuItem<int?>(
+                      value: null,
+                      child: Text('-- Chưa gán vào trạm nào --', style: TextStyle(color: AppColors.muted)),
+                    ),
+                    if (_stations != null)
+                      for (final s in _stations!)
+                        DropdownMenuItem<int?>(
+                          value: s.id,
+                          child: Text('${s.name} (${s.location ?? "Khu vực"})', style: const TextStyle(fontWeight: FontWeight.w600)),
+                        ),
+                  ],
+                  onChanged: (val) {
+                    setDState(() => selectedStationId = val);
+                  },
+                ),
+                const SizedBox(height: 14),
+                const Text('Vị trí lắp đặt phần cứng', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: locCtrl,
@@ -186,7 +220,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 ),
                 const SizedBox(height: 10),
                 const Text(
-                  '💡 Nếu để trống, hệ thống sẽ tự động tạo API Key mới. Khóa này phải trùng với API_KEY trong config.py của Pico.',
+                  '💡 Nếu để trống, hệ thống sẽ tự động tạo API Key mới. Khóa này phải trùng với API_KEY trong config.py của thiết bị phần cứng.',
                   style: TextStyle(fontSize: 11.5, color: AppColors.muted, height: 1.4),
                 ),
               ]),
@@ -213,15 +247,17 @@ class _DevicesScreenState extends State<DevicesScreen> {
                         final res = await Session.I.createDevice(
                           deviceCode: codeCtrl.text.trim().toUpperCase(),
                           name: nameCtrl.text.trim(),
-                          location: locCtrl.text.trim(),
-                          relayLabel: relayCtrl.text.trim(),
+                          stationId: selectedStationId,
+                          location: locCtrl.text.trim().isNotEmpty ? locCtrl.text.trim() : null,
+                          relayLabel: relayCtrl.text.trim().isNotEmpty ? relayCtrl.text.trim() : null,
                           apiKey: keyCtrl.text.trim().isNotEmpty ? keyCtrl.text.trim() : null,
                         );
                         if (!mounted || !ctx.mounted) return;
                         Navigator.pop(ctx);
                         _load();
                         final key = res['api_key']?.toString() ?? '';
-                        _showDeviceCreatedDialog(nameCtrl.text.trim(), codeCtrl.text.trim().toUpperCase(), key);
+                        final stName = _stations?.firstWhere((s) => s.id == selectedStationId, orElse: () => _stations!.first).name;
+                        _showDeviceCreatedDialog(nameCtrl.text.trim(), codeCtrl.text.trim().toUpperCase(), key, selectedStationId != null ? stName : null);
                       } catch (e) {
                         setDState(() {
                           busy = false;
@@ -244,7 +280,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
     );
   }
 
-  void _showDeviceCreatedDialog(String name, String code, String apiKey) {
+  void _showDeviceCreatedDialog(String name, String code, String apiKey, String? stationName) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -261,8 +297,27 @@ class _DevicesScreenState extends State<DevicesScreen> {
         ]),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('Thiết bị "$name" ($code) đã được kích hoạt thành công trên hệ thống.', style: const TextStyle(fontSize: 13.5, height: 1.4)),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.hub_rounded, size: 16, color: AppColors.accent),
+                const SizedBox(width: 6),
+                Text(
+                  'Gán vào trạm: ${stationName ?? "Chưa gán trạm"}',
+                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.accent),
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 16),
-          const Text('API KEY HMAC (NẠP VÀO PICO 2 W):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.muted)),
+          const Text('API KEY HMAC (NẠP VÀO VI ĐIỀU KHIỂN):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.muted)),
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -294,6 +349,85 @@ class _DevicesScreenState extends State<DevicesScreen> {
             child: const Text('Đã hiểu / Hoàn tất'),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showAssignStationDialog(Station d) {
+    int? selectedId = d.stationId;
+    bool busy = false;
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: AppColors.surface,
+          title: Row(children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(color: AppColors.accent.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(10)),
+              child: const Icon(Icons.link_rounded, color: AppColors.accent, size: 22),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(child: Text('Gán trạm cho thiết bị', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
+          ]),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Chọn trạm giám sát mà thiết bị "${d.name}" (${d.code}) sẽ gửi dữ liệu đo đạc vào:', style: const TextStyle(fontSize: 13, height: 1.4)),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<int?>(
+                initialValue: selectedId,
+                dropdownColor: AppColors.surface,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: AppColors.bg,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                ),
+                items: [
+                  const DropdownMenuItem<int?>(
+                    value: null,
+                    child: Text('-- Không gán vào trạm nào --', style: TextStyle(color: AppColors.muted)),
+                  ),
+                  if (_stations != null)
+                    for (final s in _stations!)
+                      DropdownMenuItem<int?>(
+                        value: s.id,
+                        child: Text('${s.name} (${s.location ?? "Khu vực"})', style: const TextStyle(fontWeight: FontWeight.w600)),
+                      ),
+                ],
+                onChanged: (val) {
+                  setDState(() => selectedId = val);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Hủy', style: TextStyle(color: AppColors.muted))),
+            FilledButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      setDState(() => busy = true);
+                      try {
+                        await Session.I.updateDevice(d.id, {'station_id': selectedId ?? 0});
+                        if (!mounted || !ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        _load();
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã cập nhật trạm cho thiết bị thành công!')));
+                      } catch (e) {
+                        setDState(() => busy = false);
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi: $e'), backgroundColor: AppColors.danger));
+                      }
+                    },
+              child: busy
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Lưu thay đổi'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -500,7 +634,35 @@ SEND_INTERVAL = ${d.sendInterval}  # Giay
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(d.name, style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16)),
-                Text('${d.location ?? "Phòng Lab"} · ${d.relayLabel}', style: const TextStyle(fontSize: 12.5, color: AppColors.muted)),
+                const SizedBox(height: 3),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: d.stationName != null && d.stationName != 'Chưa gán trạm' ? AppColors.accent.withValues(alpha: 0.12) : AppColors.muted.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.hub_rounded, size: 12, color: d.stationName != null && d.stationName != 'Chưa gán trạm' ? AppColors.accent : AppColors.muted),
+                          const SizedBox(width: 4),
+                          Text(
+                            d.stationName ?? 'Chưa gán trạm',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: d.stationName != null && d.stationName != 'Chưa gán trạm' ? AppColors.accent : AppColors.muted,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Flexible(child: Text('${d.location ?? "Phòng Lab"} · ${d.relayLabel}', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.muted))),
+                  ],
+                ),
               ]),
             ),
             Container(
@@ -517,6 +679,11 @@ SEND_INTERVAL = ${d.sendInterval}  # Giay
               ]),
             ),
             const SizedBox(width: 6),
+            IconButton(
+              icon: const Icon(Icons.link_rounded, color: AppColors.accent, size: 20),
+              tooltip: 'Gán trạm giám sát',
+              onPressed: () => _showAssignStationDialog(d),
+            ),
             IconButton(
               icon: const Icon(Icons.delete_outline_rounded, color: AppColors.muted, size: 20),
               tooltip: 'Xóa thiết bị',
