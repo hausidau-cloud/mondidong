@@ -109,6 +109,7 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
       ChartLine(key: 'air', label: 'Nhiệt độ KK', values: sr.airTemp, color: AppColors.air),
       ChartLine(key: 'dew', label: 'Điểm sương', values: sr.dewPoint, color: AppColors.dew, dashed: true),
       ChartLine(key: 'hum', label: 'Độ ẩm', values: sr.airHum, color: AppColors.hum, unit: '%', rightAxis: true),
+      ChartLine(key: 'light', label: 'Quang trở (MKE-S02)', values: sr.light, color: const Color(0xFFFACC15), unit: '%', rightAxis: true),
     ];
     final legend = [
       for (final l in lines) (l.key, l.label, l.color),

@@ -229,7 +229,7 @@ class Station {
 
 class Series {
   final List<DateTime> t;
-  final List<double?> airTemp, airHum, dewPoint, probeTemp;
+  final List<double?> airTemp, airHum, dewPoint, probeTemp, light;
   final List<bool> relay;
   final int bucket;
   Series({
@@ -238,6 +238,7 @@ class Series {
     required this.airHum,
     required this.dewPoint,
     required this.probeTemp,
+    this.light = const [],
     required this.relay,
     required this.bucket,
   });
@@ -250,12 +251,13 @@ class Series {
       airHum: l('air_hum'),
       dewPoint: l('dew_point'),
       probeTemp: l('probe_temp'),
+      light: l('light').isNotEmpty ? l('light') : l('light_pct'),
       relay: ((j['relay'] as List?) ?? const []).map(toBool).toList(),
       bucket: bucket,
     );
   }
 
-  static Series empty() => Series(t: [], airTemp: [], airHum: [], dewPoint: [], probeTemp: [], relay: [], bucket: 0);
+  static Series empty() => Series(t: [], airTemp: [], airHum: [], dewPoint: [], probeTemp: [], light: [], relay: [], bucket: 0);
 }
 
 class Reading {
