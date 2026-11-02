@@ -1,6 +1,13 @@
+using System.ComponentModel.DataAnnotations.Schema;
 using System.Text.Json.Serialization;
 
 namespace ThermoGuard.Api.Models;
+
+public static class TimeHelper
+{
+    public static DateTime VnNow => DateTime.UtcNow.AddHours(7);
+    public static string VnNowStr => DateTime.UtcNow.AddHours(7).ToString("yyyy-MM-dd HH:mm:ss");
+}
 
 public class AppUser
 {
@@ -75,6 +82,10 @@ public class Device
 
     [JsonPropertyName("probe_temp")]
     public double? ProbeTemp { get; set; }
+
+    [NotMapped]
+    [JsonPropertyName("pico_temp")]
+    public double? PicoTemp { get; set; }
 
     [JsonPropertyName("light_raw")]
     public int LightRaw { get; set; } = 0;
@@ -157,6 +168,10 @@ public class ReadingRecord
     [JsonPropertyName("probe_temp")]
     public double? ProbeTemp { get; set; }
 
+    [NotMapped]
+    [JsonPropertyName("pico_temp")]
+    public double? PicoTemp { get; set; }
+
     [JsonPropertyName("light_pct")]
     public int LightPct { get; set; }
 
@@ -170,7 +185,7 @@ public class ReadingRecord
     public int? Rssi { get; set; }
 
     [JsonPropertyName("recorded_at")]
-    public string RecordedAt { get; set; } = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+    public string RecordedAt { get; set; } = TimeHelper.VnNowStr;
 }
 
 public class AlertItem
@@ -194,7 +209,7 @@ public class AlertItem
     public bool IsResolved { get; set; } = false;
 
     [JsonPropertyName("created_at")]
-    public string CreatedAt { get; set; } = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+    public string CreatedAt { get; set; } = TimeHelper.VnNowStr;
 
     [JsonPropertyName("resolved_at")]
     public string? ResolvedAt { get; set; }
@@ -218,7 +233,7 @@ public class RelayLogItem
     public string? FullName { get; set; }
 
     [JsonPropertyName("created_at")]
-    public string CreatedAt { get; set; } = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+    public string CreatedAt { get; set; } = TimeHelper.VnNowStr;
 }
 
 public class IngestRequest
@@ -247,6 +262,9 @@ public class IngestRequest
 
     [JsonPropertyName("probe_temp")]
     public double? ProbeTemp { get; set; }
+
+    [JsonPropertyName("pico_temp")]
+    public double? PicoTemp { get; set; }
 
     [JsonPropertyName("dew_point")]
     public double? DewPoint { get; set; }

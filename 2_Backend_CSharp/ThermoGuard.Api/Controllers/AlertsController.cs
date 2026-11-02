@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc;
+using ThermoGuard.Api.Models;
 using ThermoGuard.Api.Services;
 
 namespace ThermoGuard.Api.Controllers;
@@ -87,7 +88,7 @@ public class AlertsController : ControllerBase
             if (alert != null)
             {
                 alert.IsResolved = true;
-                alert.ResolvedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                alert.ResolvedAt = TimeHelper.VnNowStr;
             }
             return Ok(new { ok = true });
         }
@@ -97,7 +98,7 @@ public class AlertsController : ControllerBase
             foreach (var a in _store.Alerts)
             {
                 a.IsResolved = true;
-                a.ResolvedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+                a.ResolvedAt = TimeHelper.VnNowStr;
             }
             return Ok(new { ok = true });
         }

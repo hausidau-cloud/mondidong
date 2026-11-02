@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Mvc;
+using ThermoGuard.Api.Models;
 using ThermoGuard.Api.Services;
 
 namespace ThermoGuard.Api.Controllers;
@@ -62,7 +63,7 @@ public class ControlController : ControllerBase
                 Source = "MANUAL",
                 Reason = $"Đổi chế độ {mode} từ App Flutter",
                 FullName = "Quản trị viên",
-                CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
+                CreatedAt = TimeHelper.VnNowStr
             });
 
             _store.UpdateDevice(dev);

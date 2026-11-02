@@ -118,7 +118,7 @@ public class DataStore
                 return (false, "Không tìm thấy thiết bị: " + code, null);
             }
 
-            double? airT = null, airH = null, probeT = null, dew = null;
+            double? airT = null, airH = null, probeT = null, dew = null, picoT = null;
             int? lightRaw = 0, lightPct = 0, relayState = 0, rssi = null;
             string? fw = null;
 
@@ -141,6 +141,7 @@ public class DataStore
                     if (root.TryGetProperty("air_temp", out var at) && at.ValueKind == JsonValueKind.Number) airT = at.GetDouble();
                     if (root.TryGetProperty("air_hum", out var ah) && ah.ValueKind == JsonValueKind.Number) airH = ah.GetDouble();
                     if (root.TryGetProperty("probe_temp", out var pt) && pt.ValueKind == JsonValueKind.Number) probeT = pt.GetDouble();
+                    if (root.TryGetProperty("pico_temp", out var pi) && pi.ValueKind == JsonValueKind.Number) picoT = pi.GetDouble();
                     if (root.TryGetProperty("dew_point", out var dp) && dp.ValueKind == JsonValueKind.Number) dew = dp.GetDouble();
                     if (root.TryGetProperty("light_raw", out var lr) && lr.ValueKind == JsonValueKind.Number) lightRaw = lr.GetInt32();
                     if (root.TryGetProperty("light_pct", out var lp) && lp.ValueKind == JsonValueKind.Number) lightPct = lp.GetInt32();
@@ -158,6 +159,7 @@ public class DataStore
                 airT = req.AirTemp;
                 airH = req.AirHum;
                 probeT = req.ProbeTemp;
+                picoT = req.PicoTemp;
                 dew = req.DewPoint;
                 lightRaw = req.LightRaw ?? 0;
                 lightPct = req.LightPct ?? 0;
@@ -180,13 +182,14 @@ public class DataStore
             dev.AirTemp = airT;
             dev.AirHum = airH;
             dev.ProbeTemp = probeT;
+            dev.PicoTemp = picoT;
             dev.DewPoint = dew;
             dev.LightRaw = lightRaw ?? 0;
             dev.LightPct = lightPct ?? 0;
             dev.Rssi = rssi;
             if (!string.IsNullOrEmpty(fw)) dev.Firmware = fw;
             dev.LastSeenTime = DateTime.UtcNow;
-            dev.LastSeen = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
+            dev.LastSeen = TimeHelper.VnNowStr;
 
             var (status, alertType, alertReason) = EvaluateStatus(dev, airT, airH, probeT, dew);
             dev.Status = status;
@@ -206,7 +209,7 @@ public class DataStore
                         Type = alertType,
                         Message = alertReason,
                         IsResolved = false,
-                        CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
+                        CreatedAt = TimeHelper.VnNowStr
                     };
                     Alerts.Insert(0, newAlert);
                 }
@@ -216,14 +219,14 @@ public class DataStore
                 foreach (var a in Alerts.Where(a => a.DeviceId == dev.Id && !a.IsResolved && a.Type != "OFFLINE"))
                 {
                     a.IsResolved = true;
-                    a.ResolvedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+                    a.ResolvedAt = TimeHelper.VnNowStr;
                 }
             }
 
             foreach (var a in Alerts.Where(a => a.DeviceId == dev.Id && !a.IsResolved && a.Type == "OFFLINE"))
             {
                 a.IsResolved = true;
-                a.ResolvedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss");
+                a.ResolvedAt = TimeHelper.VnNowStr;
             }
             dev.OpenAlerts = Alerts.Count(a => a.DeviceId == dev.Id && !a.IsResolved);
 
@@ -270,7 +273,7 @@ public class DataStore
                     Source = dev.RelayMode == "AUTO" ? "AUTO" : "MANUAL",
                     Reason = alertReason,
                     FullName = "Hệ thống",
-                    CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                    CreatedAt = TimeHelper.VnNowStr
                 };
                 RelayLogs.Insert(0, logItem);
             }
@@ -284,11 +287,12 @@ public class DataStore
                 AirHum = airH,
                 DewPoint = dew,
                 ProbeTemp = probeT,
+                PicoTemp = picoT,
                 LightPct = dev.LightPct,
                 RelayState = dev.RelayState,
                 Status = dev.Status,
                 Rssi = dev.Rssi,
-                RecordedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                RecordedAt = TimeHelper.VnNowStr
             };
             Readings.Insert(0, record);
             if (Readings.Count > 5000) Readings.RemoveAt(Readings.Count - 1);
@@ -307,6 +311,7 @@ public class DataStore
                         AirHum = record.AirHum,
                         DewPoint = record.DewPoint,
                         ProbeTemp = record.ProbeTemp,
+                        PicoTemp = record.PicoTemp,
                         LightPct = record.LightPct,
                         RelayState = record.RelayState,
                         Status = record.Status,
@@ -333,7 +338,7 @@ public class DataStore
                         Type = alertType,
                         Message = alertReason,
                         IsResolved = false,
-                        CreatedAt = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss")
+                        CreatedAt = TimeHelper.VnNowStr
                     });
                 }
             }
@@ -410,7 +415,7 @@ public class DataStore
                     Type = "OFFLINE",
                     Message = $"Trạm {dev.Name} ({dev.DeviceCode}) mất kết nối > {dev.OfflineAfter} giây!",
                     IsResolved = false,
-                    CreatedAt = DateTime.UtcNow.ToString("yyyy-MM-dd HH:mm:ss")
+                    CreatedAt = TimeHelper.VnNowStr
                 };
                 Alerts.Insert(0, newAlert);
                 dev.OpenAlerts = Alerts.Count(a => a.DeviceId == dev.Id && !a.IsResolved);
