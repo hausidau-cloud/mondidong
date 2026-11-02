@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
 
     public DbSet<AppUser> Users { get; set; } = null!;
     public DbSet<Device> Devices { get; set; } = null!;
+    public DbSet<StationItem> Stations { get; set; } = null!;
     public DbSet<ReadingRecord> Readings { get; set; } = null!;
     public DbSet<AlertItem> Alerts { get; set; } = null!;
     public DbSet<RelayLogItem> RelayLogs { get; set; } = null!;
@@ -23,6 +24,7 @@ public class AppDbContext : DbContext
         // Configure Primary Keys
         modelBuilder.Entity<AppUser>().HasKey(u => u.Id);
         modelBuilder.Entity<Device>().HasKey(d => d.Id);
+        modelBuilder.Entity<StationItem>().HasKey(s => s.Id);
         modelBuilder.Entity<ReadingRecord>().HasKey(r => r.Id);
         modelBuilder.Entity<AlertItem>().HasKey(a => a.Id);
         modelBuilder.Entity<RelayLogItem>().HasKey(l => l.Id);

@@ -9,6 +9,7 @@ public class DeviceCreateRequest
 {
     public string device_code { get; set; } = "PICO-02";
     public string name { get; set; } = "Thiết bị Pico 2 W số 2";
+    public int? station_id { get; set; }
     public string? location { get; set; } = "Phòng Thực Nghiệm IoT";
     public string? relay_label { get; set; } = "Bóng đèn 220V / Rơ-le";
     public string? description { get; set; }
@@ -18,6 +19,7 @@ public class DeviceCreateRequest
 public class DeviceUpdateRequest
 {
     public string? name { get; set; }
+    public int? station_id { get; set; }
     public string? location { get; set; }
     public string? relay_label { get; set; }
     public string? description { get; set; }
@@ -107,6 +109,7 @@ public class DevicesController : ControllerBase
             DeviceCode = code,
             ApiKey = apiKey,
             Name = req.name.Trim(),
+            StationId = req.station_id,
             Location = string.IsNullOrWhiteSpace(req.location) ? "Phòng Lab" : req.location.Trim(),
             Profile = "cabinet",
             Description = string.IsNullOrWhiteSpace(req.description) ? "Thiết bị phần cứng IoT" : req.description.Trim(),
@@ -154,6 +157,7 @@ public class DevicesController : ControllerBase
         if (dev == null) return NotFound(new { ok = false, error = "Không tìm thấy thiết bị" });
 
         if (!string.IsNullOrWhiteSpace(req.name)) dev.Name = req.name.Trim();
+        if (req.station_id.HasValue) dev.StationId = req.station_id.Value > 0 ? req.station_id.Value : null;
         if (req.location != null) dev.Location = req.location.Trim();
         if (req.relay_label != null) dev.RelayLabel = req.relay_label.Trim();
         if (req.description != null) dev.Description = req.description.Trim();
@@ -164,6 +168,7 @@ public class DevicesController : ControllerBase
         if (storeDev != null)
         {
             storeDev.Name = dev.Name;
+            storeDev.StationId = dev.StationId;
             storeDev.Location = dev.Location;
             storeDev.RelayLabel = dev.RelayLabel;
             storeDev.Description = dev.Description;
@@ -228,6 +233,8 @@ public class DevicesController : ControllerBase
             ["id"] = d.Id,
             ["device_code"] = d.DeviceCode,
             ["name"] = d.Name,
+            ["station_id"] = d.StationId,
+            ["station_name"] = _store.GetStation(d.StationId ?? 0)?.Name ?? "Chưa gán trạm",
             ["profile"] = d.Profile,
             ["location"] = d.Location,
             ["description"] = d.Description,

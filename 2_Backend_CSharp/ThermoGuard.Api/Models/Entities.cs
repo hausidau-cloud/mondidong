@@ -53,10 +53,34 @@ public class StationAssignment
 }
 
 
+public class StationItem
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "Trạm Giám Sát";
+
+    [JsonPropertyName("location")]
+    public string? Location { get; set; } = "Phòng Lab";
+
+    [JsonPropertyName("description")]
+    public string? Description { get; set; } = "Khu vực giám sát IoT";
+
+    [JsonPropertyName("relay_label")]
+    public string RelayLabel { get; set; } = "Bóng đèn 220V / Rơ-le";
+
+    [JsonPropertyName("created_at")]
+    public string CreatedAt { get; set; } = TimeHelper.VnNowStr;
+}
+
 public class Device
 {
     [JsonPropertyName("id")]
     public int Id { get; set; }
+
+    [JsonPropertyName("station_id")]
+    public int? StationId { get; set; }
 
     [JsonPropertyName("device_code")]
     public string DeviceCode { get; set; } = "PICO-01";

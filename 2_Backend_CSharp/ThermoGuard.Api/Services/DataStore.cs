@@ -14,6 +14,7 @@ public class DataStore
 
     public List<AppUser> Users { get; } = new();
     public List<Device> Devices { get; } = new();
+    public List<StationItem> Stations { get; } = new();
     public List<ReadingRecord> Readings { get; } = new();
     public List<AlertItem> Alerts { get; } = new();
     public List<RelayLogItem> RelayLogs { get; } = new();
@@ -49,10 +50,33 @@ public class DataStore
                 ");
             }
             catch { }
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS Stations (
+                        Id INT AUTO_INCREMENT PRIMARY KEY,
+                        Name VARCHAR(255) NOT NULL,
+                        Location VARCHAR(255),
+                        Description TEXT,
+                        RelayLabel VARCHAR(255) DEFAULT 'Bóng đèn 220V / Rơ-le',
+                        CreatedAt VARCHAR(50)
+                    );
+                ");
+            }
+            catch { }
+            try
+            {
+                db.Database.ExecuteSqlRaw("ALTER TABLE Devices ADD COLUMN StationId INT NULL;");
+            }
+            catch { }
 
             if (db.Users.Any())
             {
                 Users.AddRange(db.Users.AsNoTracking().ToList());
+            }
+            if (db.Stations.Any())
+            {
+                Stations.AddRange(db.Stations.AsNoTracking().ToList());
             }
             if (db.Devices.Any())
             {
@@ -101,6 +125,38 @@ public class DataStore
         if (Assignments.Count == 0)
         {
             Assignments.Add(new StationAssignment { Id = 1, UserId = 2, DeviceId = 1, AssignedAt = TimeHelper.VnNow });
+        }
+
+        // Fallback default station if empty
+        if (Stations.Count == 0)
+        {
+            var defaultSt = new StationItem
+            {
+                Id = 1,
+                Name = "Trạm Pico 2 W - Phòng Lab",
+                Location = "Phòng Lab IoT",
+                Description = "Hệ thống giám sát nhiệt độ, độ ẩm, que nước và ánh sáng",
+                RelayLabel = "Bóng đèn 220V / Rơ-le",
+                CreatedAt = TimeHelper.VnNowStr
+            };
+            Stations.Add(defaultSt);
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                if (!db.Stations.Any())
+                {
+                    db.Stations.Add(defaultSt);
+                    db.SaveChanges();
+                }
+            }
+            catch { }
+        }
+
+        var pico01 = Devices.FirstOrDefault(d => d.DeviceCode == "PICO-01");
+        if (pico01 != null && pico01.StationId == null)
+        {
+            pico01.StationId = 1;
         }
     }
 
@@ -622,6 +678,36 @@ public class DataStore
             Assignments.RemoveAll(a => a.DeviceId == id);
             Readings.RemoveAll(r => r.DeviceId == id);
             Alerts.RemoveAll(a => a.DeviceId == id);
+        }
+    }
+
+    public StationItem? GetStation(int id)
+    {
+        lock (_lock)
+        {
+            return Stations.FirstOrDefault(s => s.Id == id);
+        }
+    }
+
+    public void AddStation(StationItem s)
+    {
+        lock (_lock)
+        {
+            Stations.RemoveAll(x => x.Id == s.Id);
+            Stations.Add(s);
+        }
+    }
+
+    public void DeleteStation(int id)
+    {
+        lock (_lock)
+        {
+            Stations.RemoveAll(s => s.Id == id);
+            // Unassign from any devices
+            foreach (var d in Devices.Where(x => x.StationId == id))
+            {
+                d.StationId = null;
+            }
         }
     }
 }
