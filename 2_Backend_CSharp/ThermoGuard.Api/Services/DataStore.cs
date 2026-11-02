@@ -37,6 +37,18 @@ public class DataStore
             using var scope = _scopeFactory.CreateScope();
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             db.Database.EnsureCreated();
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS StationAssignments (
+                        Id INT AUTO_INCREMENT PRIMARY KEY,
+                        UserId INT NOT NULL,
+                        DeviceId INT NOT NULL,
+                        AssignedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+                    );
+                ");
+            }
+            catch { }
 
             if (db.Users.Any())
             {
