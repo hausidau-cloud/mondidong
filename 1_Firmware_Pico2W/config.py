@@ -15,9 +15,9 @@ WIFI_LIST = [
 SERVER_URL = "https://mondidong.onrender.com"
 
 # 3. THONG TIN THIET BI VA KHOA BAO MAT HMAC-SHA256 (Lay tu App khi bam Them thiet bi)
-DEVICE_CODE = ""
+DEVICE_CODE = "PICO-1"
 # API_KEY la BI MAT duoc cap tu Backend/App. Pico dung no de ky so tung goi tin.
-API_KEY     = ""
+API_KEY     = "faf805d549a04998880242db2f1d3948"
 
 # 4. CHU KY GUI DU LIEU LEN SERVER (Giay) - Giam xuong 2s de cap nhat realtime cuc nhanh
 SEND_INTERVAL_DEFAULT = 2

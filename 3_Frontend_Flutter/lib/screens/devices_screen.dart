@@ -52,11 +52,42 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 
   void _showAddDeviceDialog() {
-    final codeCtrl = TextEditingController();
-    final nameCtrl = TextEditingController();
-    final locCtrl = TextEditingController();
+    final presets = [
+      {
+        'id': 'pico_w',
+        'title': 'Raspberry Pi Pico 2 W (Mã: PICO-1)',
+        'code': 'PICO-1',
+        'name': 'Raspberry Pi Pico 2 W',
+        'key': 'faf805d549a04998880242db2f1d3948',
+        'loc': 'Bàn thực nghiệm số 1',
+        'relay': 'Bóng đèn 220V / Rơ-le',
+      },
+      {
+        'id': 'esp32',
+        'title': 'ESP32 NodeMCU / WROOM (Mã: ESP32-1)',
+        'code': 'ESP32-1',
+        'name': 'ESP32 NodeMCU DevKit',
+        'key': 'esp32_dev_secret_key_8888',
+        'loc': 'Trạm ngoài trời / Vườn',
+        'relay': 'Quạt thông gió / Bơm nước',
+      },
+      {
+        'id': 'custom',
+        'title': '-- Nhập thiết bị tùy chỉnh khác --',
+        'code': '',
+        'name': '',
+        'key': '',
+        'loc': '',
+        'relay': '',
+      },
+    ];
+
+    String selectedPreset = 'pico_w';
+    final codeCtrl = TextEditingController(text: 'PICO-1');
+    final nameCtrl = TextEditingController(text: 'Raspberry Pi Pico 2 W');
+    final locCtrl = TextEditingController(text: 'Bàn thực nghiệm số 1');
     final relayCtrl = TextEditingController(text: 'Bóng đèn 220V / Rơ-le');
-    final keyCtrl = TextEditingController();
+    final keyCtrl = TextEditingController(text: 'faf805d549a04998880242db2f1d3948');
     int? selectedStationId = _stations != null && _stations!.isNotEmpty ? _stations!.first.id : null;
     bool busy = false;
     String? err;
@@ -92,72 +123,52 @@ class _DevicesScreenState extends State<DevicesScreen> {
                       Expanded(child: Text(err!, style: const TextStyle(color: AppColors.danger, fontSize: 13))),
                     ]),
                   ),
-                InkWell(
-                  onTap: () {
+
+                // 1. Dropdown Chọn loại thiết bị phần cứng
+                const Text('1. Chọn loại thiết bị phần cứng (List thiết bị)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.accent)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  initialValue: selectedPreset,
+                  dropdownColor: AppColors.surface,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.memory_rounded, size: 20, color: AppColors.accent),
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                  items: [
+                    for (final p in presets)
+                      DropdownMenuItem<String>(
+                        value: p['id'],
+                        child: Text(p['title']!, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                      ),
+                  ],
+                  onChanged: (val) {
+                    if (val == null) return;
                     setDState(() {
-                      codeCtrl.text = 'PICO-01';
-                      nameCtrl.text = 'Mạch Vi Điều Khiển Pico 2 W số 1';
-                      locCtrl.text = 'Phòng Thực Nghiệm IoT';
-                      relayCtrl.text = 'Bóng đèn 220V / Rơ-le';
-                      keyCtrl.text = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+                      selectedPreset = val;
+                      final p = presets.firstWhere((item) => item['id'] == val);
+                      if (val != 'custom') {
+                        codeCtrl.text = p['code']!;
+                        nameCtrl.text = p['name']!;
+                        keyCtrl.text = p['key']!;
+                        locCtrl.text = p['loc']!;
+                        relayCtrl.text = p['relay']!;
+                      }
                     });
                   },
-                  borderRadius: BorderRadius.circular(10),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                    margin: const EdgeInsets.only(bottom: 14),
-                    decoration: BoxDecoration(
-                      color: AppColors.accent.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
-                    ),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.bolt_rounded, color: AppColors.accent, size: 20),
-                        SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            '⚡ Bấm vào đây để tự điền nhanh thông tin mạch Pico 2 W có sẵn',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const Text('Mã thiết bị phần cứng (Device Code)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: codeCtrl,
-                  textCapitalization: TextCapitalization.characters,
-                  decoration: InputDecoration(
-                    hintText: 'VD: PICO-02, ESP32-01',
-                    filled: true,
-                    fillColor: AppColors.bg,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
                 ),
                 const SizedBox(height: 14),
-                const Text('Tên thiết bị vi điều khiển', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: nameCtrl,
-                  decoration: InputDecoration(
-                    hintText: 'VD: Mạch Pico 2 W - Phòng Lab B',
-                    filled: true,
-                    fillColor: AppColors.bg,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text('Chọn Trạm giám sát kết nối', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+
+                // 2. Dropdown Chọn Trạm kết nối
+                const Text('2. Chọn Trạm giám sát kết nối (List trạm)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.accent)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<int?>(
                   initialValue: selectedStationId,
                   dropdownColor: AppColors.surface,
                   decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.hub_rounded, size: 20, color: AppColors.accent),
                     filled: true,
                     fillColor: AppColors.bg,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -179,13 +190,56 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     setDState(() => selectedStationId = val);
                   },
                 ),
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+
+                const Text('Mã thiết bị phần cứng (Device Code)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: codeCtrl,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    hintText: 'VD: PICO-1, ESP32-1',
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text('Tên thiết bị vi điều khiển', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'VD: Raspberry Pi Pico W, ESP32 NodeMCU',
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text('Khóa bí mật API Key HMAC', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: keyCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Tự điền theo mẫu hoặc nhập key từ file config.py',
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
                 const SizedBox(height: 14),
                 const Text('Vị trí lắp đặt phần cứng', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
                 const SizedBox(height: 6),
                 TextField(
                   controller: locCtrl,
                   decoration: InputDecoration(
-                    hintText: 'VD: Bàn thực nghiệm số 2',
+                    hintText: 'VD: Bàn thực nghiệm số 1',
                     filled: true,
                     fillColor: AppColors.bg,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -198,20 +252,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 TextField(
                   controller: relayCtrl,
                   decoration: InputDecoration(
-                    hintText: 'VD: Quạt thông gió / Đèn sưởi',
-                    filled: true,
-                    fillColor: AppColors.bg,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text('Khóa bí mật API Key HMAC (Tùy chọn)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: keyCtrl,
-                  decoration: InputDecoration(
-                    hintText: 'Để trống để tự tạo, hoặc dán key từ config.py',
+                    hintText: 'VD: Bóng đèn 220V / Rơ-le',
                     filled: true,
                     fillColor: AppColors.bg,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -220,7 +261,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 ),
                 const SizedBox(height: 10),
                 const Text(
-                  '💡 Nếu để trống, hệ thống sẽ tự động tạo API Key mới. Khóa này phải trùng với API_KEY trong config.py của thiết bị phần cứng.',
+                  '💡 Bạn có thể chọn mẫu ở ô 1 để tự điền nhanh Mã và Key, hoặc tự chỉnh sửa theo ý muốn.',
                   style: TextStyle(fontSize: 11.5, color: AppColors.muted, height: 1.4),
                 ),
               ]),
@@ -281,6 +322,22 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 
   void _showDeviceCreatedDialog(String name, String code, String apiKey, String? stationName) {
+    final codeSnippet = 'DEVICE_CODE = "$code"\nAPI_KEY     = "$apiKey"';
+    final fullConfig = '''# =====================================================================
+# CAU HINH TRAM GIAM SAT IOT - RASPBERRY PI PICO 2 W
+# =====================================================================
+WIFI_LIST = [
+    ("_hhau.05_", "00000000"),
+    ("iPhone", "88888888"),
+]
+
+SERVER_URL = "${Session.I.baseUrl}"
+DEVICE_CODE = "$code"
+API_KEY     = "$apiKey"
+
+SEND_INTERVAL_DEFAULT = 2
+''';
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -295,58 +352,106 @@ class _DevicesScreenState extends State<DevicesScreen> {
           const SizedBox(width: 12),
           const Expanded(child: Text('Thêm thiết bị thành công! 🎉', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
         ]),
-        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Thiết bị "$name" ($code) đã được kích hoạt thành công trên hệ thống.', style: const TextStyle(fontSize: 13.5, height: 1.4)),
-          const SizedBox(height: 10),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: AppColors.accent.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
+        content: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Thiết bị "$name" ($code) đã được kích hoạt thành công trên hệ thống.', style: const TextStyle(fontSize: 13.5, height: 1.4)),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.hub_rounded, size: 16, color: AppColors.accent),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Gán vào trạm: ${stationName ?? "Chưa gán trạm"}',
+                    style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.accent),
+                  ),
+                ],
+              ),
             ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.hub_rounded, size: 16, color: AppColors.accent),
-                const SizedBox(width: 6),
-                Text(
-                  'Gán vào trạm: ${stationName ?? "Chưa gán trạm"}',
-                  style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.accent),
-                ),
-              ],
+            const SizedBox(height: 14),
+            const Text('THÔNG TIN CẤU HÌNH config.py CHO MẠCH:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.muted)),
+            const SizedBox(height: 6),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(color: AppColors.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
+              child: SelectableText(
+                codeSnippet,
+                style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w700, color: AppColors.accent, fontSize: 12.5, height: 1.5),
+              ),
             ),
-          ),
-          const SizedBox(height: 16),
-          const Text('API KEY HMAC (NẠP VÀO VI ĐIỀU KHIỂN):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.muted)),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: AppColors.bg, borderRadius: BorderRadius.circular(10), border: Border.all(color: AppColors.border)),
-            child: Row(children: [
+            const SizedBox(height: 10),
+            Row(children: [
               Expanded(
-                child: SelectableText(
-                  apiKey,
-                  style: const TextStyle(fontFamily: 'monospace', fontWeight: FontWeight.w700, color: AppColors.accent, fontSize: 13),
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: codeSnippet));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã sao chép mã DEVICE_CODE & API_KEY!')));
+                  },
+                  icon: const Icon(Icons.copy_rounded, size: 15),
+                  label: const Text('Chép mã config', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.accent,
+                    side: const BorderSide(color: AppColors.border),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.accent),
-                tooltip: 'Sao chép',
-                onPressed: () {
-                  Clipboard.setData(ClipboardData(text: apiKey));
-                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã sao chép API Key!')));
-                },
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(ClipboardData(text: fullConfig));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã sao chép toàn bộ file config.py!')));
+                  },
+                  icon: const Icon(Icons.code_rounded, size: 15),
+                  label: const Text('Chép cả file .py', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent.withValues(alpha: 0.2),
+                    foregroundColor: AppColors.accent,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                  ),
+                ),
               ),
             ]),
-          ),
-          const SizedBox(height: 10),
-          const Text('💡 Dán mã key này vào file config.py của thiết bị để nạp dữ liệu bảo mật.', style: TextStyle(fontSize: 12, color: AppColors.text2, height: 1.4)),
-        ]),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                const Icon(Icons.info_outline_rounded, color: Colors.amber, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Vì Pico 2 W là mạch phần cứng cắm USB, Cloud không thể tự ghi vào chip nhớ khi mạch chưa kết nối mạng. Antigravity đã tự động cập nhật sẵn mã "$code" & API Key vào file 1_Firmware_Pico2W/config.py trong máy tính của bạn rồi!',
+                    style: const TextStyle(fontSize: 11.5, color: AppColors.text2, height: 1.45),
+                  ),
+                ),
+              ]),
+            ),
+          ]),
+        ),
         actions: [
           FilledButton(
             onPressed: () => Navigator.pop(ctx),
-            style: FilledButton.styleFrom(shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
-            child: const Text('Đã hiểu / Hoàn tất'),
+            style: FilledButton.styleFrom(
+              backgroundColor: AppColors.accent,
+              foregroundColor: const Color(0xFF04131D),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+            child: const Text('Đã hiểu / Hoàn tất', style: TextStyle(fontWeight: FontWeight.w700)),
           ),
         ],
       ),
