@@ -1,0 +1,48 @@
+# ==============================================================
+# THERMOGUARD IOT - GITIGNORE
+# ==============================================================
+
+# IDE & Editor files
+**/.vs/
+**/.idea/
+**/.vscode/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# OS & Temp
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Archives & loose files in root
+*.rar
+*.zip
+*.docx
+crop_labels_check.png
+mo_tuong_lua_port_5000.bat
+nap_code_pico.py
+main.py
+doanMon/
+
+# Python cache
+__pycache__/
+*.pyc
+.venv/
+
+# .NET Build artifacts
+**/bin/
+**/obj/
+*.db
+*.db-shm
+*.db-wal
+
+# Flutter Build artifacts
+3_Frontend_Flutter/.dart_tool/
+3_Frontend_Flutter/build/
+3_Frontend_Flutter/.flutter-plugins
+3_Frontend_Flutter/.flutter-plugins-dependencies
+
+# Giữ lại file .env trong Flutter để app chạy được
+!3_Frontend_Flutter/.env

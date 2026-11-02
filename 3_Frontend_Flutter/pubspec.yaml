@@ -1,0 +1,26 @@
+name: laptrinhdidong
+description: "ThermoGuard - App giám sát nhiệt độ/độ ẩm IoT (Raspberry Pi Pico 2 W + SHT30 + DS18B20) kết nối API PHP/MySQL."
+publish_to: 'none'
+version: 2.0.0+2
+
+environment:
+  sdk: ^3.13.3
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+  http: ^1.6.0
+  shared_preferences: ^2.3.0
+  flutter_dotenv: ^6.0.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - .env
+
