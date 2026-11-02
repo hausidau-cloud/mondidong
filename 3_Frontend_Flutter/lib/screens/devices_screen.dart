@@ -344,7 +344,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
 WIFI_SSID = "YOUR_WIFI_NAME"
 WIFI_PASS = "YOUR_WIFI_PASSWORD"
 
-SERVER_URL = "${Session.I.baseUrl}/api/ingest"
+SERVER_URL = "${Session.I.baseUrl}"
 DEVICE_CODE = "${d.code}"
 API_KEY = "${d.apiKey ?? 'a1b2c3d4e5f60718293a4b5c6d7e8f90'}"
 
