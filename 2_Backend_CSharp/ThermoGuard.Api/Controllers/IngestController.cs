@@ -5,6 +5,7 @@ using ThermoGuard.Api.Services;
 namespace ThermoGuard.Api.Controllers;
 
 [ApiController]
+[Tags("Ingest")]
 [Route("api/ingest")]
 public class IngestController : ControllerBase
 {

@@ -7,6 +7,7 @@ using ThermoGuard.Api.Services;
 namespace ThermoGuard.Api.Controllers;
 
 [ApiController]
+[Tags("Control")]
 [Route("api/control")]
 public class ControlController : ControllerBase
 {

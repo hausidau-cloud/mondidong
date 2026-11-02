@@ -1,4 +1,6 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
 using ThermoGuard.Api.Data;
 using ThermoGuard.Api.Services;
 
@@ -74,12 +76,13 @@ builder.Services.AddCors(options =>
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
-    c.SwaggerDoc("v1", new()
+    c.SwaggerDoc("v1", new OpenApiInfo
     {
         Title = "ThermoGuard IoT API (C# .NET 9 + MySQL / SQL Server)",
         Version = "v1",
         Description = "API Backend cho trạm giám sát Raspberry Pi Pico 2 W và App di động Flutter"
     });
+    c.DocumentFilter<SwaggerTagOrderFilter>();
 });
 
 var app = builder.Build();
@@ -110,8 +113,8 @@ app.UseSwaggerUI(c =>
     c.RoutePrefix = "swagger";
 });
 
-// Redirect root "/" to "/swagger" so opening browser immediately shows Swagger
-app.MapGet("/", () => Results.Redirect("/swagger"));
+// Redirect root "/" to "/swagger" so opening browser immediately shows Swagger (ẩn khỏi tài liệu Swagger)
+app.MapGet("/", () => Results.Redirect("/swagger")).ExcludeFromDescription();
 
 app.MapControllers();
 
@@ -122,3 +125,69 @@ Console.WriteLine(">> Server dang lang nghe tren cong: " + (portEnv ?? "5000"));
 Console.WriteLine("==================================================================");
 
 app.Run();
+
+/// <summary>
+/// Bộ lọc sắp xếp danh mục API trên Swagger theo đúng thứ tự logic người dùng yêu cầu:
+/// Auth -> Users -> Stations -> Devices -> Control -> Alerts -> Readings -> Ingest -> Time
+/// </summary>
+public class SwaggerTagOrderFilter : IDocumentFilter
+{
+    private static readonly string[] TagOrder =
+    {
+        "Auth",
+        "Users",
+        "Stations",
+        "Devices",
+        "Control",
+        "Alerts",
+        "Readings",
+        "Ingest",
+        "Time"
+    };
+
+    public void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
+    {
+        var tagDescriptions = new Dictionary<string, string>
+        {
+            ["Auth"] = "Xác thực tài khoản, kiểm tra phiên đăng nhập & đổi mật khẩu",
+            ["Users"] = "Quản lý danh sách nhân sự (Viewer/Admin) & phân công trạm",
+            ["Stations"] = "Quản lý trạm giám sát môi trường & nhân viên phụ trách",
+            ["Devices"] = "Danh sách thiết bị phần cứng IoT (Pico 2 W / ESP32)",
+            ["Control"] = "Điều khiển Relay (Bơm/Quạt/Sưởi), cài đặt ngưỡng & tin nhắn OLED",
+            ["Alerts"] = "Lịch sử cảnh báo vượt ngưỡng & xác nhận xử lý sự cố",
+            ["Readings"] = "Lịch sử dữ liệu cảm biến thời gian thực & dữ liệu vẽ biểu đồ",
+            ["Ingest"] = "Cổng nạp dữ liệu tự động từ vi điều khiển IoT (HMAC-SHA256)",
+            ["Time"] = "Đồng bộ thời gian chuẩn cho phần cứng (RTC Sync)"
+        };
+
+        swaggerDoc.Tags = TagOrder
+            .Select(name => new OpenApiTag
+            {
+                Name = name,
+                Description = tagDescriptions.TryGetValue(name, out var desc) ? desc : null
+            })
+            .ToList();
+
+        // Sắp xếp lại danh sách Paths theo đúng thứ tự Tag
+        var orderedPaths = new OpenApiPaths();
+        foreach (var tag in TagOrder)
+        {
+            foreach (var path in swaggerDoc.Paths)
+            {
+                var match = path.Value.Operations.Values.Any(op => op.Tags.Any(t => t.Name == tag));
+                if (match && !orderedPaths.ContainsKey(path.Key))
+                {
+                    orderedPaths.Add(path.Key, path.Value);
+                }
+            }
+        }
+        foreach (var path in swaggerDoc.Paths)
+        {
+            if (!orderedPaths.ContainsKey(path.Key))
+            {
+                orderedPaths.Add(path.Key, path.Value);
+            }
+        }
+        swaggerDoc.Paths = orderedPaths;
+    }
+}

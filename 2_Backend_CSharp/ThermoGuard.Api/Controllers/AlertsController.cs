@@ -6,6 +6,7 @@ using ThermoGuard.Api.Services;
 namespace ThermoGuard.Api.Controllers;
 
 [ApiController]
+[Tags("Alerts")]
 [Route("api/alerts")]
 public class AlertsController : ControllerBase
 {

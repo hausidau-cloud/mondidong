@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ThermoGuard.Api.Controllers;
 
 [ApiController]
+[Tags("Time")]
 [Route("api/time")]
 public class TimeController : ControllerBase
 {

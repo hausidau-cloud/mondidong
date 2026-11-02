@@ -4,6 +4,7 @@ using ThermoGuard.Api.Services;
 namespace ThermoGuard.Api.Controllers;
 
 [ApiController]
+[Tags("Readings")]
 [Route("api/readings")]
 public class ReadingsController : ControllerBase
 {
