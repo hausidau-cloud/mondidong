@@ -53,6 +53,7 @@ public class ReadingsController : ControllerBase
         var airHumList = records.Select(r => r.AirHum).ToList();
         var dewPointList = records.Select(r => r.DewPoint).ToList();
         var probeTempList = records.Select(r => r.ProbeTemp).ToList();
+        var lightList = records.Select(r => (double?)r.LightPct).ToList();
         var relayList = records.Select(r => r.RelayState == 1).ToList();
 
         return Ok(new
@@ -66,6 +67,8 @@ public class ReadingsController : ControllerBase
                 air_hum = airHumList,
                 dew_point = dewPointList,
                 probe_temp = probeTempList,
+                light = lightList,
+                light_pct = lightList,
                 relay = relayList
             }
         });
