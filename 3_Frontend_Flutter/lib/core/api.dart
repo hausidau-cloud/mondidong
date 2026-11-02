@@ -341,6 +341,7 @@ class Session extends ChangeNotifier {
     String? location,
     String? relayLabel,
     String? description,
+    String? apiKey,
     List<int>? viewerIds,
   }) async {
     final j = await post('stations', {
@@ -349,6 +350,7 @@ class Session extends ChangeNotifier {
       'location': location ?? 'Phòng Lab',
       'relay_label': relayLabel ?? 'Rơ-le / Thiết bị',
       'description': description ?? 'Trạm giám sát IoT',
+      'api_key': ?apiKey,
       'viewer_ids': ?viewerIds,
     });
     return j;

@@ -47,10 +47,11 @@ class _DevicesScreenState extends State<DevicesScreen> {
   }
 
   void _showAddDeviceDialog() {
-    final codeCtrl = TextEditingController(text: 'PICO-02');
-    final nameCtrl = TextEditingController(text: 'Thiết bị Pico 2 W số 2');
-    final locCtrl = TextEditingController(text: 'Phòng Thực Nghiệm IoT B');
+    final codeCtrl = TextEditingController();
+    final nameCtrl = TextEditingController();
+    final locCtrl = TextEditingController();
     final relayCtrl = TextEditingController(text: 'Bóng đèn 220V / Rơ-le');
+    final keyCtrl = TextEditingController();
     bool busy = false;
     String? err;
 
@@ -137,9 +138,22 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   ),
                 ),
+                const SizedBox(height: 14),
+                const Text('Khóa bí mật API Key HMAC (Tùy chọn)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: keyCtrl,
+                  decoration: InputDecoration(
+                    hintText: 'Để trống để tự tạo, hoặc dán key từ config.py',
+                    filled: true,
+                    fillColor: AppColors.bg,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  ),
+                ),
                 const SizedBox(height: 10),
                 const Text(
-                  '💡 Hệ thống sẽ tự động tạo API Key bảo mật HMAC-SHA256 để nạp vào config.py của thiết bị này.',
+                  '💡 Nếu để trống, hệ thống sẽ tự động tạo API Key mới. Khóa này phải trùng với API_KEY trong config.py của Pico.',
                   style: TextStyle(fontSize: 11.5, color: AppColors.muted, height: 1.4),
                 ),
               ]),
@@ -168,6 +182,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                           name: nameCtrl.text.trim(),
                           location: locCtrl.text.trim(),
                           relayLabel: relayCtrl.text.trim(),
+                          apiKey: keyCtrl.text.trim().isNotEmpty ? keyCtrl.text.trim() : null,
                         );
                         if (!mounted || !ctx.mounted) return;
                         Navigator.pop(ctx);
