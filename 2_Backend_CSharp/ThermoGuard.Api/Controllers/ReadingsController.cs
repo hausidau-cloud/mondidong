@@ -23,10 +23,12 @@ public class ReadingsController : ControllerBase
         [FromQuery] int page = 1)
     {
         var devId = device_id ?? _store.Devices.FirstOrDefault()?.Id ?? 1;
+        var targetDevice = _store.GetDevice(devId) ?? _store.Devices.FirstOrDefault(d => d.StationId == devId);
+        var resolvedDevId = targetDevice?.Id ?? devId;
 
         if (mode == "table")
         {
-            var all = _store.Readings.Where(r => r.DeviceId == devId).ToList();
+            var all = _store.Readings.Where(r => r.DeviceId == devId || r.DeviceId == resolvedDevId).ToList();
             var pageSize = 20;
             var rows = all.Skip((page - 1) * pageSize).Take(pageSize).ToList();
 
@@ -44,7 +46,7 @@ public class ReadingsController : ControllerBase
         // series: { t: [...], air_temp: [...], air_hum: [...], dew_point: [...], probe_temp: [...], relay: [...] }
         // bucket: int
         var records = _store.Readings
-            .Where(r => r.DeviceId == devId)
+            .Where(r => r.DeviceId == devId || r.DeviceId == resolvedDevId)
             .Take(60)
             .Reverse()
             .ToList();

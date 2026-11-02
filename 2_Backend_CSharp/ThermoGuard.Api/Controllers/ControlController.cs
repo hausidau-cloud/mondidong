@@ -43,7 +43,7 @@ public class ControlController : ControllerBase
     {
         var act = action?.ToLowerInvariant() ?? "";
         var devId = ReadInt(body?["device_id"]) ?? 1;
-        var dev = _store.GetDevice(devId);
+        var dev = _store.GetDevice(devId) ?? _store.Devices.FirstOrDefault(d => d.StationId == devId);
         if (dev == null)
         {
             return NotFound(new { ok = false, error = "Không tìm thấy thiết bị" });

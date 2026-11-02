@@ -18,9 +18,16 @@ public class AlertsController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult Get([FromQuery] string? state, [FromQuery] string? level, [FromQuery] int page = 1)
+    public IActionResult Get([FromQuery] string? state, [FromQuery] string? level, [FromQuery] int? device_id, [FromQuery] int page = 1)
     {
         var list = _store.Alerts.AsEnumerable();
+
+        if (device_id.HasValue)
+        {
+            var targetDevice = _store.GetDevice(device_id.Value) ?? _store.Devices.FirstOrDefault(d => d.StationId == device_id.Value);
+            var targetId = targetDevice?.Id ?? device_id.Value;
+            list = list.Where(a => a.DeviceId == device_id.Value || a.DeviceId == targetId);
+        }
 
         if (state == "open")
         {
