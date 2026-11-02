@@ -16,12 +16,10 @@ bool toBool(dynamic v) => toInt(v) == 1 || v == true;
 
 DateTime? toTime(dynamic v) {
   if (v == null) return null;
-  var s = v.toString().trim().replaceFirst(' ', 'T');
-  if (!s.endsWith('Z') && !s.contains('+') && (!s.contains('-') || (s.length > 10 && !s.substring(10).contains('-')))) {
-    s += 'Z';
-  }
-  final dt = DateTime.tryParse(s);
-  return dt?.toLocal();
+  final s = v.toString().trim();
+  final dt = DateTime.tryParse(s.replaceFirst(' ', 'T'));
+  if (dt == null) return null;
+  return dt.isUtc ? dt.toLocal() : dt;
 }
 
 class AppUser {
@@ -117,7 +115,7 @@ class Station {
   final String? location, description;
   final String relayLabel, relayMode, status;
   final bool relayOn, online;
-  final double? airTemp, airHum, dewPoint, probeTemp;
+  final double? airTemp, airHum, dewPoint, probeTemp, picoTemp;
   final int lightPct, lightRaw;
   final double airTempMax, airHumMax, probeMin, probeMax, dewMargin, hysteresis, offsetAir, offsetProbe;
   final int offlineAfter, openAlerts, sendInterval;
@@ -149,6 +147,7 @@ class Station {
     this.airHum,
     this.dewPoint,
     this.probeTemp,
+    this.picoTemp,
     this.lightPct = 0,
     this.lightRaw = 0,
     required this.airTempMax,
@@ -194,6 +193,7 @@ class Station {
         airHum: toDbl(j['air_hum']),
         dewPoint: toDbl(j['dew_point']),
         probeTemp: toDbl(j['probe_temp']),
+        picoTemp: toDbl(j['pico_temp']),
         lightPct: toInt(j['light_pct']),
         lightRaw: toInt(j['light_raw']),
         airTempMax: toDbl(j['air_temp_max']) ?? 40,
@@ -229,7 +229,7 @@ class Station {
 
 class Series {
   final List<DateTime> t;
-  final List<double?> airTemp, airHum, dewPoint, probeTemp, light;
+  final List<double?> airTemp, airHum, dewPoint, probeTemp, picoTemp, light;
   final List<bool> relay;
   final int bucket;
   Series({
@@ -238,6 +238,7 @@ class Series {
     required this.airHum,
     required this.dewPoint,
     required this.probeTemp,
+    this.picoTemp = const [],
     this.light = const [],
     required this.relay,
     required this.bucket,
@@ -251,23 +252,37 @@ class Series {
       airHum: l('air_hum'),
       dewPoint: l('dew_point'),
       probeTemp: l('probe_temp'),
+      picoTemp: l('pico_temp'),
       light: l('light').isNotEmpty ? l('light') : l('light_pct'),
       relay: ((j['relay'] as List?) ?? const []).map(toBool).toList(),
       bucket: bucket,
     );
   }
 
-  static Series empty() => Series(t: [], airTemp: [], airHum: [], dewPoint: [], probeTemp: [], light: [], relay: [], bucket: 0);
+  static Series empty() => Series(t: [], airTemp: [], airHum: [], dewPoint: [], probeTemp: [], picoTemp: [], light: [], relay: [], bucket: 0);
 }
 
 class Reading {
   final int id;
   final DateTime? at;
-  final double? airTemp, airHum, dewPoint, probeTemp;
+  final double? airTemp, airHum, dewPoint, probeTemp, picoTemp;
+  final int lightPct;
   final bool relay;
   final String status;
   final int? rssi;
-  Reading({required this.id, this.at, this.airTemp, this.airHum, this.dewPoint, this.probeTemp, required this.relay, required this.status, this.rssi});
+  Reading({
+    required this.id,
+    this.at,
+    this.airTemp,
+    this.airHum,
+    this.dewPoint,
+    this.probeTemp,
+    this.picoTemp,
+    this.lightPct = 0,
+    required this.relay,
+    required this.status,
+    this.rssi,
+  });
 
   factory Reading.fromJson(Map<String, dynamic> j) => Reading(
         id: toInt(j['id']),
@@ -276,6 +291,8 @@ class Reading {
         airHum: toDbl(j['air_hum']),
         dewPoint: toDbl(j['dew_point']),
         probeTemp: toDbl(j['probe_temp']),
+        picoTemp: toDbl(j['pico_temp']),
+        lightPct: toInt(j['light_pct']),
         relay: toBool(j['relay_state']),
         status: (j['status'] ?? 'OK').toString(),
         rssi: j['rssi'] == null ? null : toInt(j['rssi']),

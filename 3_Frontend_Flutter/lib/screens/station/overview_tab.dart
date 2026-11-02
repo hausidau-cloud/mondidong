@@ -58,7 +58,9 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
           'Td = ${fmt(s.dewPoint)}°C · ${s.dewMargin > 0 ? 'báo khi < ${fmt(s.dewMargin)}' : 'tham khảo'}', gap == null ? 0 : gap / 15,
           dewRisk ? AppColors.danger : AppColors.dew),
       _G('MKE-S02', 'Độ tối quang trở', s.lightPct.toDouble(), '%', 'Che tối > 45% bật đèn', (s.lightPct) / 100,
-          s.lightPct >= 45 ? AppColors.warn : AppColors.probe),
+          s.lightPct >= 45 ? AppColors.warn : const Color(0xFFFACC15)),
+      _G('PICO 2 W', 'Nhiệt độ chip Pico', s.picoTemp, '°C', 'Cảm biến ADC4 bo mạch', (s.picoTemp ?? 0) / 70.0,
+          (s.picoTemp ?? 0) > 60 ? AppColors.danger : AppColors.accent),
     ];
     return LayoutBuilder(builder: (ctx, c) {
       final cols = c.maxWidth >= 1000 ? 4 : 2;
@@ -107,6 +109,7 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
     final lines = [
       ChartLine(key: 'probe', label: p.probeLabel, values: sr.probeTemp, color: AppColors.probe, fill: true),
       ChartLine(key: 'air', label: 'Nhiệt độ KK', values: sr.airTemp, color: AppColors.air),
+      ChartLine(key: 'pico', label: 'Nhiệt độ Pico', values: sr.picoTemp, color: const Color(0xFF38BDF8), dashed: true),
       ChartLine(key: 'dew', label: 'Điểm sương', values: sr.dewPoint, color: AppColors.dew, dashed: true),
       ChartLine(key: 'hum', label: 'Độ ẩm', values: sr.airHum, color: AppColors.hum, unit: '%', rightAxis: true),
       ChartLine(key: 'light', label: 'Quang trở (MKE-S02)', values: sr.light, color: const Color(0xFFFACC15), unit: '%', rightAxis: true),

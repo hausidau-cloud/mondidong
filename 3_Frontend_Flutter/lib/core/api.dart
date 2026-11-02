@@ -180,6 +180,7 @@ class Session extends ChangeNotifier {
       final List<double?> airHums = [];
       final List<double?> dewPoints = [];
       final List<double?> probeTemps = [];
+      final List<double?> picoTemps = [];
       final List<double?> lights = [];
       final List<bool> relays = [];
 
@@ -190,6 +191,7 @@ class Session extends ChangeNotifier {
           final at = toDbl(item['air_t'] ?? item['air_temp']);
           final ah = toDbl(item['air_h'] ?? item['air_hum']);
           final pt = toDbl(item['probe'] ?? item['probe_temp']);
+          final pi = toDbl(item['pico_t'] ?? item['pico_temp']);
           final lt = toDbl(item['light'] ?? item['light_pct'] ?? item['light_raw']);
           double? dp = toDbl(item['dew_point'] ?? item['dew']);
           if (dp == null && at != null && ah != null && ah > 0) {
@@ -204,6 +206,7 @@ class Session extends ChangeNotifier {
           airHums.add(ah);
           dewPoints.add(dp);
           probeTemps.add(pt);
+          picoTemps.add(pi);
           lights.add(lt);
           relays.add(r);
         }
@@ -215,6 +218,7 @@ class Session extends ChangeNotifier {
         airHum: airHums,
         dewPoint: dewPoints,
         probeTemp: probeTemps,
+        picoTemp: picoTemps,
         light: lights,
         relay: relays,
         bucket: bucket,
