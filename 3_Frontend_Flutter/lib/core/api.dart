@@ -8,7 +8,13 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
-
+//Chức năng: Đây là "bộ não giao tiếp" của app với thế giới bên ngoài. Nó chịu trách nhiệm gửi các yêu cầu HTTP (GET, POST) lên đám mây để:
+// Đăng nhập / Đăng xuất tài khoản.
+// Lấy số liệu cảm biến thật từ trạm gửi về (Nhiệt độ nước, Không khí, Độ ẩm, Quang trở).
+// Lấy dữ liệu chuỗi thời gian để vẽ biểu đồ diễn biến.
+// Điều khiển bật/tắt rơ-le từ xa (Relay).
+// Lấy danh sách cảnh báo (Alerts).
+//api.dart đọc biến API_BASE_URL trong file .env để biết chính xác địa chỉ máy chủ backend (https://mondidong.onrender.com) cần gọi tới.
 class ApiException implements Exception {
   final String message;
   final int? status;

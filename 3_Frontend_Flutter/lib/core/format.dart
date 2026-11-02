@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
 import 'theme.dart';
-
+//Chức năng: Chuyên biến các con số, chuỗi thời gian thô từ server thành câu chữ và biểu tượng đẹp mắt, dễ hiểu cho người dùng:
+// Làm tròn số: Biến 24.5678 thành 24.6°C hoặc -- nếu mất tín hiệu.
+// Thời gian thân thiện: Hiển thị kiểu "vừa xong", "5 giây trước", "15:20".
+// Trạng thái & Biểu tượng: Tự động gán nhãn "Ổn định" (xanh lá), "Cảnh báo" (vàng), "Nguy hiểm" (đỏ).
+// Dịch mã cảnh báo: Biến mã kỹ thuật PROBE_HIGH thành tiếng Việt: "Nhiệt độ nước cao".
+// Có liên kết với .env không? 👉 KHÔNG. File này chỉ thuần túy xử lý chuỗi chữ và ngày tháng hiển thị trên màn hình.
 String fmt(double? v, [int d = 1]) => v == null || v.isNaN ? '--' : v.toStringAsFixed(d);
 
 String two(int n) => n.toString().padLeft(2, '0');

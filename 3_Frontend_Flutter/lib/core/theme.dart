@@ -1,5 +1,12 @@
 import 'package:flutter/material.dart';
-
+//Chức năng: Định nghĩa toàn bộ phong cách thẩm mỹ của ứng dụng (Dark Theme hiện đại):
+// Màu sắc các cảm biến:
+// 🔵 Nhiệt độ KK (Xanh dương)
+// 🟣 Độ ẩm (Tím)
+// 🟢 Điểm sương (Xanh mòng két)
+// 🟠 Nhiệt độ nước (Cam)
+// 🟡 Quang trở (Vàng)
+// Cấu hình phông chữ, độ bo tròn của thẻ (Card), ô nhập mật khẩu, nút bấm, thanh điều hướng...
 /// Bang mau dung chung toan app (dong bo voi dashboard web)
 class AppColors {
   static const bg = Color(0xFF080C11);
