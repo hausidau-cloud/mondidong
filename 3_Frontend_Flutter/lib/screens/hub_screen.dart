@@ -70,7 +70,6 @@ class _HubScreenState extends State<HubScreen> {
   void _showAddStationDialog() {
     final nameCtrl = TextEditingController();
     final locCtrl = TextEditingController();
-    final relayCtrl = TextEditingController(text: 'Bóng đèn 220V / Rơ-le');
     final descCtrl = TextEditingController();
     bool busy = false;
     String? err;
@@ -111,7 +110,6 @@ class _HubScreenState extends State<HubScreen> {
                     setDState(() {
                       nameCtrl.text = 'Trạm Nhà Màng Thực Nghiệm';
                       locCtrl.text = 'Khu Thực Nghiệm Công Nghệ Cao';
-                      relayCtrl.text = 'Bóng đèn 220V / Quạt thông gió';
                       descCtrl.text = 'Giám sát nhiệt độ, độ ẩm và kiểm soát sưởi';
                     });
                   },
@@ -164,19 +162,6 @@ class _HubScreenState extends State<HubScreen> {
                   ),
                 ),
                 const SizedBox(height: 14),
-                const Text('Thiết bị điều khiển Relay', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
-                const SizedBox(height: 6),
-                TextField(
-                  controller: relayCtrl,
-                  decoration: InputDecoration(
-                    hintText: 'VD: Bóng đèn 220V / Máy bơm / Quạt',
-                    filled: true,
-                    fillColor: AppColors.bg,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-                  ),
-                ),
-                const SizedBox(height: 14),
                 const Text('Mô tả trạm (Tùy chọn)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
                 const SizedBox(height: 6),
                 TextField(
@@ -218,7 +203,6 @@ class _HubScreenState extends State<HubScreen> {
                         await Session.I.createStation(
                           name: nameCtrl.text.trim(),
                           location: locCtrl.text.trim().isNotEmpty ? locCtrl.text.trim() : null,
-                          relayLabel: relayCtrl.text.trim().isNotEmpty ? relayCtrl.text.trim() : null,
                           description: descCtrl.text.trim().isNotEmpty ? descCtrl.text.trim() : null,
                         );
                         if (!mounted || !ctx.mounted) return;
