@@ -86,6 +86,39 @@ class _DevicesScreenState extends State<DevicesScreen> {
                       Expanded(child: Text(err!, style: const TextStyle(color: AppColors.danger, fontSize: 13))),
                     ]),
                   ),
+                InkWell(
+                  onTap: () {
+                    setDState(() {
+                      codeCtrl.text = 'PICO-01';
+                      nameCtrl.text = 'Trạm Pico 2 W - Phòng Lab';
+                      locCtrl.text = 'Phòng Thực Nghiệm IoT';
+                      relayCtrl.text = 'Bóng đèn 220V / Rơ-le';
+                      keyCtrl.text = 'a1b2c3d4e5f60718293a4b5c6d7e8f90';
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    margin: const EdgeInsets.only(bottom: 14),
+                    decoration: BoxDecoration(
+                      color: AppColors.accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.bolt_rounded, color: AppColors.accent, size: 20),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '⚡ Bấm vào đây để tự điền nhanh thông tin mạch Pico 2 W có sẵn',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.accent),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
                 const Text('Mã thiết bị (Device Code)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: AppColors.text2)),
                 const SizedBox(height: 6),
                 TextField(
