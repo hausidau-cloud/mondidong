@@ -32,18 +32,30 @@ class _HomeShellState extends State<HomeShell> {
   @override
   void dispose() {
     _timer?.cancel();
+    ScaffoldMessenger.of(context).clearSnackBars();
     super.dispose();
   }
 
   /// Kiem tra canh bao moi de bao ngay (du dang o tab nao)
   Future<void> _poll() async {
+    if (!Session.I.loggedIn) return;
     try {
       final a = await Session.I.alerts(state: 'open', limit: 20);
-      if (!mounted) return;
-      final ids = a.rows.map((e) => e.id).toSet();
+      if (!mounted || !Session.I.loggedIn) return;
+
+      final user = Session.I.user;
+      final bool isAdmin = Session.I.isAdmin;
+      final assignedStationIds = user?.stationIds ?? [];
+
+      // Loc danh sach canh bao theo quyen: admin thay het, viewer chi thay tram duoc phan cong
+      final userRows = isAdmin
+          ? a.rows
+          : a.rows.where((r) => assignedStationIds.contains(r.stationId ?? r.deviceId)).toList();
+
+      final ids = userRows.map((e) => e.id).toSet();
       if (_seen != null) {
-        final fresh = a.rows.where((r) => !_seen!.contains(r.id)).toList();
-        if (fresh.isNotEmpty) {
+        final fresh = userRows.where((r) => !_seen!.contains(r.id)).toList();
+        if (fresh.isNotEmpty && Session.I.loggedIn) {
           final r = fresh.first;
           final danger = r.level == 'DANGER';
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -66,7 +78,7 @@ class _HomeShellState extends State<HomeShell> {
       } else {
         _seen = ids;
       }
-      setState(() => _openAlerts = a.openTotal);
+      setState(() => _openAlerts = isAdmin ? a.openTotal : userRows.length);
     } catch (_) {
       // Bo qua: man hinh con se tu bao loi ket noi
     }

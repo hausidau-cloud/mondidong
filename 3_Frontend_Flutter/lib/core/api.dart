@@ -383,6 +383,9 @@ class Session extends ChangeNotifier {
   }
 
   Future<AlertPage> alerts({String state = 'open', int? deviceId, String level = '', int page = 1, int limit = 30}) async {
+    if (!loggedIn) {
+      return AlertPage(rows: [], total: 0, page: 1, pages: 1, openTotal: 0, openDanger: 0, unack: 0, last24h: 0);
+    }
     final q = 'state=$state&limit=$limit&page=$page${deviceId != null ? '&device_id=$deviceId' : ''}${level.isNotEmpty ? '&level=$level' : ''}';
     final j = await get('alerts.php?$q');
     return AlertPage.fromJson(j);

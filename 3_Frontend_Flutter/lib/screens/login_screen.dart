@@ -21,6 +21,16 @@ class _LoginScreenState extends State<LoginScreen> {
   String? _err;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _server.dispose();
     _user.dispose();
@@ -728,21 +738,6 @@ class _LoginScreenState extends State<LoginScreen> {
             onPressed: _busy ? null : _showRegisterDialog,
             icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
             label: const Text('Chưa có tài khoản? Đăng ký nhân viên'),
-          ),
-          const SizedBox(height: 16),
-          const SizedBox(height: 22),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(borderRadius: BorderRadius.circular(12), border: Border.all(color: AppColors.borderStrong)),
-            child: const Text.rich(
-              TextSpan(style: TextStyle(fontSize: 12, color: AppColors.muted, height: 1.5), children: [
-                TextSpan(text: 'Tài khoản mẫu: '),
-                TextSpan(text: 'admin / admin123', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w700)),
-                TextSpan(text: ' (toàn quyền) · '),
-                TextSpan(text: 'viewer / viewer123', style: TextStyle(color: AppColors.text, fontWeight: FontWeight.w700)),
-                TextSpan(text: ' (chỉ xem)'),
-              ]),
-            ),
           ),
         ]),
       ),

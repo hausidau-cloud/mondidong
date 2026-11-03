@@ -17,10 +17,50 @@ public class AlertsController : ControllerBase
         _store = store;
     }
 
+    private AppUser? GetCurrentUser()
+    {
+        var authHeader = Request.Headers.Authorization.ToString();
+        if (authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var token = authHeader["Bearer ".Length..].Trim();
+            if (_store.ActiveSessions.TryGetValue(token, out var user)) return user;
+        }
+        return null;
+    }
+
     [HttpGet]
     public IActionResult Get([FromQuery] string? state, [FromQuery] string? level, [FromQuery] int? device_id, [FromQuery] int page = 1)
     {
+        var curUser = GetCurrentUser();
+        if (curUser == null)
+        {
+            return Unauthorized(new { ok = false, error = "Vui lòng đăng nhập để xem thông báo cảnh báo." });
+        }
+
+        var isViewer = curUser.Role == "viewer";
+        List<int>? allowedStationIds = null;
+        HashSet<int>? allowedDeviceIds = null;
+
+        if (isViewer)
+        {
+            allowedStationIds = _store.GetStationIdsForUser(curUser.Id);
+            allowedDeviceIds = _store.Devices
+                .Where(d => allowedStationIds.Contains(d.Id) || (d.StationId.HasValue && allowedStationIds.Contains(d.StationId.Value)))
+                .Select(d => d.Id)
+                .ToHashSet();
+
+            foreach (var sid in allowedStationIds)
+            {
+                allowedDeviceIds.Add(sid);
+            }
+        }
+
         var list = _store.Alerts.AsEnumerable();
+
+        if (isViewer && allowedDeviceIds != null)
+        {
+            list = list.Where(a => allowedDeviceIds.Contains(a.DeviceId));
+        }
 
         if (device_id.HasValue)
         {
@@ -48,14 +88,17 @@ public class AlertsController : ControllerBase
         var rows = all.Skip((page - 1) * pageSize).Take(pageSize).Select(a =>
         {
             var dev = _store.GetDevice(a.DeviceId);
+            var stId = dev?.StationId ?? a.DeviceId;
+            var st = _store.GetStation(stId);
             return new
             {
                 id = a.Id,
                 device_id = a.DeviceId,
+                station_id = stId,
                 level = a.Level,
                 type = a.Type,
                 message = a.Message,
-                device_name = dev?.Name ?? "Trạm Pico 2 W",
+                device_name = dev?.Name ?? st?.Name ?? "Trạm Pico 2 W",
                 device_code = dev?.DeviceCode ?? "PICO-01",
                 profile = dev?.Profile ?? "cabinet",
                 is_resolved = a.IsResolved,
@@ -65,6 +108,13 @@ public class AlertsController : ControllerBase
                 ack_name = (string?)null
             };
         }).ToList();
+
+        var userScopeAlerts = _store.Alerts.AsEnumerable();
+        if (isViewer && allowedDeviceIds != null)
+        {
+            userScopeAlerts = userScopeAlerts.Where(a => allowedDeviceIds.Contains(a.DeviceId));
+        }
+        var scopeAlertsList = userScopeAlerts.ToList();
 
         return Ok(new
         {
@@ -76,10 +126,10 @@ public class AlertsController : ControllerBase
             pages = (int)Math.Ceiling(all.Count / (double)pageSize),
             counts = new
             {
-                open_total = _store.Alerts.Count(a => !a.IsResolved),
-                open_danger = _store.Alerts.Count(a => !a.IsResolved && string.Equals(a.Level, "danger", StringComparison.OrdinalIgnoreCase)),
-                unack = _store.Alerts.Count(a => !a.IsResolved),
-                last24h = _store.Alerts.Count
+                open_total = scopeAlertsList.Count(a => !a.IsResolved),
+                open_danger = scopeAlertsList.Count(a => !a.IsResolved && string.Equals(a.Level, "danger", StringComparison.OrdinalIgnoreCase)),
+                unack = scopeAlertsList.Count(a => !a.IsResolved),
+                last24h = scopeAlertsList.Count
             }
         });
     }
@@ -87,6 +137,24 @@ public class AlertsController : ControllerBase
     [HttpPost]
     public IActionResult Post([FromQuery] string? action, [FromBody] JsonObject? body)
     {
+        var curUser = GetCurrentUser();
+        if (curUser == null)
+        {
+            return Unauthorized(new { ok = false, error = "Vui lòng đăng nhập để thực hiện thao tác" });
+        }
+
+        var isViewer = curUser.Role == "viewer";
+        HashSet<int>? allowedDeviceIds = null;
+        if (isViewer)
+        {
+            var allowedStationIds = _store.GetStationIdsForUser(curUser.Id);
+            allowedDeviceIds = _store.Devices
+                .Where(d => allowedStationIds.Contains(d.Id) || (d.StationId.HasValue && allowedStationIds.Contains(d.StationId.Value)))
+                .Select(d => d.Id)
+                .ToHashSet();
+            foreach (var sid in allowedStationIds) allowedDeviceIds.Add(sid);
+        }
+
         var act = action?.ToLowerInvariant() ?? "";
 
         if (act == "resolve" || act == "ack")
@@ -95,6 +163,10 @@ public class AlertsController : ControllerBase
             var alert = _store.Alerts.FirstOrDefault(a => a.Id == id);
             if (alert != null)
             {
+                if (isViewer && allowedDeviceIds != null && !allowedDeviceIds.Contains(alert.DeviceId))
+                {
+                    return Forbid();
+                }
                 alert.IsResolved = true;
                 alert.ResolvedAt = TimeHelper.VnNowStr;
             }
@@ -105,6 +177,10 @@ public class AlertsController : ControllerBase
         {
             foreach (var a in _store.Alerts)
             {
+                if (isViewer && allowedDeviceIds != null && !allowedDeviceIds.Contains(a.DeviceId))
+                {
+                    continue;
+                }
                 a.IsResolved = true;
                 a.ResolvedAt = TimeHelper.VnNowStr;
             }

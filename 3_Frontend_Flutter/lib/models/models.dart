@@ -364,6 +364,7 @@ class Paged<T> {
 
 class AlertItem {
   final int id, deviceId;
+  final int? stationId;
   final String level, type, message, deviceName, deviceCode, profile;
   final bool resolved;
   final DateTime? createdAt, resolvedAt, ackAt;
@@ -371,6 +372,7 @@ class AlertItem {
   AlertItem({
     required this.id,
     required this.deviceId,
+    this.stationId,
     required this.level,
     required this.type,
     required this.message,
@@ -389,6 +391,7 @@ class AlertItem {
   factory AlertItem.fromJson(Map<String, dynamic> j) => AlertItem(
         id: toInt(j['id']),
         deviceId: toInt(j['device_id']),
+        stationId: j['station_id'] != null ? toInt(j['station_id']) : toInt(j['device_id']),
         level: (j['level'] ?? 'WARNING').toString(),
         type: (j['type'] ?? '').toString(),
         message: (j['message'] ?? '').toString(),
