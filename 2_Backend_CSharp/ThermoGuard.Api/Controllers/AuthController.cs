@@ -8,9 +8,9 @@ namespace ThermoGuard.Api.Controllers;
 
 public class UserCreateRequest
 {
-    public string username { get; set; } = "sinhvien";
-    public string password { get; set; } = "123";
-    public string full_name { get; set; } = "Nguyễn Văn Test";
+    public string username { get; set; } = "";
+    public string password { get; set; } = "";
+    public string full_name { get; set; } = "";
     public string role { get; set; } = "viewer";
     public string? old { get; set; }
     public string? @new { get; set; }
@@ -194,53 +194,7 @@ public class AuthController : ControllerBase
             return Ok(new { ok = true, message = "Đổi mật khẩu thành công" });
         }
 
-        // 3. Mặc định trên Swagger POST /api/auth -> Tạo tài khoản mới vào SQL Server (SSMS)
-        if (string.IsNullOrWhiteSpace(req.username) || string.IsNullOrWhiteSpace(req.password))
-        {
-            return BadRequest(new { ok = false, error = "Vui lòng nhập username và password" });
-        }
-
-        var uName = req.username.Trim();
-        if (_db.Users.Any(u => u.Username.ToLower() == uName.ToLower()))
-        {
-            return BadRequest(new { ok = false, error = $"Tên đăng nhập '{uName}' đã tồn tại trong SQL Server!" });
-        }
-
-        var newUser = new AppUser
-        {
-            Id = 0,
-            Username = uName,
-            Password = req.password,
-            FullName = string.IsNullOrWhiteSpace(req.full_name) ? uName : req.full_name.Trim(),
-            Role = string.IsNullOrWhiteSpace(req.role) ? "viewer" : req.role.Trim().ToLowerInvariant()
-        };
-
-        _db.Users.Add(newUser);
-        _db.SaveChanges();
-
-        // Đồng bộ vào DataStore in-memory
-        _store.Users.RemoveAll(u => u.Id == newUser.Id);
-        _store.Users.Add(newUser);
-
-        // Gán trạm nếu có truyền station_ids
-        if (req.station_ids != null && req.station_ids.Count > 0)
-        {
-            _store.SetUserStations(newUser.Id, req.station_ids, _db);
-        }
-
-        return Ok(new
-        {
-            ok = true,
-            message = $"Đã tạo thành công tài khoản '{newUser.Username}' và phân công trạm!",
-            user = new
-            {
-                id = newUser.Id,
-                username = newUser.Username,
-                full_name = newUser.FullName,
-                role = newUser.Role,
-                station_ids = _store.GetStationIdsForUser(newUser.Id)
-            }
-        });
+        return BadRequest(new { ok = false, error = "Hành động không hợp lệ" });
     }
 
     /// <summary>

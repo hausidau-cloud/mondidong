@@ -48,166 +48,7 @@ class _StaffScreenState extends State<StaffScreen> {
     }
   }
 
-  void _showAddStaffDialog() {
-    final formKey = GlobalKey<FormState>();
-    final uCtrl = TextEditingController();
-    final pCtrl = TextEditingController();
-    final fCtrl = TextEditingController();
-    final selectedStationIds = <int>{};
-    bool saving = false;
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) {
-          return AlertDialog(
-            backgroundColor: AppColors.surface,
-            title: const Row(
-              children: [
-                Icon(Icons.person_add_alt_1_rounded, color: AppColors.accent),
-                SizedBox(width: 8),
-                Text('Thêm nhân viên mới', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            content: SizedBox(
-              width: 480,
-              child: SingleChildScrollView(
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text(
-                        'Tạo tài khoản Viewer và phân công trạm giám sát ngay tại đây.',
-                        style: TextStyle(fontSize: 12.5, color: AppColors.muted),
-                      ),
-                      const SizedBox(height: 14),
-                      TextFormField(
-                        controller: fCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Họ và tên *',
-                          hintText: 'VD: Nguyễn Văn Linh',
-                          prefixIcon: Icon(Icons.badge_outlined, size: 20),
-                        ),
-                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Vui lòng nhập họ và tên' : null,
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: uCtrl,
-                        decoration: const InputDecoration(
-                          labelText: 'Tên đăng nhập (Username) *',
-                          hintText: 'VD: viewer_linh',
-                          prefixIcon: Icon(Icons.alternate_email_rounded, size: 20),
-                        ),
-                        validator: (v) {
-                          if (v == null || v.trim().isEmpty) return 'Vui lòng nhập tên đăng nhập';
-                          if (v.trim().length < 3) return 'Tối thiểu 3 ký tự';
-                          return null;
-                        },
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: pCtrl,
-                        obscureText: true,
-                        decoration: const InputDecoration(
-                          labelText: 'Mật khẩu *',
-                          hintText: 'VD: 123456',
-                          prefixIcon: Icon(Icons.lock_outline_rounded, size: 20),
-                        ),
-                        validator: (v) => (v == null || v.trim().length < 3) ? 'Mật khẩu tối thiểu 3 ký tự' : null,
-                      ),
-                      const SizedBox(height: 18),
-                      const Text(
-                        'Phân công trạm giám sát:',
-                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5),
-                      ),
-                      const SizedBox(height: 4),
-                      const Text(
-                        'Nhân viên này sẽ chỉ nhìn thấy các trạm được tick chọn bên dưới:',
-                        style: TextStyle(fontSize: 11.5, color: AppColors.muted),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_stations == null || _stations!.isEmpty)
-                        const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 8),
-                          child: Text('Không có trạm nào trong hệ thống', style: TextStyle(color: AppColors.muted)),
-                        )
-                      else
-                        Container(
-                          decoration: BoxDecoration(
-                            color: AppColors.bg,
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: AppColors.border),
-                          ),
-                          child: Column(
-                            children: _stations!.map((st) {
-                              final checked = selectedStationIds.contains(st.id);
-                              return CheckboxListTile(
-                                dense: true,
-                                controlAffinity: ListTileControlAffinity.leading,
-                                value: checked,
-                                title: Text(st.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                                subtitle: Text('${st.code} · ${st.location ?? "Chưa rõ vị trí"}', style: const TextStyle(fontSize: 11.5, color: AppColors.muted)),
-                                onChanged: (val) {
-                                  setDialogState(() {
-                                    if (val == true) {
-                                      selectedStationIds.add(st.id);
-                                    } else {
-                                      selectedStationIds.remove(st.id);
-                                    }
-                                  });
-                                },
-                              );
-                            }).toList(),
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: saving ? null : () => Navigator.pop(ctx),
-                child: const Text('Hủy'),
-              ),
-              FilledButton.icon(
-                onPressed: saving
-                    ? null
-                    : () async {
-                        if (!formKey.currentState!.validate()) return;
-                        setDialogState(() => saving = true);
-                        try {
-                          await Session.I.createUser(
-                            username: uCtrl.text.trim(),
-                            password: pCtrl.text.trim(),
-                            fullName: fCtrl.text.trim(),
-                            role: 'viewer',
-                            stationIds: selectedStationIds.toList(),
-                          );
-                          if (ctx.mounted) Navigator.pop(ctx);
-                          if (mounted) {
-                            toast(context, 'Đã tạo nhân viên ${fCtrl.text.trim()} thành công!');
-                            _loadData();
-                          }
-                        } catch (e) {
-                          setDialogState(() => saving = false);
-                          if (mounted) toast(context, e.toString(), error: true);
-                        }
-                      },
-                icon: saving
-                    ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Icon(Icons.check_rounded, size: 18),
-                label: const Text('Lưu & Phân công'),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
 
   void _showEditStationsDialog(AppUser user) {
     final selectedStationIds = Set<int>.from(user.stationIds);
@@ -367,13 +208,6 @@ class _StaffScreenState extends State<StaffScreen> {
           ),
         ],
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: AppColors.accent,
-        foregroundColor: const Color(0xFF04131D),
-        onPressed: _showAddStaffDialog,
-        icon: const Icon(Icons.person_add_rounded),
-        label: const Text('Thêm nhân viên', style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
       body: _loading
           ? const Center(child: CircularProgressIndicator())
           : _error != null
@@ -392,7 +226,7 @@ class _StaffScreenState extends State<StaffScreen> {
               : RefreshIndicator(
                   onRefresh: _loadData,
                   child: ListView(
-                    padding: EdgeInsets.fromLTRB(pad, 12, pad, 80),
+                    padding: EdgeInsets.fromLTRB(pad, 12, pad, 24),
                     children: [
                       Center(
                         child: ConstrainedBox(
@@ -413,7 +247,7 @@ class _StaffScreenState extends State<StaffScreen> {
                                     SizedBox(width: 10),
                                     Expanded(
                                       child: Text(
-                                        'Admin có quyền tạo tài khoản nhân viên (Viewer) và phân công trạm giám sát. Mỗi nhân viên chỉ có thể xem số liệu của các trạm được giao.',
+                                        'Nhân viên tự đăng ký tài khoản tại màn hình đăng nhập (xác thực OTP). Tại đây, Admin quản lý phân công các trạm giám sát hoặc xóa tài khoản nhân viên.',
                                         style: TextStyle(fontSize: 12.5, color: AppColors.text, height: 1.4),
                                       ),
                                     ),

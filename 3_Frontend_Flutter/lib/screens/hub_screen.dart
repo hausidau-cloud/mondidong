@@ -303,11 +303,12 @@ class _HubScreenState extends State<HubScreen> {
                 const Text('Tổng quan hệ thống'),
               ]),
               actions: [
-                IconButton(
-                  tooltip: 'Quét mã QR / Nhập mã vào trạm',
-                  icon: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.accent),
-                  onPressed: () => JoinStationDialog.show(context, onSuccess: _load),
-                ),
+                if (!Session.I.isAdmin)
+                  IconButton(
+                    tooltip: 'Quét mã QR / Nhập mã vào trạm',
+                    icon: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.accent),
+                    onPressed: () => JoinStationDialog.show(context, onSuccess: _load),
+                  ),
                 _LiveBadge(updated: _updated, error: _error != null),
                 SizedBox(width: hPad - 4),
               ],
@@ -359,20 +360,20 @@ class _HubScreenState extends State<HubScreen> {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              OutlinedButton.icon(
-                onPressed: () => JoinStationDialog.show(context, onSuccess: _load),
-                icon: const Icon(Icons.qr_code_scanner_rounded, size: 16),
-                label: const Text('Quét mã trạm', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.accent,
-                  side: BorderSide(color: AppColors.accent.withValues(alpha: 0.45)),
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  visualDensity: VisualDensity.compact,
+              if (!Session.I.isAdmin)
+                OutlinedButton.icon(
+                  onPressed: () => JoinStationDialog.show(context, onSuccess: _load),
+                  icon: const Icon(Icons.qr_code_scanner_rounded, size: 16),
+                  label: const Text('Quét mã trạm', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.accent,
+                    side: BorderSide(color: AppColors.accent.withValues(alpha: 0.45)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    visualDensity: VisualDensity.compact,
+                  ),
                 ),
-              ),
-              if (Session.I.isAdmin) ...[
-                const SizedBox(width: 8),
+              if (Session.I.isAdmin)
                 FilledButton.tonalIcon(
                   onPressed: _showAddStationDialog,
                   icon: const Icon(Icons.add_rounded, size: 18),
@@ -385,7 +386,6 @@ class _HubScreenState extends State<HubScreen> {
                     visualDensity: VisualDensity.compact,
                   ),
                 ),
-              ],
             ],
           ),
         ],
