@@ -64,6 +64,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
   Widget build(BuildContext context) {
     super.build(context);
     final s = widget.station;
+    final isEsp = s.isEsp32;
     final admin = Session.I.isAdmin;
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final relay = _relayCard(s, admin);
@@ -75,19 +76,24 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
           child: Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(color: AppColors.warn.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-            child: const Row(children: [
-              Icon(Icons.lock_outline_rounded, color: AppColors.warn, size: 18),
-              SizedBox(width: 10),
-              Expanded(child: Text('Tài khoản chỉ xem — đăng nhập admin để điều khiển relay và gửi thông báo OLED.', style: TextStyle(fontSize: 13))),
+            child: Row(children: [
+              const Icon(Icons.lock_outline_rounded, color: AppColors.warn, size: 18),
+              const SizedBox(width: 10),
+              Expanded(child: Text(isEsp ? 'Tài khoản chỉ xem — đăng nhập admin để điều khiển đèn LED.' : 'Tài khoản chỉ xem — đăng nhập admin để điều khiển relay và gửi thông báo OLED.', style: const TextStyle(fontSize: 13))),
             ]),
           ),
         ),
-      if (wide)
-        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: relay), const SizedBox(width: 16), Expanded(child: oled)])
-      else ...[
+      if (wide) ...[
+        if (!isEsp)
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: relay), const SizedBox(width: 16), Expanded(child: oled)])
+        else
+          relay,
+      ] else ...[
         relay,
-        const SizedBox(height: 16),
-        oled,
+        if (!isEsp) ...[
+          const SizedBox(height: 16),
+          oled,
+        ],
       ],
       const SizedBox(height: 16),
       _logicCard(s),
@@ -95,19 +101,32 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
   }
 
   Widget _relayCard(Station s, bool admin) {
+    final isEsp = s.isEsp32;
     final reason = s.relayLogs.isNotEmpty ? s.relayLogs.first.reason : 'Chưa có hoạt động';
     return SectionCard(
-      title: 'Relay 5V',
-      subtitle: s.relayLabel,
+      title: isEsp ? 'Đèn LED tích hợp (GPIO 2)' : 'Relay 5V',
+      subtitle: isEsp ? (s.relayLabel.isNotEmpty ? s.relayLabel : 'Đèn LED trên vi điều khiển ESP32') : s.relayLabel,
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          RelayVisual(on: s.relayOn, profile: s.profile),
+          if (isEsp)
+            Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(
+                color: (s.relayOn ? const Color(0xFFFACC15) : AppColors.surface2),
+                shape: BoxShape.circle,
+                boxShadow: s.relayOn ? [BoxShadow(color: const Color(0xFFFACC15).withValues(alpha: 0.5), blurRadius: 14, spreadRadius: 2)] : null,
+              ),
+              child: Icon(Icons.lightbulb_rounded, size: 28, color: s.relayOn ? Colors.black : AppColors.muted),
+            )
+          else
+            RelayVisual(on: s.relayOn, profile: s.profile),
           const SizedBox(width: 16),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               AnimatedDefaultTextStyle(
                 duration: const Duration(milliseconds: 250),
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: s.relayOn ? AppColors.ok : AppColors.muted),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, letterSpacing: -0.5, color: s.relayOn ? (isEsp ? const Color(0xFFFACC15) : AppColors.ok) : AppColors.muted),
                 child: Text(s.relayOn ? 'ĐANG BẬT' : 'ĐANG TẮT'),
               ),
               const SizedBox(height: 2),
@@ -129,7 +148,9 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
         const SizedBox(height: 10),
         Text(
           s.relayMode == 'AUTO'
-              ? 'Server tự quyết định theo ngưỡng, có độ trễ ${fmt(s.hysteresis)}°C để relay không bật/tắt liên tục.'
+              ? (isEsp
+                  ? 'Server tự quyết định bật/tắt đèn LED theo ngưỡng nhiệt độ và độ ẩm của DHT11.'
+                  : 'Server tự quyết định theo ngưỡng, có độ trễ ${fmt(s.hysteresis)}°C để relay không bật/tắt liên tục.')
               : 'Đang ghi đè thủ công — nhớ chuyển về Tự động sau khi xử lý xong.',
           style: TextStyle(fontSize: 12, color: s.relayMode == 'AUTO' ? AppColors.muted : AppColors.warn),
         ),
@@ -177,26 +198,36 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
   }
 
   Widget _logicCard(Station s) {
-    final rules = switch (s.profile) {
-      'aquarium' => [
-          'Nước > ${fmt(s.probeMax)}°C → bật quạt/bơm làm mát; tắt khi < ${fmt(s.probeMax - s.hysteresis)}°C.',
-          'Nước < ${fmt(s.probeMin)}°C → cảnh báo nước quá lạnh.',
-          'SHT30 trên mặt hồ dùng để đánh giá mức bay hơi.',
-        ],
-      'pharma' => [
-          'Lõi tủ ngoài dải ${fmt(s.probeMin)}–${fmt(s.probeMax)}°C → NGUY HIỂM, hú còi.',
-          'Sát ngưỡng 0.5°C → cảnh báo sớm.',
-          'Biên sương < ${fmt(s.dewMargin)}°C → cảnh báo đọng nước bên ngoài tủ.',
-        ],
-      _ => [
-          'Nước > ${fmt(s.probeMax)}°C hoặc không khí > ${fmt(s.airTempMax)}°C → bật relay.',
-          'T − Td < ${fmt(s.dewMargin)}°C (nguy cơ đọng sương) → bật quạt thông gió.',
-          'Relay tắt khi nhiệt độ thấp hơn ngưỡng ${fmt(s.hysteresis)}°C.',
-        ],
-    };
+    final List<String> rules;
+    if (s.isEsp32) {
+      rules = [
+        'Nhiệt độ không khí DHT11 > ${fmt(s.airTempMax)}°C → Tự động BẬT đèn LED cảnh báo (GPIO 2).',
+        'Độ ẩm không khí DHT11 > ${fmt(s.airHumMax)}% → Tự động BẬT đèn LED cảnh báo.',
+        'T − Td < ${fmt(s.dewMargin)}°C (nguy cơ đọng sương) → Cảnh báo nguy cơ ẩm mốc.',
+        'Tắt đèn LED khi nhiệt độ và độ ẩm hạ xuống dưới ngưỡng an toàn.',
+      ];
+    } else {
+      rules = switch (s.profile) {
+        'aquarium' => [
+            'Nước > ${fmt(s.probeMax)}°C → bật quạt/bơm làm mát; tắt khi < ${fmt(s.probeMax - s.hysteresis)}°C.',
+            'Nước < ${fmt(s.probeMin)}°C → cảnh báo nước quá lạnh.',
+            'SHT30 trên mặt hồ dùng để đánh giá mức bay hơi.',
+          ],
+        'pharma' => [
+            'Lõi tủ ngoài dải ${fmt(s.probeMin)}–${fmt(s.probeMax)}°C → NGUY HIỂM, hú còi.',
+            'Sát ngưỡng 0.5°C → cảnh báo sớm.',
+            'Biên sương < ${fmt(s.dewMargin)}°C → cảnh báo đọng nước bên ngoài tủ.',
+          ],
+        _ => [
+            'Nước > ${fmt(s.probeMax)}°C hoặc không khí > ${fmt(s.airTempMax)}°C → bật relay.',
+            'T − Td < ${fmt(s.dewMargin)}°C (nguy cơ đọng sương) → bật quạt thông gió.',
+            'Relay tắt khi nhiệt độ thấp hơn ngưỡng ${fmt(s.hysteresis)}°C.',
+          ],
+      };
+    }
     return SectionCard(
       title: 'Luật điều khiển tự động',
-      subtitle: ProfileStyle.of(s.profile).label,
+      subtitle: s.isEsp32 ? 'ESP32 NodeMCU + DHT11 + LED' : ProfileStyle.of(s.profile).label,
       child: Column(children: [
         for (final r in rules)
           Padding(

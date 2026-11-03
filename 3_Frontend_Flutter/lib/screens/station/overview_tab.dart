@@ -214,7 +214,7 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
         ('Nhiệt độ DHT11 cao nhất', '${fmt(st?.aMax)}°C', Icons.north_rounded, AppColors.air),
         ('Nhiệt độ DHT11 thấp nhất', '${fmt(st?.aMin)}°C', Icons.south_rounded, AppColors.text2),
         ('Độ ẩm trung bình', '${fmt(st?.hAvg)}%', Icons.water_drop_outlined, AppColors.hum),
-        ('Đèn LED GPIO 23', st?.relayPercent == null ? '--' : '${fmt(st!.relayPercent, 0)}% thời gian', Icons.lightbulb_rounded, AppColors.ok),
+        ('Đèn LED GPIO 2', st?.relayPercent == null ? '--' : '${fmt(st!.relayPercent, 0)}% thời gian', Icons.lightbulb_rounded, AppColors.ok),
       ];
     } else {
       items = [

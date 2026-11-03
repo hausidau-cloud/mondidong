@@ -50,15 +50,16 @@ class _LogsTabState extends State<LogsTab> with AutomaticKeepAliveClientMixin {
   @override
   Widget build(BuildContext context) {
     super.build(context);
+    final isEsp = widget.station.isEsp32;
     return TabBody(onRefresh: _load, children: [
       Align(
         alignment: Alignment.centerLeft,
         child: SegmentedButton<String>(
           showSelectedIcon: false,
-          segments: const [
-            ButtonSegment(value: 'alerts', label: Text('Cảnh báo'), icon: Icon(Icons.notifications_outlined, size: 18)),
-            ButtonSegment(value: 'relay', label: Text('Relay'), icon: Icon(Icons.bolt_rounded, size: 18)),
-            ButtonSegment(value: 'data', label: Text('Dữ liệu đo'), icon: Icon(Icons.table_rows_outlined, size: 18)),
+          segments: [
+            const ButtonSegment(value: 'alerts', label: Text('Cảnh báo'), icon: Icon(Icons.notifications_outlined, size: 18)),
+            ButtonSegment(value: 'relay', label: Text(isEsp ? 'Đèn LED' : 'Relay'), icon: Icon(isEsp ? Icons.lightbulb_rounded : Icons.bolt_rounded, size: 18)),
+            const ButtonSegment(value: 'data', label: Text('Dữ liệu đo'), icon: Icon(Icons.table_rows_outlined, size: 18)),
           ],
           selected: {_view},
           onSelectionChanged: (v) {
@@ -87,8 +88,9 @@ class _LogsTabState extends State<LogsTab> with AutomaticKeepAliveClientMixin {
   }
 
   Widget _relay() {
+    final isEsp = widget.station.isEsp32;
     final logs = widget.station.relayLogs;
-    if (logs.isEmpty) return const Card(child: EmptyState(icon: Icons.bolt_rounded, text: 'Chưa có lần bật/tắt nào'));
+    if (logs.isEmpty) return Card(child: EmptyState(icon: isEsp ? Icons.lightbulb_rounded : Icons.bolt_rounded, text: isEsp ? 'Chưa có lần bật/tắt đèn LED nào' : 'Chưa có lần bật/tắt nào'));
     return Card(
       child: Column(children: [
         for (var i = 0; i < logs.length; i++) ...[
@@ -98,11 +100,14 @@ class _LogsTabState extends State<LogsTab> with AutomaticKeepAliveClientMixin {
               width: 38,
               height: 38,
               decoration: BoxDecoration(
-                color: (logs[i].action == 'ON' ? AppColors.ok : AppColors.off).withValues(alpha: 0.14),
+                color: (logs[i].action == 'ON' ? (isEsp ? const Color(0xFFFACC15) : AppColors.ok) : AppColors.off).withValues(alpha: 0.14),
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: Icon(logs[i].action == 'ON' ? Icons.power_settings_new_rounded : Icons.power_off_rounded,
-                  color: logs[i].action == 'ON' ? AppColors.ok : AppColors.muted, size: 20),
+              child: Icon(
+                isEsp ? Icons.lightbulb_rounded : (logs[i].action == 'ON' ? Icons.power_settings_new_rounded : Icons.power_off_rounded),
+                color: logs[i].action == 'ON' ? (isEsp ? const Color(0xFFFACC15) : AppColors.ok) : AppColors.muted,
+                size: 20,
+              ),
             ),
             title: Text('${logs[i].action == 'ON' ? 'BẬT' : 'TẮT'} · ${logs[i].reason}', style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600)),
             subtitle: Text(
@@ -116,6 +121,7 @@ class _LogsTabState extends State<LogsTab> with AutomaticKeepAliveClientMixin {
   }
 
   Widget _data() {
+    final isEsp = widget.station.isEsp32;
     final r = _readings;
     if (r == null) return const Padding(padding: EdgeInsets.all(40), child: Center(child: CircularProgressIndicator()));
     if (r.rows.isEmpty) return const Card(child: EmptyState(icon: Icons.table_rows_outlined, text: 'Chưa có dữ liệu đo'));
@@ -132,16 +138,16 @@ class _LogsTabState extends State<LogsTab> with AutomaticKeepAliveClientMixin {
             dataRowMinHeight: 40,
             dataRowMaxHeight: 44,
             columnSpacing: 22,
-            columns: const [
-              DataColumn(label: Text('THỜI GIAN', style: h)),
-              DataColumn(label: Text('KK °C', style: h), numeric: true),
-              DataColumn(label: Text('ẨM %', style: h), numeric: true),
-              DataColumn(label: Text('SƯƠNG °C', style: h), numeric: true),
-              DataColumn(label: Text('ĐẦU DÒ °C', style: h), numeric: true),
-              DataColumn(label: Text('PICO °C', style: h), numeric: true),
-              DataColumn(label: Text('QUANG TRỞ', style: h), numeric: true),
-              DataColumn(label: Text('RELAY', style: h)),
-              DataColumn(label: Text('TRẠNG THÁI', style: h)),
+            columns: [
+              const DataColumn(label: Text('THỜI GIAN', style: h)),
+              DataColumn(label: Text(isEsp ? 'NHIỆT ĐỘ °C' : 'KK °C', style: h), numeric: true),
+              DataColumn(label: Text(isEsp ? 'ĐỘ ẨM %' : 'ẨM %', style: h), numeric: true),
+              const DataColumn(label: Text('SƯƠNG °C', style: h), numeric: true),
+              if (!isEsp) const DataColumn(label: Text('ĐẦU DÒ °C', style: h), numeric: true),
+              if (!isEsp) const DataColumn(label: Text('PICO °C', style: h), numeric: true),
+              if (!isEsp) const DataColumn(label: Text('QUANG TRỞ', style: h), numeric: true),
+              DataColumn(label: Text(isEsp ? 'ĐÈN LED' : 'RELAY', style: h)),
+              const DataColumn(label: Text('TRẠNG THÁI', style: h)),
             ],
             rows: [
               for (final x in r.rows)
@@ -150,10 +156,10 @@ class _LogsTabState extends State<LogsTab> with AutomaticKeepAliveClientMixin {
                   DataCell(Text(fmt(x.airTemp), style: c.copyWith(color: AppColors.air))),
                   DataCell(Text(fmt(x.airHum), style: c.copyWith(color: AppColors.hum))),
                   DataCell(Text(fmt(x.dewPoint), style: c.copyWith(color: AppColors.dew))),
-                  DataCell(Text(fmt(x.probeTemp), style: c.copyWith(color: AppColors.probe, fontWeight: FontWeight.w700))),
-                  DataCell(Text(fmt(x.picoTemp), style: c.copyWith(color: AppColors.accent))),
-                  DataCell(Text('${x.lightPct}%', style: c.copyWith(color: const Color(0xFFFACC15)))),
-                  DataCell(Text(x.relay ? 'BẬT' : 'TẮT', style: c.copyWith(color: x.relay ? AppColors.ok : AppColors.muted))),
+                  if (!isEsp) DataCell(Text(fmt(x.probeTemp), style: c.copyWith(color: AppColors.probe, fontWeight: FontWeight.w700))),
+                  if (!isEsp) DataCell(Text(fmt(x.picoTemp), style: c.copyWith(color: AppColors.accent))),
+                  if (!isEsp) DataCell(Text('${x.lightPct}%', style: c.copyWith(color: const Color(0xFFFACC15)))),
+                  DataCell(Text(x.relay ? 'BẬT' : 'TẮT', style: c.copyWith(color: x.relay ? (isEsp ? const Color(0xFFFACC15) : AppColors.ok) : AppColors.muted))),
                   DataCell(StatusPill(x.status, dense: true)),
                 ]),
             ],

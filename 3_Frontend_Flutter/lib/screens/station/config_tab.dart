@@ -124,7 +124,7 @@ class _ConfigTabState extends State<ConfigTab> with AutomaticKeepAliveClientMixi
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           SectionCard(
             title: 'Ngưỡng cảnh báo',
-            subtitle: p.label,
+            subtitle: s.isEsp32 ? 'ESP32 NodeMCU · Cảm biến DHT11 & LED' : p.label,
             trailing: admin
                 ? FilledButton.icon(
                     style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
@@ -136,14 +136,22 @@ class _ConfigTabState extends State<ConfigTab> with AutomaticKeepAliveClientMixi
                   )
                 : const Chip(label: Text('Chỉ xem')),
             child: grid([
-              field('probe_temp_min', '${p.probeLabel} tối thiểu', '°C', hint: s.profile == 'pharma' ? 'Vắc-xin: 2°C' : 'DS18B20'),
-              field('probe_temp_max', '${p.probeLabel} tối đa', '°C',
-                  hint: s.profile == 'pharma' ? 'Vắc-xin: 8°C' : 'Vượt ngưỡng → bật ${p.relayVerb.toLowerCase()}'),
-              field('air_temp_max', 'Nhiệt độ không khí tối đa', '°C', hint: 'SHT30'),
-              field('air_hum_max', 'Độ ẩm tối đa', '%', hint: 'SHT30'),
-              field('dew_margin', 'Biên cảnh báo đọng sương (T − Td)', '°C', hint: s.profile == 'aquarium' ? 'Hồ cá: đặt 0 để tắt' : 'Nhỏ hơn → nguy cơ đọng nước'),
-              field('hysteresis', 'Độ trễ tắt relay', '°C', hint: 'Chống relay bật/tắt liên tục'),
-              field('offline_after', 'Báo mất kết nối sau', 'giây', integer: true),
+              if (s.isEsp32) ...[
+                field('air_temp_max', 'Nhiệt độ không khí tối đa', '°C', hint: 'DHT11 · Vượt ngưỡng → Bật đèn LED cảnh báo'),
+                field('air_hum_max', 'Độ ẩm không khí tối đa', '%', hint: 'DHT11 · Vượt ngưỡng → Bật đèn LED cảnh báo'),
+                field('dew_margin', 'Biên cảnh báo đọng sương (T − Td)', '°C', hint: 'Nhỏ hơn → nguy cơ đọng ẩm mốc'),
+                field('hysteresis', 'Độ trễ tắt LED cảnh báo', '°C', hint: 'Chống đèn LED chớp tắt liên tục'),
+                field('offline_after', 'Báo mất kết nối sau', 'giây', integer: true),
+              ] else ...[
+                field('probe_temp_min', '${p.probeLabel} tối thiểu', '°C', hint: s.profile == 'pharma' ? 'Vắc-xin: 2°C' : 'DS18B20'),
+                field('probe_temp_max', '${p.probeLabel} tối đa', '°C',
+                    hint: s.profile == 'pharma' ? 'Vắc-xin: 8°C' : 'Vượt ngưỡng → bật ${p.relayVerb.toLowerCase()}'),
+                field('air_temp_max', 'Nhiệt độ không khí tối đa', '°C', hint: 'SHT30'),
+                field('air_hum_max', 'Độ ẩm tối đa', '%', hint: 'SHT30'),
+                field('dew_margin', 'Biên cảnh báo đọng sương (T − Td)', '°C', hint: s.profile == 'aquarium' ? 'Hồ cá: đặt 0 để tắt' : 'Nhỏ hơn → nguy cơ đọng nước'),
+                field('hysteresis', 'Độ trễ tắt relay', '°C', hint: 'Chống relay bật/tắt liên tục'),
+                field('offline_after', 'Báo mất kết nối sau', 'giây', integer: true),
+              ],
             ]),
           ),
           const SizedBox(height: 16),
@@ -151,8 +159,12 @@ class _ConfigTabState extends State<ConfigTab> with AutomaticKeepAliveClientMixi
             title: 'Hiệu chỉnh cảm biến',
             subtitle: 'Cộng thêm vào giá trị đo (bù sai số)',
             child: grid([
-              field('offset_air', 'Bù nhiệt độ SHT30', '°C', hint: 'VD: −0.5 nếu SHT30 đo cao hơn nhiệt kế chuẩn'),
-              field('offset_probe', 'Bù nhiệt độ DS18B20', '°C'),
+              if (s.isEsp32) ...[
+                field('offset_air', 'Bù nhiệt độ DHT11', '°C', hint: 'VD: −0.5 nếu DHT11 đo cao hơn nhiệt kế chuẩn'),
+              ] else ...[
+                field('offset_air', 'Bù nhiệt độ SHT30', '°C', hint: 'VD: −0.5 nếu SHT30 đo cao hơn nhiệt kế chuẩn'),
+                field('offset_probe', 'Bù nhiệt độ DS18B20', '°C'),
+              ],
             ]),
           ),
         ]),

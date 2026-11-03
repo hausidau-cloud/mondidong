@@ -25,8 +25,8 @@ SEND_INTERVAL_DEFAULT = 2
 # - Chan tin hieu Data cua cam bien DHT11:
 PIN_DHT     = 4       # GPIO 4 (Chan D4)
 
-# - Chan dieu khien den LED / Relay (khop voi Arduino code cu cua ban):
-PIN_LED     = 23      # GPIO 23 (Chan D23)
+# - Chan dieu khien den LED nho tich hop san tren bo mach ESP32:
+PIN_LED     = 2       # GPIO 2 (Den LED nho gan tren mach ESP32 NodeMCU)
 
 # 6. NGUONG DIEU KHIEN CANH BAO CUC BO (FAIL-SAFE KHI MAT MANG)
 TEMP_THRESHOLD = 30.0  # Nhiet do >= 30.0 do C -> Bat den canh bao
