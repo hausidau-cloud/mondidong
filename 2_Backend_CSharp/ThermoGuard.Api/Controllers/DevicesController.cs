@@ -67,7 +67,7 @@ public class DevicesController : ControllerBase
             var devDict = BuildDevicePublic(dev);
             devDict["spark"] = _store.GetSpark(dev.Id);
             devDict["stats24h"] = _store.GetStats24h(dev.Id);
-            devDict["relay_logs"] = _store.RelayLogs.Take(15).ToList();
+            devDict["relay_logs"] = _store.RelayLogs.Where(l => l.DeviceId == dev.Id || (l.DeviceId == null && l.StationId == null)).Take(30).ToList();
 
             return Ok(new { ok = true, device = devDict });
         }

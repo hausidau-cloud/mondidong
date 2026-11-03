@@ -29,7 +29,7 @@ public class AlertsController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult Get([FromQuery] string? state, [FromQuery] string? level, [FromQuery] int? device_id, [FromQuery] int page = 1)
+    public IActionResult Get([FromQuery] string? state, [FromQuery] string? level, [FromQuery] int? device_id, [FromQuery] int page = 1, [FromQuery] int limit = 20)
     {
         var curUser = GetCurrentUser();
         if (curUser == null)
@@ -59,14 +59,18 @@ public class AlertsController : ControllerBase
 
         if (isViewer && allowedDeviceIds != null)
         {
-            list = list.Where(a => allowedDeviceIds.Contains(a.DeviceId));
+            list = list.Where(a => allowedDeviceIds.Contains(a.DeviceId) || (a.StationId.HasValue && allowedDeviceIds.Contains(a.StationId.Value)));
         }
 
         if (device_id.HasValue)
         {
-            var targetDevice = _store.GetDevice(device_id.Value) ?? _store.Devices.FirstOrDefault(d => d.StationId == device_id.Value);
-            var targetId = targetDevice?.Id ?? device_id.Value;
-            list = list.Where(a => a.DeviceId == device_id.Value || a.DeviceId == targetId);
+            var matchIds = _store.Devices
+                .Where(d => d.Id == device_id.Value || d.StationId == device_id.Value)
+                .Select(d => d.Id)
+                .ToHashSet();
+            matchIds.Add(device_id.Value);
+
+            list = list.Where(a => matchIds.Contains(a.DeviceId) || (a.StationId.HasValue && matchIds.Contains(a.StationId.Value)));
         }
 
         if (state == "open")
@@ -84,11 +88,11 @@ public class AlertsController : ControllerBase
         }
 
         var all = list.ToList();
-        var pageSize = 20;
+        var pageSize = limit > 0 ? Math.Min(limit, 100) : 20;
         var rows = all.Skip((page - 1) * pageSize).Take(pageSize).Select(a =>
         {
             var dev = _store.GetDevice(a.DeviceId);
-            var stId = dev?.StationId ?? a.DeviceId;
+            var stId = a.StationId ?? dev?.StationId ?? a.DeviceId;
             var st = _store.GetStation(stId);
             return new
             {
@@ -98,7 +102,7 @@ public class AlertsController : ControllerBase
                 level = a.Level,
                 type = a.Type,
                 message = a.Message,
-                device_name = dev?.Name ?? st?.Name ?? "Trạm Pico 2 W",
+                device_name = dev?.Name ?? st?.Name ?? $"Trạm {stId}",
                 device_code = dev?.DeviceCode ?? "PICO-01",
                 profile = dev?.Profile ?? "cabinet",
                 is_resolved = a.IsResolved,
@@ -112,7 +116,7 @@ public class AlertsController : ControllerBase
         var userScopeAlerts = _store.Alerts.AsEnumerable();
         if (isViewer && allowedDeviceIds != null)
         {
-            userScopeAlerts = userScopeAlerts.Where(a => allowedDeviceIds.Contains(a.DeviceId));
+            userScopeAlerts = userScopeAlerts.Where(a => allowedDeviceIds.Contains(a.DeviceId) || (a.StationId.HasValue && allowedDeviceIds.Contains(a.StationId.Value)));
         }
         var scopeAlertsList = userScopeAlerts.ToList();
 
@@ -167,23 +171,14 @@ public class AlertsController : ControllerBase
                 {
                     return Forbid();
                 }
-                alert.IsResolved = true;
-                alert.ResolvedAt = TimeHelper.VnNowStr;
+                _store.ResolveAlert(alert.Id);
             }
             return Ok(new { ok = true });
         }
 
         if (act == "ack_all")
         {
-            foreach (var a in _store.Alerts)
-            {
-                if (isViewer && allowedDeviceIds != null && !allowedDeviceIds.Contains(a.DeviceId))
-                {
-                    continue;
-                }
-                a.IsResolved = true;
-                a.ResolvedAt = TimeHelper.VnNowStr;
-            }
+            _store.ResolveAllAlerts(isViewer ? allowedDeviceIds : null);
             return Ok(new { ok = true });
         }
 
