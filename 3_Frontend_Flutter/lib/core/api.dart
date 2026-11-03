@@ -92,6 +92,49 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> register(String server, String username, String password, String fullName) async {
+    baseUrl = normalizeUrl(server);
+    Map<String, dynamic> j;
+    try {
+      j = await post('auth/register', {
+        'username': username,
+        'password': password,
+        'full_name': fullName,
+      });
+    } catch (_) {
+      j = await post('auth.php?action=register', {
+        'username': username,
+        'password': password,
+        'full_name': fullName,
+      });
+    }
+    token = j['token'] as String?;
+    user = AppUser.fromJson(j['user'] as Map<String, dynamic>);
+    final p = await SharedPreferences.getInstance();
+    await p.setString(_kUrl, baseUrl);
+    if (token != null) await p.setString(_kToken, token!);
+    await p.setString(_kUser, jsonEncode(user!.toJson()));
+    notifyListeners();
+  }
+
+  Future<Map<String, dynamic>> joinStation(String code) async {
+    final j = await post('stations/join', {'code': code});
+    try {
+      final me = await get('auth/me');
+      if (me['user'] != null) {
+        user = AppUser.fromJson(me['user'] as Map<String, dynamic>);
+        final p = await SharedPreferences.getInstance();
+        await p.setString(_kUser, jsonEncode(user!.toJson()));
+      }
+    } catch (_) {}
+    notifyListeners();
+    return j;
+  }
+
+  Future<Map<String, dynamic>> getStationQr(int stationId) async {
+    return await get('stations/$stationId/qr');
+  }
+
   Future<void> logout() async {
     try {
       await post('auth.php?action=logout', {});

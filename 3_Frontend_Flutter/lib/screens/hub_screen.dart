@@ -9,6 +9,7 @@ import '../core/theme.dart';
 import '../models/models.dart';
 import '../widgets/charts.dart';
 import '../widgets/common.dart';
+import '../widgets/qr_dialogs.dart';
 import 'station/station_screen.dart';
 
 class HubScreen extends StatefulWidget {
@@ -302,6 +303,11 @@ class _HubScreenState extends State<HubScreen> {
                 const Text('Tổng quan hệ thống'),
               ]),
               actions: [
+                IconButton(
+                  tooltip: 'Quét mã QR / Nhập mã vào trạm',
+                  icon: const Icon(Icons.qr_code_scanner_rounded, color: AppColors.accent),
+                  onPressed: () => JoinStationDialog.show(context, onSuccess: _load),
+                ),
                 _LiveBadge(updated: _updated, error: _error != null),
                 SizedBox(width: hPad - 4),
               ],
@@ -350,19 +356,38 @@ class _HubScreenState extends State<HubScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           const Text('Trạm giám sát', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-          if (Session.I.isAdmin)
-            FilledButton.tonalIcon(
-              onPressed: _showAddStationDialog,
-              icon: const Icon(Icons.add_rounded, size: 18),
-              label: const Text('Thêm trạm', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-              style: FilledButton.styleFrom(
-                backgroundColor: AppColors.accent.withValues(alpha: 0.15),
-                foregroundColor: AppColors.accent,
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                visualDensity: VisualDensity.compact,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => JoinStationDialog.show(context, onSuccess: _load),
+                icon: const Icon(Icons.qr_code_scanner_rounded, size: 16),
+                label: const Text('Quét mã trạm', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5)),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.accent,
+                  side: BorderSide(color: AppColors.accent.withValues(alpha: 0.45)),
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  visualDensity: VisualDensity.compact,
+                ),
               ),
-            ),
+              if (Session.I.isAdmin) ...[
+                const SizedBox(width: 8),
+                FilledButton.tonalIcon(
+                  onPressed: _showAddStationDialog,
+                  icon: const Icon(Icons.add_rounded, size: 18),
+                  label: const Text('Thêm trạm', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.accent.withValues(alpha: 0.15),
+                    foregroundColor: AppColors.accent,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
+            ],
+          ),
         ],
       ),
       if (list.isNotEmpty) ...[
@@ -396,12 +421,55 @@ class _HubScreenState extends State<HubScreen> {
     }
     if (list.isEmpty) {
       if (all.isEmpty && !Session.I.isAdmin) {
-        return const SliverToBoxAdapter(
+        return SliverToBoxAdapter(
           child: Padding(
-            padding: EdgeInsets.symmetric(vertical: 40),
-            child: EmptyState(
-              icon: Icons.assignment_late_outlined,
-              text: 'Bạn chưa được phân công trạm giám sát nào.\nVui lòng liên hệ Quản trị viên để được gán trạm phụ trách.',
+            padding: const EdgeInsets.symmetric(vertical: 36, horizontal: 16),
+            child: Center(
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 480),
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AppColors.accent.withValues(alpha: 0.3)),
+                  boxShadow: [
+                    BoxShadow(color: AppColors.accent.withValues(alpha: 0.08), blurRadius: 24, spreadRadius: 2),
+                  ],
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: AppColors.accent.withValues(alpha: 0.12),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.qr_code_scanner_rounded, size: 48, color: AppColors.accent),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text('Chưa kết nối trạm giám sát nào', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800), textAlign: TextAlign.center),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Tài khoản nhân viên cần kết nối với Trạm giám sát do Quản trị viên cấp. Bạn có thể quét mã QR dán trên tủ trạm hoặc nhập mã mời để kết nối ngay.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 13, color: AppColors.text2, height: 1.45),
+                    ),
+                    const SizedBox(height: 20),
+                    FilledButton.icon(
+                      onPressed: () => JoinStationDialog.show(context, onSuccess: _load),
+                      icon: const Icon(Icons.qr_code_scanner_rounded, size: 20),
+                      label: const Text('Quét mã QR kết nối trạm ngay', style: TextStyle(fontWeight: FontWeight.w700)),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        foregroundColor: const Color(0xFF04131D),
+                        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
             ),
           ),
         );
@@ -427,6 +495,7 @@ class _HubScreenState extends State<HubScreen> {
           (ctx, i) => StationCard(
             station: list[i],
             onTap: () => _open(list[i]),
+            onShowQr: () => StationQrDialog.show(context, list[i]),
             onDelete: () => _deleteStation(list[i]),
           ),
           childCount: list.length,
@@ -616,8 +685,9 @@ class _Kpis extends StatelessWidget {
 class StationCard extends StatelessWidget {
   final Station station;
   final VoidCallback onTap;
+  final VoidCallback? onShowQr;
   final VoidCallback? onDelete;
-  const StationCard({super.key, required this.station, required this.onTap, this.onDelete});
+  const StationCard({super.key, required this.station, required this.onTap, this.onShowQr, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -656,6 +726,17 @@ class StationCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   StatusPill(s.code.isEmpty ? 'UNASSIGNED' : s.status, dense: true),
+                  if (onShowQr != null) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.qr_code_2_rounded, size: 21, color: AppColors.accent),
+                      tooltip: 'Mã QR & Mã mời vào trạm',
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      onPressed: onShowQr,
+                    ),
+                  ],
                   if (Session.I.isAdmin && onDelete != null) ...[
                     const SizedBox(width: 4),
                     IconButton(

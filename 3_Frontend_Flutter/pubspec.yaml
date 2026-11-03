@@ -13,6 +13,8 @@ dependencies:
   http: ^1.6.0
   shared_preferences: ^2.3.0
   flutter_dotenv: ^6.0.1
+  qr_flutter: ^4.1.0
+  mobile_scanner: ^7.5.0
 
 dev_dependencies:
   flutter_test:

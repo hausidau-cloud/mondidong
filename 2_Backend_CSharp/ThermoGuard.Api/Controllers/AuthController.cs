@@ -34,6 +34,13 @@ public class PasswordChangeRequest
     public string @new { get; set; } = "";
 }
 
+public class UserRegisterRequest
+{
+    public string username { get; set; } = "";
+    public string password { get; set; } = "";
+    public string full_name { get; set; } = "";
+}
+
 
 [ApiController]
 [Tags("Auth")]
@@ -208,6 +215,60 @@ public class AuthController : ControllerBase
                 full_name = newUser.FullName,
                 role = newUser.Role,
                 station_ids = _store.GetStationIdsForUser(newUser.Id)
+            }
+        });
+    }
+
+    /// <summary>
+    /// POST /api/auth/register: Đăng ký tài khoản nhân viên mới
+    /// </summary>
+    [HttpPost("register")]
+    public IActionResult Register([FromBody] UserRegisterRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.username) || string.IsNullOrWhiteSpace(req.password))
+        {
+            return BadRequest(new { ok = false, error = "Vui lòng nhập tên đăng nhập và mật khẩu" });
+        }
+
+        var uName = req.username.Trim();
+        if (_db.Users.Any(u => u.Username.ToLower() == uName.ToLower()))
+        {
+            return BadRequest(new { ok = false, error = $"Tên đăng nhập '{uName}' đã được sử dụng!" });
+        }
+
+        var fullName = string.IsNullOrWhiteSpace(req.full_name) ? uName : req.full_name.Trim();
+
+        var newUser = new AppUser
+        {
+            Id = 0,
+            Username = uName,
+            Password = req.password,
+            FullName = fullName,
+            Role = "viewer" // Mặc định tài khoản tự đăng ký là nhân viên
+        };
+
+        _db.Users.Add(newUser);
+        _db.SaveChanges();
+
+        _store.Users.RemoveAll(u => u.Id == newUser.Id);
+        _store.Users.Add(newUser);
+
+        // Tự động cấp phiên đăng nhập
+        var token = Guid.NewGuid().ToString("N");
+        _store.ActiveSessions[token] = newUser;
+
+        return Ok(new
+        {
+            ok = true,
+            message = "Đăng ký tài khoản thành công!",
+            token,
+            user = new
+            {
+                id = newUser.Id,
+                username = newUser.Username,
+                full_name = newUser.FullName,
+                role = newUser.Role,
+                station_ids = new List<int>()
             }
         });
     }

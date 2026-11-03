@@ -140,6 +140,7 @@ class Station {
   // Bao mat (chi admin thay): khoa theo IP + phien ban key. api_key KHONG con nam o day,
   // phai bam "Xem key" va nhap lai mat khau.
   final String? ipLock, allowedIp, lastIp, ingestAuth;
+  final String? inviteCode, qrData;
   final int keyVersion;
   final List<SecurityEvent> securityEvents;
   final List<double?> spark;
@@ -192,6 +193,8 @@ class Station {
     this.allowedIp,
     this.lastIp,
     this.ingestAuth,
+    this.inviteCode,
+    this.qrData,
     this.keyVersion = 1,
     this.securityEvents = const [],
     this.spark = const [],
@@ -245,6 +248,8 @@ class Station {
         allowedIp: j['allowed_ip']?.toString(),
         lastIp: j['last_ip']?.toString(),
         ingestAuth: j['ingest_auth']?.toString(),
+        inviteCode: (j['invite_code'] ?? 'TG-S${j['id']}-8842').toString(),
+        qrData: (j['qr_data'] ?? 'TG_JOIN:${j['id']}:${j['invite_code'] ?? 'TG-S${j['id']}-8842'}').toString(),
         keyVersion: toInt(j['key_version'], 1),
         securityEvents: ((j['security_events'] as List?) ?? const []).map((e) => SecurityEvent.fromJson(e as Map<String, dynamic>)).toList(),
         spark: ((j['spark'] as List?) ?? const []).map(toDbl).toList(),

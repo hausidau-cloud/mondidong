@@ -28,6 +28,12 @@ public class StationUpdateRequest
     public double? hysteresis { get; set; }
 }
 
+public class StationJoinRequest
+{
+    public string? code { get; set; }
+    public int? station_id { get; set; }
+}
+
 [ApiController]
 [Tags("Stations")]
 [Route("api/stations")]
@@ -138,6 +144,108 @@ public class StationsController : ControllerBase
         }).ToList();
 
         return Ok(new { ok = true, station_id = id, total = viewers.Count, viewers });
+    }
+
+    /// <summary>
+    /// GET /api/stations/{id}/qr: Lấy dữ liệu mã QR và invite code của trạm để hiển thị cho nhân viên quét
+    /// </summary>
+    [HttpGet("{id}/qr")]
+    public IActionResult GetStationQr(int id)
+    {
+        var st = _store.GetStation(id);
+        if (st == null)
+        {
+            return NotFound(new { ok = false, error = "Không tìm thấy trạm" });
+        }
+
+        var code = string.IsNullOrEmpty(st.InviteCode) ? $"TG-S{st.Id}-8842" : st.InviteCode;
+        var qrData = $"TG_JOIN:{st.Id}:{code}";
+
+        return Ok(new
+        {
+            ok = true,
+            station_id = st.Id,
+            station_name = st.Name,
+            invite_code = code,
+            qr_data = qrData
+        });
+    }
+
+    /// <summary>
+    /// POST /api/stations/join: Nhân viên quét mã QR hoặc nhập mã trạm để tự kết nối vào trạm
+    /// </summary>
+    [HttpPost("join")]
+    public IActionResult JoinStation([FromBody] StationJoinRequest req)
+    {
+        var curUser = GetCurrentUser();
+        if (curUser == null)
+        {
+            return Unauthorized(new { ok = false, error = "Vui lòng đăng nhập để kết nối vào trạm" });
+        }
+
+        if (string.IsNullOrWhiteSpace(req.code))
+        {
+            return BadRequest(new { ok = false, error = "Vui lòng cung cấp mã trạm hoặc quét mã QR" });
+        }
+
+        var raw = req.code.Trim();
+        int? targetStationId = null;
+
+        // 1. Nếu mã QR có dạng "TG_JOIN:1:TG-S1-8842"
+        if (raw.StartsWith("TG_JOIN:", StringComparison.OrdinalIgnoreCase))
+        {
+            var parts = raw.Split(':');
+            if (parts.Length >= 2 && int.TryParse(parts[1], out var parsedId))
+            {
+                targetStationId = parsedId;
+            }
+        }
+        // 2. Nếu mã có tiền tố S hoặc trạm (ví dụ "TG-S1-8842", "TG-STATION-1")
+        else if (raw.Contains('S') || raw.Contains('s'))
+        {
+            foreach (var s in _store.Stations)
+            {
+                var expectedCode = string.IsNullOrEmpty(s.InviteCode) ? $"TG-S{s.Id}-8842" : s.InviteCode;
+                if (string.Equals(raw, expectedCode, StringComparison.OrdinalIgnoreCase) ||
+                    string.Equals(raw, $"TG-STATION-{s.Id}", StringComparison.OrdinalIgnoreCase))
+                {
+                    targetStationId = s.Id;
+                    break;
+                }
+            }
+        }
+        // 3. Nếu người dùng nhập số ID trạm trực tiếp (ví dụ: "1" hoặc "2")
+        else if (int.TryParse(raw, out var directId))
+        {
+            targetStationId = directId;
+        }
+
+        if (!targetStationId.HasValue && req.station_id.HasValue)
+        {
+            targetStationId = req.station_id.Value;
+        }
+
+        var station = targetStationId.HasValue ? _store.GetStation(targetStationId.Value) : null;
+        if (station == null)
+        {
+            return BadRequest(new { ok = false, error = $"Mã trạm '{raw}' không hợp lệ hoặc trạm không tồn tại trên hệ thống!" });
+        }
+
+        // Gán trạm vào danh sách của nhân viên
+        var userStationIds = _store.GetStationIdsForUser(curUser.Id);
+        if (!userStationIds.Contains(station.Id))
+        {
+            userStationIds.Add(station.Id);
+            _store.SetUserStations(curUser.Id, userStationIds, _db);
+        }
+
+        return Ok(new
+        {
+            ok = true,
+            message = $"Kết nối thành công vào {station.Name}!",
+            station_id = station.Id,
+            station = BuildStationPublic(station)
+        });
     }
 
     /// <summary>
@@ -360,7 +468,9 @@ public class StationsController : ControllerBase
                 ["key_version"] = 1,
                 ["ingest_auth"] = "hmac",
                 ["viewer_ids"] = viewerIds,
-                ["viewers"] = viewers
+                ["viewers"] = viewers,
+                ["invite_code"] = string.IsNullOrEmpty(s.InviteCode) ? $"TG-S{s.Id}-8842" : s.InviteCode,
+                ["qr_data"] = $"TG_JOIN:{s.Id}:" + (string.IsNullOrEmpty(s.InviteCode) ? $"TG-S{s.Id}-8842" : s.InviteCode)
             };
         }
 
@@ -405,7 +515,9 @@ public class StationsController : ControllerBase
             ["key_version"] = 1,
             ["ingest_auth"] = "hmac",
             ["viewer_ids"] = viewerIds,
-            ["viewers"] = viewers
+            ["viewers"] = viewers,
+            ["invite_code"] = string.IsNullOrEmpty(s.InviteCode) ? $"TG-S{s.Id}-8842" : s.InviteCode,
+            ["qr_data"] = $"TG_JOIN:{s.Id}:" + (string.IsNullOrEmpty(s.InviteCode) ? $"TG-S{s.Id}-8842" : s.InviteCode)
         };
     }
 }

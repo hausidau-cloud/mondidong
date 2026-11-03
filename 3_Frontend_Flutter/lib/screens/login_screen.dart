@@ -44,6 +44,180 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 
+  void _showRegisterDialog() {
+    final formKey = GlobalKey<FormState>();
+    final uCtrl = TextEditingController();
+    final fCtrl = TextEditingController();
+    final pCtrl = TextEditingController();
+    final p2Ctrl = TextEditingController();
+    bool hideP = true;
+    bool saving = false;
+    String? dErr;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          backgroundColor: AppColors.surface,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.air.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.person_add_alt_1_rounded, color: AppColors.air, size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Đăng ký tài khoản', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                    Text('Tài khoản nhân viên giám sát trạm', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 360,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (dErr != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(dErr!, style: const TextStyle(color: AppColors.danger, fontSize: 12.5))),
+                          ],
+                        ),
+                      ),
+                    TextFormField(
+                      controller: fCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Họ và tên nhân viên *',
+                        hintText: 'VD: Nguyễn Văn A',
+                        prefixIcon: Icon(Icons.badge_rounded),
+                      ),
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Vui lòng nhập họ tên' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: uCtrl,
+                      decoration: const InputDecoration(
+                        labelText: 'Tên đăng nhập *',
+                        hintText: 'VD: nhanvien01',
+                        prefixIcon: Icon(Icons.account_circle_rounded),
+                      ),
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Vui lòng nhập username' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: pCtrl,
+                      obscureText: hideP,
+                      decoration: InputDecoration(
+                        labelText: 'Mật khẩu *',
+                        prefixIcon: const Icon(Icons.lock_rounded),
+                        suffixIcon: IconButton(
+                          icon: Icon(hideP ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                          onPressed: () => setDState(() => hideP = !hideP),
+                        ),
+                      ),
+                      validator: (v) => v == null || v.length < 3 ? 'Mật khẩu tối thiểu 3 ký tự' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: p2Ctrl,
+                      obscureText: hideP,
+                      decoration: const InputDecoration(
+                        labelText: 'Nhập lại mật khẩu *',
+                        prefixIcon: Icon(Icons.lock_outline_rounded),
+                      ),
+                      validator: (v) => v != pCtrl.text ? 'Mật khẩu xác nhận không khớp' : null,
+                    ),
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.bg,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.border),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.qr_code_scanner_rounded, size: 18, color: AppColors.air),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Sau khi đăng ký, bạn sẽ quét mã QR tại trạm để kết nối và nhận dữ liệu giám sát.',
+                              style: TextStyle(fontSize: 11.5, color: AppColors.text2, height: 1.35),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(ctx),
+              child: const Text('Hủy'),
+            ),
+            FilledButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDState(() {
+                        saving = true;
+                        dErr = null;
+                      });
+                      try {
+                        await Session.I.register(
+                          _server.text,
+                          uCtrl.text.trim(),
+                          pCtrl.text,
+                          fCtrl.text.trim(),
+                        );
+                        if (!ctx.mounted) return;
+                        Navigator.pop(ctx);
+                      } catch (e) {
+                        setDState(() {
+                          saving = false;
+                          dErr = e.toString();
+                        });
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Tạo tài khoản'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final wide = MediaQuery.sizeOf(context).width >= 900;
@@ -175,6 +349,12 @@ class _LoginScreenState extends State<LoginScreen> {
             child: _busy
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
                 : const Text('Đăng nhập'),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton.icon(
+            onPressed: _busy ? null : _showRegisterDialog,
+            icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),
+            label: const Text('Chưa có tài khoản? Đăng ký nhân viên'),
           ),
           const SizedBox(height: 16),
           const SizedBox(height: 22),
