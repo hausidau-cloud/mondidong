@@ -17,7 +17,7 @@ public class EmailService
         var smtpHost = _config["Email:SmtpHost"]?.Trim() ?? "smtp.gmail.com";
         var smtpPort = _config.GetValue<int>("Email:SmtpPort", 587);
         var senderEmail = _config["Email:SenderEmail"]?.Trim() ?? "";
-        var senderPassword = _config["Email:SenderPassword"]?.Trim() ?? "";
+        var senderPassword = _config["Email:SenderPassword"]?.Trim().Replace(" ", "") ?? "";
         var senderName = _config["Email:SenderName"]?.Trim() ?? "ThermoGuard IoT";
 
         if (string.IsNullOrWhiteSpace(senderEmail) || string.IsNullOrWhiteSpace(senderPassword))
