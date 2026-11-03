@@ -151,7 +151,6 @@ ThemeData buildTheme() {
       dividerColor: AppColors.border,
       labelStyle: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
       unselectedLabelStyle: TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
-      tabAlignment: TabAlignment.start,
     ),
     snackBarTheme: SnackBarThemeData(
       behavior: SnackBarBehavior.floating,

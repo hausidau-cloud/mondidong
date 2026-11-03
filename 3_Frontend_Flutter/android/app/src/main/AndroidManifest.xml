@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Goi API PHP/MySQL qua mang LAN -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- Quyen Camera de quet ma QR tram -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+    <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <application
         android:label="ThermoGuard"
         android:name="${applicationName}"

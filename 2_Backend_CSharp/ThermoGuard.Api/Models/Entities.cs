@@ -70,6 +70,7 @@ public class StationItem
     [JsonPropertyName("relay_label")]
     public string RelayLabel { get; set; } = "Bóng đèn 220V / Rơ-le";
 
+    [System.ComponentModel.DataAnnotations.Schema.NotMapped]
     [JsonPropertyName("invite_code")]
     public string InviteCode { get; set; } = "";
 

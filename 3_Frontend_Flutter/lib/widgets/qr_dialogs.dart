@@ -275,6 +275,8 @@ class _JoinStationDialogState extends State<JoinStationDialog> with SingleTicker
           children: [
             TabBar(
               controller: _tabController,
+              tabAlignment: TabAlignment.fill,
+              isScrollable: false,
               labelColor: AppColors.air,
               unselectedLabelColor: AppColors.muted,
               indicatorColor: AppColors.air,
@@ -312,9 +314,50 @@ class _JoinStationDialogState extends State<JoinStationDialog> with SingleTicker
                     child: Stack(
                       alignment: Alignment.center,
                       children: [
-                        MobileScanner(
-                          controller: _scannerController,
-                          onDetect: _onDetect,
+                        Positioned.fill(
+                          child: MobileScanner(
+                            controller: _scannerController,
+                            onDetect: _onDetect,
+                            placeholderBuilder: (context) => Container(
+                              color: const Color(0xFF0F172A),
+                              child: const Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    CircularProgressIndicator(color: AppColors.air),
+                                    SizedBox(height: 12),
+                                    Text('Đang khởi động camera...', style: TextStyle(color: Colors.white70, fontSize: 13)),
+                                  ],
+                                ),
+                              ),
+                            ),
+                            errorBuilder: (context, error) {
+                              return Container(
+                                color: const Color(0xFF0F172A),
+                                padding: const EdgeInsets.all(16),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.videocam_off_rounded, color: AppColors.warn, size: 36),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        'Không thể mở camera (${error.errorCode.name})\nVui lòng cấp quyền Camera hoặc dùng Tab "Nhập mã tay"',
+                                        style: const TextStyle(color: AppColors.text2, fontSize: 12),
+                                        textAlign: TextAlign.center,
+                                      ),
+                                      const SizedBox(height: 10),
+                                      TextButton.icon(
+                                        onPressed: () => _tabController.animateTo(1),
+                                        icon: const Icon(Icons.keyboard_rounded, size: 16),
+                                        label: const Text('Chuyển sang nhập mã tay'),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
                         ),
                         Container(
                           width: 190,
