@@ -92,22 +92,23 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> register(String server, String username, String password, String fullName) async {
+  Future<Map<String, dynamic>> sendOtp({required String server, required String phone, String purpose = 'register'}) async {
     baseUrl = normalizeUrl(server);
-    Map<String, dynamic> j;
-    try {
-      j = await post('auth/register', {
-        'username': username,
-        'password': password,
-        'full_name': fullName,
-      });
-    } catch (_) {
-      j = await post('auth.php?action=register', {
-        'username': username,
-        'password': password,
-        'full_name': fullName,
-      });
-    }
+    return await post('auth/send-otp', {
+      'phone': phone,
+      'purpose': purpose,
+    });
+  }
+
+  Future<void> register(String server, String username, String password, String fullName, {required String phone, required String otp}) async {
+    baseUrl = normalizeUrl(server);
+    final j = await post('auth/register', {
+      'username': username,
+      'password': password,
+      'full_name': fullName,
+      'phone': phone,
+      'otp': otp,
+    });
     token = j['token'] as String?;
     user = AppUser.fromJson(j['user'] as Map<String, dynamic>);
     final p = await SharedPreferences.getInstance();
@@ -115,6 +116,20 @@ class Session extends ChangeNotifier {
     if (token != null) await p.setString(_kToken, token!);
     await p.setString(_kUser, jsonEncode(user!.toJson()));
     notifyListeners();
+  }
+
+  Future<Map<String, dynamic>> forgotPassword({
+    required String server,
+    required String phone,
+    required String otp,
+    required String newPassword,
+  }) async {
+    baseUrl = normalizeUrl(server);
+    return await post('auth/forgot-password', {
+      'phone': phone,
+      'otp': otp,
+      'new_password': newPassword,
+    });
   }
 
   Future<Map<String, dynamic>> joinStation(String code) async {

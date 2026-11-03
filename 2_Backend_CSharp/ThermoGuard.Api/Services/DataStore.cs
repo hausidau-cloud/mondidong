@@ -20,6 +20,7 @@ public class DataStore
     public List<RelayLogItem> RelayLogs { get; } = new();
     public List<StationAssignment> Assignments { get; } = new();
     public Dictionary<string, AppUser> ActiveSessions { get; } = new();
+    public Dictionary<string, OtpItem> OtpStore { get; } = new();
 
     private long _nextReadingId = 1;
     private int _nextAlertId = 1;
@@ -67,6 +68,11 @@ public class DataStore
             try
             {
                 db.Database.ExecuteSqlRaw("ALTER TABLE Devices ADD COLUMN StationId INT NULL;");
+            }
+            catch { }
+            try
+            {
+                db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN Phone VARCHAR(20) NULL;");
             }
             catch { }
 
@@ -653,6 +659,43 @@ public class DataStore
             {
                 d.StationId = null;
             }
+        }
+    }
+
+    public string GenerateOtp(string phone, string purpose)
+    {
+        lock (_lock)
+        {
+            var cleanPhone = phone.Trim();
+            var code = RandomNumberGenerator.GetInt32(100000, 999999).ToString();
+            var key = $"{purpose.ToLower()}:{cleanPhone}";
+            OtpStore[key] = new OtpItem
+            {
+                Phone = cleanPhone,
+                Code = code,
+                Purpose = purpose.ToLower(),
+                ExpiresAt = DateTime.UtcNow.AddMinutes(5)
+            };
+            Console.WriteLine($"[SMS GATEWAY] >> Mã OTP ({purpose}) gửi tới SĐT {cleanPhone} là: {code} (Hiệu lực 5 phút)");
+            return code;
+        }
+    }
+
+    public bool VerifyOtp(string phone, string purpose, string code)
+    {
+        lock (_lock)
+        {
+            var cleanPhone = phone.Trim();
+            var key = $"{purpose.ToLower()}:{cleanPhone}";
+            if (OtpStore.TryGetValue(key, out var item))
+            {
+                if (DateTime.UtcNow <= item.ExpiresAt && item.Code == code.Trim())
+                {
+                    OtpStore.Remove(key); // Dùng 1 lần rồi hủy
+                    return true;
+                }
+            }
+            return false;
         }
     }
 }

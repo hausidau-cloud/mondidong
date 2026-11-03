@@ -23,6 +23,9 @@ public class AppUser
     [JsonPropertyName("full_name")]
     public string FullName { get; set; } = "Quản trị viên";
 
+    [JsonPropertyName("phone")]
+    public string? Phone { get; set; } = "";
+
     [JsonPropertyName("role")]
     public string Role { get; set; } = "admin"; // admin | viewer
 
@@ -332,3 +335,12 @@ public class IngestRequest
     [JsonPropertyName("fw")]
     public string? Fw { get; set; }
 }
+
+public class OtpItem
+{
+    public string Phone { get; set; } = "";
+    public string Code { get; set; } = "";
+    public string Purpose { get; set; } = ""; // register | forgot_password
+    public DateTime ExpiresAt { get; set; }
+}
+

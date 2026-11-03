@@ -34,11 +34,26 @@ public class PasswordChangeRequest
     public string @new { get; set; } = "";
 }
 
+public class SendOtpRequest
+{
+    public string phone { get; set; } = "";
+    public string purpose { get; set; } = "register"; // register | forgot_password
+}
+
 public class UserRegisterRequest
 {
     public string username { get; set; } = "";
     public string password { get; set; } = "";
     public string full_name { get; set; } = "";
+    public string phone { get; set; } = "";
+    public string? otp { get; set; }
+}
+
+public class ForgotPasswordRequest
+{
+    public string phone { get; set; } = "";
+    public string otp { get; set; } = "";
+    public string new_password { get; set; } = "";
 }
 
 
@@ -220,7 +235,52 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// POST /api/auth/register: Đăng ký tài khoản nhân viên mới
+    /// POST /api/auth/send-otp: Gửi mã OTP xác thực qua số điện thoại (Cho Đăng ký & Quên mật khẩu)
+    /// </summary>
+    [HttpPost("send-otp")]
+    public IActionResult SendOtp([FromBody] SendOtpRequest req)
+    {
+        var phone = req.phone?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(phone) || phone.Length < 9)
+        {
+            return BadRequest(new { ok = false, error = "Vui lòng nhập số điện thoại hợp lệ (tối thiểu 9-10 chữ số)" });
+        }
+
+        var purpose = string.Equals(req.purpose, "forgot_password", StringComparison.OrdinalIgnoreCase)
+            ? "forgot_password"
+            : "register";
+
+        if (purpose == "register")
+        {
+            if (_db.Users.Any(u => u.Phone == phone))
+            {
+                return BadRequest(new { ok = false, error = $"Số điện thoại {phone} đã được đăng ký tài khoản khác trong hệ thống." });
+            }
+        }
+        else if (purpose == "forgot_password")
+        {
+            var exists = _db.Users.Any(u => u.Phone == phone || u.Username.ToLower() == phone.ToLower());
+            if (!exists)
+            {
+                return NotFound(new { ok = false, error = $"Số điện thoại {phone} chưa được liên kết với bất kỳ tài khoản nào." });
+            }
+        }
+
+        var otpCode = _store.GenerateOtp(phone, purpose);
+
+        return Ok(new
+        {
+            ok = true,
+            message = $"Mã OTP xác thực đã được gửi đến số điện thoại {phone}!",
+            phone,
+            purpose,
+            otp_demo = otpCode,
+            expires_in = 300
+        });
+    }
+
+    /// <summary>
+    /// POST /api/auth/register: Đăng ký tài khoản nhân viên mới (Có xác thực OTP qua SĐT)
     /// </summary>
     [HttpPost("register")]
     public IActionResult Register([FromBody] UserRegisterRequest req)
@@ -230,10 +290,27 @@ public class AuthController : ControllerBase
             return BadRequest(new { ok = false, error = "Vui lòng nhập tên đăng nhập và mật khẩu" });
         }
 
+        var phone = req.phone?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(phone) || phone.Length < 9)
+        {
+            return BadRequest(new { ok = false, error = "Vui lòng nhập số điện thoại hợp lệ để nhận mã xác thực" });
+        }
+
+        // Kiểm tra mã OTP
+        if (string.IsNullOrWhiteSpace(req.otp) || !_store.VerifyOtp(phone, "register", req.otp))
+        {
+            return BadRequest(new { ok = false, error = "Mã OTP không chính xác hoặc đã hết hạn (hiệu lực 5 phút). Vui lòng nhấn 'Gửi mã OTP' để nhận mã mới." });
+        }
+
         var uName = req.username.Trim();
         if (_db.Users.Any(u => u.Username.ToLower() == uName.ToLower()))
         {
             return BadRequest(new { ok = false, error = $"Tên đăng nhập '{uName}' đã được sử dụng!" });
+        }
+
+        if (_db.Users.Any(u => u.Phone == phone))
+        {
+            return BadRequest(new { ok = false, error = $"Số điện thoại {phone} đã được đăng ký tài khoản khác!" });
         }
 
         var fullName = string.IsNullOrWhiteSpace(req.full_name) ? uName : req.full_name.Trim();
@@ -244,6 +321,7 @@ public class AuthController : ControllerBase
             Username = uName,
             Password = req.password,
             FullName = fullName,
+            Phone = phone,
             Role = "viewer" // Mặc định tài khoản tự đăng ký là nhân viên
         };
 
@@ -267,9 +345,59 @@ public class AuthController : ControllerBase
                 id = newUser.Id,
                 username = newUser.Username,
                 full_name = newUser.FullName,
+                phone = newUser.Phone,
                 role = newUser.Role,
                 station_ids = new List<int>()
             }
+        });
+    }
+
+    /// <summary>
+    /// POST /api/auth/forgot-password: Đặt lại mật khẩu qua mã OTP xác thực SĐT
+    /// </summary>
+    [HttpPost("forgot-password")]
+    public IActionResult ForgotPassword([FromBody] ForgotPasswordRequest req)
+    {
+        var phone = req.phone?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(phone))
+        {
+            return BadRequest(new { ok = false, error = "Vui lòng nhập số điện thoại hoặc tên đăng nhập" });
+        }
+
+        if (string.IsNullOrWhiteSpace(req.new_password) || req.new_password.Trim().Length < 3)
+        {
+            return BadRequest(new { ok = false, error = "Mật khẩu mới phải có tối thiểu 3 ký tự" });
+        }
+
+        // Xác minh mã OTP
+        if (string.IsNullOrWhiteSpace(req.otp) || !_store.VerifyOtp(phone, "forgot_password", req.otp))
+        {
+            return BadRequest(new { ok = false, error = "Mã OTP không chính xác hoặc đã hết hạn. Vui lòng bấm 'Gửi mã OTP' để nhận lại." });
+        }
+
+        var user = _db.Users.FirstOrDefault(u => u.Phone == phone);
+        if (user == null)
+        {
+            // Thử tìm theo username nếu user nhập username
+            user = _db.Users.FirstOrDefault(u => u.Username.ToLower() == phone.ToLower());
+        }
+
+        if (user == null)
+        {
+            return NotFound(new { ok = false, error = $"Không tìm thấy tài khoản liên kết với số điện thoại '{phone}'." });
+        }
+
+        user.Password = req.new_password.Trim();
+        _db.SaveChanges();
+
+        var storeUser = _store.Users.FirstOrDefault(u => u.Id == user.Id);
+        if (storeUser != null) storeUser.Password = user.Password;
+
+        return Ok(new
+        {
+            ok = true,
+            message = $"Đặt lại mật khẩu cho tài khoản '{user.Username}' thành công! Vui lòng đăng nhập bằng mật khẩu mới.",
+            username = user.Username
         });
     }
 

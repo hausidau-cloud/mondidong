@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../core/api.dart';
@@ -48,10 +50,15 @@ class _LoginScreenState extends State<LoginScreen> {
     final formKey = GlobalKey<FormState>();
     final uCtrl = TextEditingController();
     final fCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    final otpCtrl = TextEditingController();
     final pCtrl = TextEditingController();
     final p2Ctrl = TextEditingController();
     bool hideP = true;
     bool saving = false;
+    bool sendingOtp = false;
+    int countdown = 0;
+    Timer? countdownTimer;
     String? dErr;
 
     showDialog(
@@ -77,8 +84,8 @@ class _LoginScreenState extends State<LoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text('Đăng ký tài khoản', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
-                    Text('Tài khoản nhân viên giám sát trạm', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                    Text('Đăng ký nhân viên', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                    Text('Xác thực OTP qua số điện thoại', style: TextStyle(fontSize: 12, color: AppColors.muted)),
                   ],
                 ),
               ),
@@ -86,7 +93,7 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           content: SingleChildScrollView(
             child: SizedBox(
-              width: 360,
+              width: 380,
               child: Form(
                 key: formKey,
                 child: Column(
@@ -126,7 +133,99 @@ class _LoginScreenState extends State<LoginScreen> {
                         hintText: 'VD: nhanvien01',
                         prefixIcon: Icon(Icons.account_circle_rounded),
                       ),
-                      validator: (v) => v == null || v.trim().isEmpty ? 'Vui lòng nhập username' : null,
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Vui lòng nhập tên đăng nhập' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    // Số điện thoại & nút gửi OTP
+                    TextFormField(
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: 'Số điện thoại nhận OTP *',
+                        hintText: 'VD: 0912345678',
+                        prefixIcon: const Icon(Icons.phone_iphone_rounded),
+                        suffixIcon: Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: TextButton(
+                            onPressed: (sendingOtp || countdown > 0)
+                                ? null
+                                : () async {
+                                    final p = phoneCtrl.text.trim();
+                                    if (p.length < 9) {
+                                      setDState(() => dErr = 'Vui lòng nhập số điện thoại hợp lệ (9-10 số)');
+                                      return;
+                                    }
+                                    setDState(() {
+                                      sendingOtp = true;
+                                      dErr = null;
+                                    });
+                                    try {
+                                      final res = await Session.I.sendOtp(
+                                        server: _server.text,
+                                        phone: p,
+                                        purpose: 'register',
+                                      );
+                                      final demoCode = res['otp_demo']?.toString();
+                                      if (demoCode != null) {
+                                        otpCtrl.text = demoCode;
+                                      }
+                                      setDState(() {
+                                        sendingOtp = false;
+                                        countdown = 60;
+                                      });
+                                      countdownTimer?.cancel();
+                                      countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+                                        if (countdown > 1) {
+                                          setDState(() => countdown--);
+                                        } else {
+                                          t.cancel();
+                                          setDState(() => countdown = 0);
+                                        }
+                                      });
+                                      if (ctx.mounted) {
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Mã OTP xác thực gửi tới $p: $demoCode'),
+                                            backgroundColor: const Color(0xFF133E26),
+                                            duration: const Duration(seconds: 5),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      setDState(() {
+                                        sendingOtp = false;
+                                        dErr = e.toString().replaceFirst('Exception: ', '');
+                                      });
+                                    }
+                                  },
+                            child: sendingOtp
+                                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                                : Text(
+                                    countdown > 0 ? '${countdown}s' : 'Gửi mã OTP',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12.5,
+                                      color: countdown > 0 ? AppColors.muted : AppColors.accent,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                      validator: (v) => v == null || v.trim().length < 9 ? 'Vui lòng nhập SĐT hợp lệ' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    // Mã OTP
+                    TextFormField(
+                      controller: otpCtrl,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      decoration: const InputDecoration(
+                        labelText: 'Mã xác thực OTP (6 số) *',
+                        hintText: 'Nhập mã 6 chữ số từ SMS',
+                        prefixIcon: Icon(Icons.password_rounded),
+                        counterText: '',
+                      ),
+                      validator: (v) => v == null || v.trim().length < 6 ? 'Nhập mã OTP 6 số' : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -162,11 +261,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       child: const Row(
                         children: [
-                          Icon(Icons.qr_code_scanner_rounded, size: 18, color: AppColors.air),
+                          Icon(Icons.info_outline_rounded, size: 18, color: AppColors.air),
                           SizedBox(width: 8),
                           Expanded(
                             child: Text(
-                              'Sau khi đăng ký, bạn sẽ quét mã QR tại trạm để kết nối và nhận dữ liệu giám sát.',
+                              'Nhân viên sau khi đăng ký sẽ dùng chức năng Quét mã QR dán trên tủ trạm để kết nối.',
                               style: TextStyle(fontSize: 11.5, color: AppColors.text2, height: 1.35),
                             ),
                           ),
@@ -180,7 +279,12 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
           actions: [
             TextButton(
-              onPressed: saving ? null : () => Navigator.pop(ctx),
+              onPressed: saving
+                  ? null
+                  : () {
+                      countdownTimer?.cancel();
+                      Navigator.pop(ctx);
+                    },
               child: const Text('Hủy'),
             ),
             FilledButton(
@@ -198,19 +302,266 @@ class _LoginScreenState extends State<LoginScreen> {
                           uCtrl.text.trim(),
                           pCtrl.text,
                           fCtrl.text.trim(),
+                          phone: phoneCtrl.text.trim(),
+                          otp: otpCtrl.text.trim(),
                         );
+                        countdownTimer?.cancel();
                         if (!ctx.mounted) return;
                         Navigator.pop(ctx);
                       } catch (e) {
                         setDState(() {
                           saving = false;
-                          dErr = e.toString();
+                          dErr = e.toString().replaceFirst('Exception: ', '');
                         });
                       }
                     },
               child: saving
                   ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('Tạo tài khoản'),
+                  : const Text('Xác nhận đăng ký'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showForgotPasswordDialog() {
+    final formKey = GlobalKey<FormState>();
+    final phoneCtrl = TextEditingController();
+    final otpCtrl = TextEditingController();
+    final newPassCtrl = TextEditingController();
+    final confirmPassCtrl = TextEditingController();
+    bool hideP = true;
+    bool saving = false;
+    bool sendingOtp = false;
+    int countdown = 0;
+    Timer? countdownTimer;
+    String? dErr;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDState) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
+          backgroundColor: AppColors.surface,
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.warn.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.lock_reset_rounded, color: AppColors.warn, size: 22),
+              ),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('Quên mật khẩu', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
+                    Text('Đặt lại mật khẩu qua mã xác thực OTP', style: TextStyle(fontSize: 12, color: AppColors.muted)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: SizedBox(
+              width: 380,
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (dErr != null)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 12),
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: AppColors.danger.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 18),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(dErr!, style: const TextStyle(color: AppColors.danger, fontSize: 12.5))),
+                          ],
+                        ),
+                      ),
+                    TextFormField(
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: InputDecoration(
+                        labelText: 'Số điện thoại đăng ký *',
+                        hintText: 'VD: 0912345678',
+                        prefixIcon: const Icon(Icons.phone_iphone_rounded),
+                        suffixIcon: Padding(
+                          padding: const EdgeInsets.only(right: 6),
+                          child: TextButton(
+                            onPressed: (sendingOtp || countdown > 0)
+                                ? null
+                                : () async {
+                                    final p = phoneCtrl.text.trim();
+                                    if (p.length < 9) {
+                                      setDState(() => dErr = 'Vui lòng nhập số điện thoại hợp lệ');
+                                      return;
+                                    }
+                                    setDState(() {
+                                      sendingOtp = true;
+                                      dErr = null;
+                                    });
+                                    try {
+                                      final res = await Session.I.sendOtp(
+                                        server: _server.text,
+                                        phone: p,
+                                        purpose: 'forgot_password',
+                                      );
+                                      final demoCode = res['otp_demo']?.toString();
+                                      if (demoCode != null) {
+                                        otpCtrl.text = demoCode;
+                                      }
+                                      setDState(() {
+                                        sendingOtp = false;
+                                        countdown = 60;
+                                      });
+                                      countdownTimer?.cancel();
+                                      countdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
+                                        if (countdown > 1) {
+                                          setDState(() => countdown--);
+                                        } else {
+                                          t.cancel();
+                                          setDState(() => countdown = 0);
+                                        }
+                                      });
+                                      if (ctx.mounted) {
+                                        ScaffoldMessenger.of(ctx).showSnackBar(
+                                          SnackBar(
+                                            content: Text('Mã OTP đặt lại mật khẩu gửi tới $p: $demoCode'),
+                                            backgroundColor: const Color(0xFF133E26),
+                                            duration: const Duration(seconds: 5),
+                                          ),
+                                        );
+                                      }
+                                    } catch (e) {
+                                      setDState(() {
+                                        sendingOtp = false;
+                                        dErr = e.toString().replaceFirst('Exception: ', '');
+                                      });
+                                    }
+                                  },
+                            child: sendingOtp
+                                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                                : Text(
+                                    countdown > 0 ? '${countdown}s' : 'Gửi mã OTP',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12.5,
+                                      color: countdown > 0 ? AppColors.muted : AppColors.accent,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                      validator: (v) => v == null || v.trim().length < 9 ? 'Vui lòng nhập SĐT đã đăng ký' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: otpCtrl,
+                      keyboardType: TextInputType.number,
+                      maxLength: 6,
+                      decoration: const InputDecoration(
+                        labelText: 'Mã xác thực OTP (6 số) *',
+                        hintText: 'Nhập mã OTP đã nhận',
+                        prefixIcon: Icon(Icons.password_rounded),
+                        counterText: '',
+                      ),
+                      validator: (v) => v == null || v.trim().length < 6 ? 'Nhập mã OTP 6 số' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: newPassCtrl,
+                      obscureText: hideP,
+                      decoration: InputDecoration(
+                        labelText: 'Mật khẩu mới *',
+                        prefixIcon: const Icon(Icons.lock_rounded),
+                        suffixIcon: IconButton(
+                          icon: Icon(hideP ? Icons.visibility_rounded : Icons.visibility_off_rounded),
+                          onPressed: () => setDState(() => hideP = !hideP),
+                        ),
+                      ),
+                      validator: (v) => v == null || v.length < 3 ? 'Mật khẩu tối thiểu 3 ký tự' : null,
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: confirmPassCtrl,
+                      obscureText: hideP,
+                      decoration: const InputDecoration(
+                        labelText: 'Nhập lại mật khẩu mới *',
+                        prefixIcon: Icon(Icons.lock_outline_rounded),
+                      ),
+                      validator: (v) => v != newPassCtrl.text ? 'Mật khẩu xác nhận không khớp' : null,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving
+                  ? null
+                  : () {
+                      countdownTimer?.cancel();
+                      Navigator.pop(ctx);
+                    },
+              child: const Text('Hủy'),
+            ),
+            FilledButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      if (!formKey.currentState!.validate()) return;
+                      setDState(() {
+                        saving = true;
+                        dErr = null;
+                      });
+                      try {
+                        final res = await Session.I.forgotPassword(
+                          server: _server.text,
+                          phone: phoneCtrl.text.trim(),
+                          otp: otpCtrl.text.trim(),
+                          newPassword: newPassCtrl.text.trim(),
+                        );
+                        countdownTimer?.cancel();
+                        if (!ctx.mounted) return;
+                        Navigator.pop(ctx);
+                        _pass.clear();
+                        if (res['username'] != null) {
+                          _user.text = res['username'].toString();
+                        }
+                        if (mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(res['message']?.toString() ?? 'Đặt lại mật khẩu thành công!'),
+                              backgroundColor: const Color(0xFF133E26),
+                            ),
+                          );
+                        }
+                      } catch (e) {
+                        setDState(() {
+                          saving = false;
+                          dErr = e.toString().replaceFirst('Exception: ', '');
+                        });
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('Cập nhật mật khẩu'),
             ),
           ],
         ),
@@ -280,7 +631,19 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton(
+              onPressed: _showForgotPasswordDialog,
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                foregroundColor: AppColors.air,
+                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 0),
+              ),
+              child: const Text('Quên mật khẩu?', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+            ),
+          ),
+          const SizedBox(height: 6),
           // Cau hinh dia chi server
           InkWell(
             borderRadius: BorderRadius.circular(10),
