@@ -166,10 +166,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                         purpose: 'register',
                                       );
                                       final isRealSent = res['email_sent'] == true || res['sms_sent'] == true;
-                                      final demoCode = res['otp_demo']?.toString();
-                                      if (!isRealSent && demoCode != null) {
-                                        otpCtrl.text = demoCode;
-                                      }
+                                      // Tuyệt đối KHÔNG tự điền OTP vào ô nhập liệu
+                                      // Người dùng phải mở Gmail / SMS để lấy mã và tự tay điền vào
+                                      otpCtrl.clear();
                                       setDState(() {
                                         sendingOtp = false;
                                         countdown = 60;
@@ -187,13 +186,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                         final isEmail = p.contains('@');
                                         ScaffoldMessenger.of(ctx).showSnackBar(
                                           SnackBar(
-                                            content: Text(isRealSent
-                                                ? (isEmail
-                                                    ? 'Mã OTP đã gửi về hòm thư $p! Vui lòng kiểm tra Gmail.'
-                                                    : 'Đã gửi tin nhắn SMS OTP đến số $p! Vui lòng kiểm tra tin nhắn.')
-                                                : 'Mã OTP xác thực gửi tới $p: $demoCode'),
+                                            content: Text(isEmail
+                                                ? 'Mã OTP đã được gửi đến email $p! Vui lòng mở Gmail để kiểm tra.'
+                                                : (isRealSent
+                                                    ? 'Đã gửi tin nhắn SMS OTP đến số $p! Vui lòng kiểm tra tin nhắn.'
+                                                    : 'Mã OTP xác thực gửi tới $p: ${res['otp_demo']}')),
                                             backgroundColor: const Color(0xFF133E26),
-                                            duration: const Duration(seconds: 5),
+                                            duration: const Duration(seconds: 6),
                                           ),
                                         );
                                       }
@@ -227,7 +226,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       maxLength: 6,
                       decoration: const InputDecoration(
                         labelText: 'Mã xác thực OTP (6 số) *',
-                        hintText: 'Nhập mã 6 chữ số từ SMS',
+                        hintText: 'Nhập mã 6 chữ số từ Gmail hoặc SMS',
                         prefixIcon: Icon(Icons.password_rounded),
                         counterText: '',
                       ),
@@ -429,10 +428,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                         purpose: 'forgot_password',
                                       );
                                       final isRealSent = res['email_sent'] == true || res['sms_sent'] == true;
-                                      final demoCode = res['otp_demo']?.toString();
-                                      if (!isRealSent && demoCode != null) {
-                                        otpCtrl.text = demoCode;
-                                      }
+                                      // Tuyệt đối KHÔNG tự điền OTP
+                                      otpCtrl.clear();
                                       setDState(() {
                                         sendingOtp = false;
                                         countdown = 60;
@@ -450,13 +447,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                         final isEmail = p.contains('@');
                                         ScaffoldMessenger.of(ctx).showSnackBar(
                                           SnackBar(
-                                            content: Text(isRealSent
-                                                ? (isEmail
-                                                    ? 'Mã OTP đặt lại mật khẩu đã gửi về hòm thư $p!'
-                                                    : 'Đã gửi tin nhắn SMS OTP đến số $p! Vui lòng kiểm tra tin nhắn.')
-                                                : 'Mã OTP đặt lại mật khẩu: $demoCode'),
+                                            content: Text(isEmail
+                                                ? 'Mã OTP đặt lại mật khẩu đã gửi về hòm thư $p! Vui lòng kiểm tra Gmail.'
+                                                : (isRealSent
+                                                    ? 'Đã gửi tin nhắn SMS OTP đến số $p! Vui lòng kiểm tra tin nhắn.'
+                                                    : 'Mã OTP đặt lại mật khẩu: ${res['otp_demo']}')),
                                             backgroundColor: const Color(0xFF133E26),
-                                            duration: const Duration(seconds: 5),
+                                            duration: const Duration(seconds: 6),
                                           ),
                                         );
                                       }

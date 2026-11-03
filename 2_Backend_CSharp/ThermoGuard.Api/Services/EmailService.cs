@@ -57,17 +57,27 @@ public class EmailService
             {
                 EnableSsl = true,
                 UseDefaultCredentials = false,
-                Credentials = new NetworkCredential(senderEmail, senderPassword)
+                Credentials = new NetworkCredential(senderEmail, senderPassword),
+                Timeout = 4000
             };
 
-            await client.SendMailAsync(mail);
+            var sendTask = client.SendMailAsync(mail);
+            var timeoutTask = Task.Delay(4000);
+            var completed = await Task.WhenAny(sendTask, timeoutTask);
+            if (completed == timeoutTask)
+            {
+                Console.WriteLine("[EmailService] >> SMTP connection timeout (likely blocked by cloud host firewall)");
+                return (false, "SMTP connection timed out (cloud host blocked port 587)");
+            }
+            await sendTask;
             Console.WriteLine($"[EmailService] >> Đã gửi thành công OTP {code} tới email {toEmail}");
             return (true, $"Mã OTP đã được gửi đến email {toEmail}!");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[EmailService Error] >> {ex.Message}");
-            return (false, ex.Message);
+            var msg = ex.InnerException?.Message ?? ex.Message;
+            Console.WriteLine($"[EmailService Error] >> {msg}");
+            return (false, msg);
         }
     }
 }

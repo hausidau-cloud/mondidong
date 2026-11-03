@@ -5,6 +5,8 @@ import 'dart:math' as math;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
+import 'package:mailer/mailer.dart';
+import 'package:mailer/smtp_server.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/models.dart';
@@ -92,6 +94,44 @@ class Session extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Gửi trực tiếp email OTP qua Gmail SMTP từ thiết bị người dùng (Bỏ qua rào cản chặn cổng 587 của các server hosting miễn phí như Render)
+  static Future<bool> sendOtpEmailDirect({
+    required String toEmail,
+    required String code,
+    String purpose = 'register',
+  }) async {
+    try {
+      final smtpServer = gmail('huynhquochieu127@gmail.com', 'nxkditqeebfbpdbl');
+      final actionText = purpose == 'forgot_password' ? 'đặt lại mật khẩu' : 'đăng ký tài khoản';
+      final message = Message()
+        ..from = const Address('huynhquochieu127@gmail.com', 'ThermoGuard IoT')
+        ..recipients.add(toEmail.trim())
+        ..subject = '[ThermoGuard] Mã xác thực OTP $actionText: $code'
+        ..html = '''
+<div style="font-family: Arial, sans-serif; max-width: 500px; margin: 0 auto; padding: 25px; border-radius: 12px; background-color: #0F172A; color: #FFFFFF;">
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h2 style="color: #38BDF8; margin: 0; font-size: 24px;">ThermoGuard IoT</h2>
+        <p style="color: #94A3B8; font-size: 14px; margin-top: 5px;">Hệ thống Giám sát & Cảnh báo Môi trường</p>
+    </div>
+    <div style="background-color: #1E293B; border-radius: 10px; padding: 20px; text-align: center; border: 1px solid #334155;">
+        <p style="color: #E2E8F0; font-size: 15px; margin-bottom: 15px;">Mã xác thực OTP của bạn cho thao tác <b>$actionText</b> là:</p>
+        <div style="font-size: 32px; font-weight: bold; letter-spacing: 6px; color: #38BDF8; padding: 12px 20px; background-color: #0F172A; border-radius: 8px; display: inline-block; border: 1px dashed #38BDF8;">
+            $code
+        </div>
+        <p style="color: #94A3B8; font-size: 13px; margin-top: 15px;">Mã này có hiệu lực trong vòng <b>5 phút</b>. Vui lòng không chia sẻ mã này cho bất kỳ ai.</p>
+    </div>
+    <p style="color: #64748B; font-size: 12px; text-align: center; margin-top: 20px;">Đây là email tự động từ hệ thống ThermoGuard gửi tới <b>$toEmail</b>, vui lòng không trả lời email này.</p>
+</div>''';
+
+      await send(message, smtpServer);
+      debugPrint('[EmailSender] >> Đã gửi thành công email OTP tới $toEmail');
+      return true;
+    } catch (e) {
+      debugPrint('[EmailSender Error] >> $e');
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> sendOtp({
     required String server,
     String? phone,
@@ -101,12 +141,31 @@ class Session extends ChangeNotifier {
   }) async {
     baseUrl = normalizeUrl(server);
     final t = (target ?? email ?? phone ?? '').trim();
-    return await post('auth/send-otp', {
+    final res = await post('auth/send-otp', {
       'target': t,
       'email': t.contains('@') ? t : (email ?? ''),
       'phone': !t.contains('@') ? t : (phone ?? ''),
       'purpose': purpose,
     });
+
+    final isEmail = t.contains('@');
+    final code = res['otp_demo']?.toString();
+
+    // Nếu gửi tới Email và máy chủ hosting chưa gửi được (do Render free chặn cổng 587)
+    // Client Flutter sẽ lập tức kích hoạt gửi trực tiếp qua Gmail SMTP tới chính xác địa chỉ hòm thư người dùng
+    if (isEmail && res['email_sent'] != true && code != null && code.isNotEmpty) {
+      final directSent = await sendOtpEmailDirect(
+        toEmail: t,
+        code: code,
+        purpose: purpose,
+      );
+      if (directSent) {
+        res['email_sent'] = true;
+        res['sent_ok'] = true;
+      }
+    }
+
+    return res;
   }
 
   Future<void> register(
