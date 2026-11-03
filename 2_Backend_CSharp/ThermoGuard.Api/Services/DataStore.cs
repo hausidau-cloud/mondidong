@@ -75,6 +75,11 @@ public class DataStore
                 db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN Phone VARCHAR(20) NULL;");
             }
             catch { }
+            try
+            {
+                db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN Email VARCHAR(255) NULL;");
+            }
+            catch { }
 
             if (db.Users.Any())
             {

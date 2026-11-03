@@ -26,6 +26,9 @@ public class AppUser
     [JsonPropertyName("phone")]
     public string? Phone { get; set; } = "";
 
+    [JsonPropertyName("email")]
+    public string? Email { get; set; } = "";
+
     [JsonPropertyName("role")]
     public string Role { get; set; } = "admin"; // admin | viewer
 

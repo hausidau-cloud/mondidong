@@ -27,6 +27,7 @@ class AppUser {
   final String username;
   final String fullName;
   final String? phone;
+  final String? email;
   final String role;
   final List<int> stationIds;
   AppUser({
@@ -34,6 +35,7 @@ class AppUser {
     required this.username,
     required this.fullName,
     this.phone,
+    this.email,
     required this.role,
     this.stationIds = const [],
   });
@@ -43,6 +45,7 @@ class AppUser {
         username: (j['username'] ?? '').toString(),
         fullName: (j['full_name'] ?? '').toString(),
         phone: j['phone']?.toString(),
+        email: j['email']?.toString(),
         role: (j['role'] ?? 'viewer').toString(),
         stationIds: ((j['station_ids'] as List?) ?? const []).map((e) => toInt(e)).toList(),
       );
@@ -52,6 +55,7 @@ class AppUser {
         'username': username,
         'full_name': fullName,
         'phone': phone,
+        'email': email,
         'role': role,
         'station_ids': stationIds,
       };

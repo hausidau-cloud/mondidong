@@ -136,14 +136,14 @@ class _LoginScreenState extends State<LoginScreen> {
                       validator: (v) => v == null || v.trim().isEmpty ? 'Vui lòng nhập tên đăng nhập' : null,
                     ),
                     const SizedBox(height: 12),
-                    // Số điện thoại & nút gửi OTP
+                    // Email / Số điện thoại & nút gửi OTP
                     TextFormField(
                       controller: phoneCtrl,
-                      keyboardType: TextInputType.phone,
+                      keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
-                        labelText: 'Số điện thoại nhận OTP *',
-                        hintText: 'VD: 0912345678',
-                        prefixIcon: const Icon(Icons.phone_iphone_rounded),
+                        labelText: 'Email hoặc Số điện thoại *',
+                        hintText: 'VD: nhanvien@gmail.com',
+                        prefixIcon: const Icon(Icons.mail_outline_rounded),
                         suffixIcon: Padding(
                           padding: const EdgeInsets.only(right: 6),
                           child: TextButton(
@@ -151,8 +151,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ? null
                                 : () async {
                                     final p = phoneCtrl.text.trim();
-                                    if (p.length < 9) {
-                                      setDState(() => dErr = 'Vui lòng nhập số điện thoại hợp lệ (9-10 số)');
+                                    if (p.length < 5) {
+                                      setDState(() => dErr = 'Vui lòng nhập Email hoặc Số điện thoại hợp lệ');
                                       return;
                                     }
                                     setDState(() {
@@ -162,12 +162,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                     try {
                                       final res = await Session.I.sendOtp(
                                         server: _server.text,
-                                        phone: p,
+                                        target: p,
                                         purpose: 'register',
                                       );
-                                      final isRealSms = res['sms_sent'] == true;
+                                      final isRealSent = res['email_sent'] == true || res['sms_sent'] == true;
                                       final demoCode = res['otp_demo']?.toString();
-                                      if (!isRealSms && demoCode != null) {
+                                      if (!isRealSent && demoCode != null) {
                                         otpCtrl.text = demoCode;
                                       }
                                       setDState(() {
@@ -184,10 +184,13 @@ class _LoginScreenState extends State<LoginScreen> {
                                         }
                                       });
                                       if (ctx.mounted) {
+                                        final isEmail = p.contains('@');
                                         ScaffoldMessenger.of(ctx).showSnackBar(
                                           SnackBar(
-                                            content: Text(isRealSms
-                                                ? 'Đã gửi tin nhắn SMS OTP đến số $p! Vui lòng kiểm tra tin nhắn.'
+                                            content: Text(isRealSent
+                                                ? (isEmail
+                                                    ? 'Mã OTP đã gửi về hòm thư $p! Vui lòng kiểm tra Gmail.'
+                                                    : 'Đã gửi tin nhắn SMS OTP đến số $p! Vui lòng kiểm tra tin nhắn.')
                                                 : 'Mã OTP xác thực gửi tới $p: $demoCode'),
                                             backgroundColor: const Color(0xFF133E26),
                                             duration: const Duration(seconds: 5),
@@ -214,7 +217,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
-                      validator: (v) => v == null || v.trim().length < 9 ? 'Vui lòng nhập SĐT hợp lệ' : null,
+                      validator: (v) => v == null || v.trim().length < 5 ? 'Vui lòng nhập Email hoặc SĐT hợp lệ' : null,
                     ),
                     const SizedBox(height: 12),
                     // Mã OTP
@@ -305,7 +308,8 @@ class _LoginScreenState extends State<LoginScreen> {
                           uCtrl.text.trim(),
                           pCtrl.text,
                           fCtrl.text.trim(),
-                          phone: phoneCtrl.text.trim(),
+                          phone: !phoneCtrl.text.trim().contains('@') ? phoneCtrl.text.trim() : null,
+                          email: phoneCtrl.text.trim().contains('@') ? phoneCtrl.text.trim() : null,
                           otp: otpCtrl.text.trim(),
                         );
                         countdownTimer?.cancel();
@@ -398,11 +402,11 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     TextFormField(
                       controller: phoneCtrl,
-                      keyboardType: TextInputType.phone,
+                      keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
-                        labelText: 'Số điện thoại đăng ký *',
-                        hintText: 'VD: 0912345678',
-                        prefixIcon: const Icon(Icons.phone_iphone_rounded),
+                        labelText: 'Email, SĐT hoặc Tên đăng nhập *',
+                        hintText: 'VD: nhanvien@gmail.com hoặc admin',
+                        prefixIcon: const Icon(Icons.alternate_email_rounded),
                         suffixIcon: Padding(
                           padding: const EdgeInsets.only(right: 6),
                           child: TextButton(
@@ -410,8 +414,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ? null
                                 : () async {
                                     final p = phoneCtrl.text.trim();
-                                    if (p.length < 9) {
-                                      setDState(() => dErr = 'Vui lòng nhập số điện thoại hợp lệ');
+                                    if (p.isEmpty) {
+                                      setDState(() => dErr = 'Vui lòng nhập Email, SĐT hoặc Tên đăng nhập');
                                       return;
                                     }
                                     setDState(() {
@@ -421,12 +425,12 @@ class _LoginScreenState extends State<LoginScreen> {
                                     try {
                                       final res = await Session.I.sendOtp(
                                         server: _server.text,
-                                        phone: p,
+                                        target: p,
                                         purpose: 'forgot_password',
                                       );
-                                      final isRealSms = res['sms_sent'] == true;
+                                      final isRealSent = res['email_sent'] == true || res['sms_sent'] == true;
                                       final demoCode = res['otp_demo']?.toString();
-                                      if (!isRealSms && demoCode != null) {
+                                      if (!isRealSent && demoCode != null) {
                                         otpCtrl.text = demoCode;
                                       }
                                       setDState(() {
@@ -443,11 +447,14 @@ class _LoginScreenState extends State<LoginScreen> {
                                         }
                                       });
                                       if (ctx.mounted) {
+                                        final isEmail = p.contains('@');
                                         ScaffoldMessenger.of(ctx).showSnackBar(
                                           SnackBar(
-                                            content: Text(isRealSms
-                                                ? 'Đã gửi tin nhắn SMS OTP đến số $p! Vui lòng kiểm tra tin nhắn.'
-                                                : 'Mã OTP đặt lại mật khẩu gửi tới $p: $demoCode'),
+                                            content: Text(isRealSent
+                                                ? (isEmail
+                                                    ? 'Mã OTP đặt lại mật khẩu đã gửi về hòm thư $p!'
+                                                    : 'Đã gửi tin nhắn SMS OTP đến số $p! Vui lòng kiểm tra tin nhắn.')
+                                                : 'Mã OTP đặt lại mật khẩu: $demoCode'),
                                             backgroundColor: const Color(0xFF133E26),
                                             duration: const Duration(seconds: 5),
                                           ),
@@ -473,7 +480,7 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         ),
                       ),
-                      validator: (v) => v == null || v.trim().length < 9 ? 'Vui lòng nhập SĐT đã đăng ký' : null,
+                      validator: (v) => v == null || v.trim().isEmpty ? 'Vui lòng nhập Email, SĐT hoặc Username' : null,
                     ),
                     const SizedBox(height: 12),
                     TextFormField(
@@ -539,7 +546,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       try {
                         final res = await Session.I.forgotPassword(
                           server: _server.text,
-                          phone: phoneCtrl.text.trim(),
+                          target: phoneCtrl.text.trim(),
                           otp: otpCtrl.text.trim(),
                           newPassword: newPassCtrl.text.trim(),
                         );

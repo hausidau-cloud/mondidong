@@ -36,7 +36,9 @@ public class PasswordChangeRequest
 
 public class SendOtpRequest
 {
-    public string phone { get; set; } = "";
+    public string? phone { get; set; } = "";
+    public string? email { get; set; } = "";
+    public string? target { get; set; } = "";
     public string purpose { get; set; } = "register"; // register | forgot_password
 }
 
@@ -45,13 +47,16 @@ public class UserRegisterRequest
     public string username { get; set; } = "";
     public string password { get; set; } = "";
     public string full_name { get; set; } = "";
-    public string phone { get; set; } = "";
+    public string? phone { get; set; } = "";
+    public string? email { get; set; } = "";
     public string? otp { get; set; }
 }
 
 public class ForgotPasswordRequest
 {
-    public string phone { get; set; } = "";
+    public string? phone { get; set; } = "";
+    public string? email { get; set; } = "";
+    public string? target { get; set; } = "";
     public string otp { get; set; } = "";
     public string new_password { get; set; } = "";
 }
@@ -65,12 +70,14 @@ public class AuthController : ControllerBase
     private readonly AppDbContext _db;
     private readonly DataStore _store;
     private readonly SmsService _sms;
+    private readonly EmailService _email;
 
-    public AuthController(AppDbContext db, DataStore store, SmsService sms)
+    public AuthController(AppDbContext db, DataStore store, SmsService sms, EmailService email)
     {
         _db = db;
         _store = store;
         _sms = sms;
+        _email = email;
     }
 
     /// <summary>
@@ -237,59 +244,82 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// POST /api/auth/send-otp: Gửi mã OTP xác thực qua số điện thoại (Cho Đăng ký & Quên mật khẩu)
+    /// POST /api/auth/send-otp: Gửi mã OTP xác thực qua Email hoặc SĐT (Cho Đăng ký & Quên mật khẩu)
     /// </summary>
     [HttpPost("send-otp")]
     public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest req)
     {
-        var phone = req.phone?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(phone) || phone.Length < 9)
+        var target = (req.email ?? req.phone ?? req.target ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(target) || target.Length < 5)
         {
-            return BadRequest(new { ok = false, error = "Vui lòng nhập số điện thoại hợp lệ (tối thiểu 9-10 chữ số)" });
+            return BadRequest(new { ok = false, error = "Vui lòng nhập Email hoặc Số điện thoại hợp lệ" });
         }
 
+        var isEmail = target.Contains("@");
         var purpose = string.Equals(req.purpose, "forgot_password", StringComparison.OrdinalIgnoreCase)
             ? "forgot_password"
             : "register";
 
         if (purpose == "register")
         {
-            if (_db.Users.Any(u => u.Phone == phone))
+            if (isEmail && _db.Users.Any(u => u.Email == target))
             {
-                return BadRequest(new { ok = false, error = $"Số điện thoại {phone} đã được đăng ký tài khoản khác trong hệ thống." });
+                return BadRequest(new { ok = false, error = $"Email '{target}' đã được đăng ký tài khoản khác trong hệ thống." });
+            }
+            if (!isEmail && _db.Users.Any(u => u.Phone == target))
+            {
+                return BadRequest(new { ok = false, error = $"Số điện thoại {target} đã được đăng ký tài khoản khác trong hệ thống." });
             }
         }
         else if (purpose == "forgot_password")
         {
-            var exists = _db.Users.Any(u => u.Phone == phone || u.Username.ToLower() == phone.ToLower());
+            var exists = isEmail
+                ? _db.Users.Any(u => u.Email == target || u.Username.ToLower() == target.ToLower())
+                : _db.Users.Any(u => u.Phone == target || u.Username.ToLower() == target.ToLower());
             if (!exists)
             {
-                return NotFound(new { ok = false, error = $"Số điện thoại {phone} chưa được liên kết với bất kỳ tài khoản nào." });
+                return NotFound(new { ok = false, error = $"Không tìm thấy tài khoản nào liên kết với '{target}'." });
             }
         }
 
-        var otpCode = _store.GenerateOtp(phone, purpose);
+        var otpCode = _store.GenerateOtp(target, purpose);
+        bool sentOk = false;
+        string detail = "";
 
-        // Gọi SpeedSMS để gửi tin nhắn SMS thật
-        var (smsSent, smsMsg) = await _sms.SendOtpAsync(phone, otpCode);
+        if (isEmail)
+        {
+            var (mailOk, mailMsg) = await _email.SendOtpEmailAsync(target, otpCode, purpose);
+            sentOk = mailOk;
+            detail = mailMsg;
+        }
+        else
+        {
+            var (smsOk, smsMsg) = await _sms.SendOtpAsync(target, otpCode);
+            sentOk = smsOk;
+            detail = smsMsg;
+        }
 
         return Ok(new
         {
             ok = true,
-            message = smsSent
-                ? $"Mã OTP đã được gửi qua tin nhắn SMS tới số {phone}!"
+            message = sentOk
+                ? (isEmail ? $"Mã OTP đã được gửi về hộp thư email {target}!" : $"Mã OTP đã được gửi qua SMS tới {target}!")
                 : $"Mã OTP ThermoGuard: {otpCode}",
-            phone,
+            target,
+            phone = !isEmail ? target : "",
+            email = isEmail ? target : "",
             purpose,
-            sms_sent = smsSent,
-            sms_detail = smsMsg,
+            sent_ok = sentOk,
+            sms_sent = sentOk && !isEmail,
+            email_sent = sentOk && isEmail,
+            detail,
             otp_demo = otpCode,
             expires_in = 300
         });
     }
 
     /// <summary>
-    /// POST /api/auth/register: Đăng ký tài khoản nhân viên mới (Có xác thực OTP qua SĐT)
+    /// POST /api/auth/register: Đăng ký tài khoản nhân viên mới (Có xác thực OTP qua Email/SĐT)
     /// </summary>
     [HttpPost("register")]
     public IActionResult Register([FromBody] UserRegisterRequest req)
@@ -299,14 +329,16 @@ public class AuthController : ControllerBase
             return BadRequest(new { ok = false, error = "Vui lòng nhập tên đăng nhập và mật khẩu" });
         }
 
-        var phone = req.phone?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(phone) || phone.Length < 9)
+        var target = (req.email ?? req.phone ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(target) || target.Length < 5)
         {
-            return BadRequest(new { ok = false, error = "Vui lòng nhập số điện thoại hợp lệ để nhận mã xác thực" });
+            return BadRequest(new { ok = false, error = "Vui lòng nhập Email hoặc Số điện thoại để nhận mã xác thực" });
         }
 
+        var isEmail = target.Contains("@");
+
         // Kiểm tra mã OTP
-        if (string.IsNullOrWhiteSpace(req.otp) || !_store.VerifyOtp(phone, "register", req.otp))
+        if (string.IsNullOrWhiteSpace(req.otp) || !_store.VerifyOtp(target, "register", req.otp))
         {
             return BadRequest(new { ok = false, error = "Mã OTP không chính xác hoặc đã hết hạn (hiệu lực 5 phút). Vui lòng nhấn 'Gửi mã OTP' để nhận mã mới." });
         }
@@ -317,9 +349,13 @@ public class AuthController : ControllerBase
             return BadRequest(new { ok = false, error = $"Tên đăng nhập '{uName}' đã được sử dụng!" });
         }
 
-        if (_db.Users.Any(u => u.Phone == phone))
+        if (isEmail && _db.Users.Any(u => u.Email == target))
         {
-            return BadRequest(new { ok = false, error = $"Số điện thoại {phone} đã được đăng ký tài khoản khác!" });
+            return BadRequest(new { ok = false, error = $"Email '{target}' đã được đăng ký tài khoản khác!" });
+        }
+        else if (!isEmail && _db.Users.Any(u => u.Phone == target))
+        {
+            return BadRequest(new { ok = false, error = $"Số điện thoại {target} đã được đăng ký tài khoản khác!" });
         }
 
         var fullName = string.IsNullOrWhiteSpace(req.full_name) ? uName : req.full_name.Trim();
@@ -330,7 +366,8 @@ public class AuthController : ControllerBase
             Username = uName,
             Password = req.password,
             FullName = fullName,
-            Phone = phone,
+            Phone = !isEmail ? target : (req.phone ?? ""),
+            Email = isEmail ? target : (req.email ?? ""),
             Role = "viewer" // Mặc định tài khoản tự đăng ký là nhân viên
         };
 
@@ -355,6 +392,7 @@ public class AuthController : ControllerBase
                 username = newUser.Username,
                 full_name = newUser.FullName,
                 phone = newUser.Phone,
+                email = newUser.Email,
                 role = newUser.Role,
                 station_ids = new List<int>()
             }
@@ -362,15 +400,15 @@ public class AuthController : ControllerBase
     }
 
     /// <summary>
-    /// POST /api/auth/forgot-password: Đặt lại mật khẩu qua mã OTP xác thực SĐT
+    /// POST /api/auth/forgot-password: Đặt lại mật khẩu qua mã OTP xác thực Email/SĐT
     /// </summary>
     [HttpPost("forgot-password")]
     public IActionResult ForgotPassword([FromBody] ForgotPasswordRequest req)
     {
-        var phone = req.phone?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(phone))
+        var target = (req.email ?? req.phone ?? req.target ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(target))
         {
-            return BadRequest(new { ok = false, error = "Vui lòng nhập số điện thoại hoặc tên đăng nhập" });
+            return BadRequest(new { ok = false, error = "Vui lòng nhập Email, Số điện thoại hoặc Tên đăng nhập" });
         }
 
         if (string.IsNullOrWhiteSpace(req.new_password) || req.new_password.Trim().Length < 3)
@@ -379,21 +417,20 @@ public class AuthController : ControllerBase
         }
 
         // Xác minh mã OTP
-        if (string.IsNullOrWhiteSpace(req.otp) || !_store.VerifyOtp(phone, "forgot_password", req.otp))
+        if (string.IsNullOrWhiteSpace(req.otp) || !_store.VerifyOtp(target, "forgot_password", req.otp))
         {
             return BadRequest(new { ok = false, error = "Mã OTP không chính xác hoặc đã hết hạn. Vui lòng bấm 'Gửi mã OTP' để nhận lại." });
         }
 
-        var user = _db.Users.FirstOrDefault(u => u.Phone == phone);
-        if (user == null)
-        {
-            // Thử tìm theo username nếu user nhập username
-            user = _db.Users.FirstOrDefault(u => u.Username.ToLower() == phone.ToLower());
-        }
+        var isEmail = target.Contains("@");
+        var user = _db.Users.FirstOrDefault(u => 
+            (isEmail && u.Email == target) ||
+            (!isEmail && u.Phone == target) ||
+            u.Username.ToLower() == target.ToLower());
 
         if (user == null)
         {
-            return NotFound(new { ok = false, error = $"Không tìm thấy tài khoản liên kết với số điện thoại '{phone}'." });
+            return NotFound(new { ok = false, error = $"Không tìm thấy tài khoản liên kết với '{target}'." });
         }
 
         user.Password = req.new_password.Trim();

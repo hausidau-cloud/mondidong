@@ -54,6 +54,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // 3. Add services to container
 builder.Services.AddSingleton<DataStore>();
 builder.Services.AddSingleton<SmsService>();
+builder.Services.AddSingleton<EmailService>();
 builder.Services.AddHostedService<DeviceWatchdogWorker>();
 
 builder.Services.AddControllers()
