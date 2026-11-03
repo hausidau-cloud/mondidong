@@ -28,9 +28,9 @@ PIN_OLED_SDA = 14     # GP14 (Chan 19)
 PIN_OLED_SCL = 15     # GP15 (Chan 20)
 OLED_ADDR    = 0x3C
 
-# - Cam bien Nhiet do & Do am khong khi SHT30 (Soft I2C rieng):
-PIN_SHT_SDA  = 17     # GP17 (Chan 22)
-PIN_SHT_SCL  = 16     # GP16 (Chan 21)
+# - Cam bien Nhiet do & Do am khong khi SHT30 (Chuan theo ban dang cam):
+PIN_SHT_SDA  = 16     # GP16 (Chan 21 - Day Vang SDA)
+PIN_SHT_SCL  = 17     # GP17 (Chan 22 - Day Xanh SCL)
 SHT30_ADDR   = 0x44
 
 # - Cam bien Nhiet do nuoc que inox DS18B20 (1-Wire):

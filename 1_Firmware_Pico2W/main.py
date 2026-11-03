@@ -90,8 +90,16 @@ except Exception as e:
     print(">> Loi OLED:", e)
     oled = None
 
-# SHT30 GP17 (SDA), GP16 (SCL)
+# SHT30: Tu dong ho tro ca 2 chieu chan GP16/17 lan GP14/15 va GP11/12
 i2c_sht = machine.SoftI2C(scl=machine.Pin(config.PIN_SHT_SCL), sda=machine.Pin(config.PIN_SHT_SDA), freq=100000)
+try:
+    i2c_sht_rev = machine.SoftI2C(scl=machine.Pin(16 if config.PIN_SHT_SCL == 17 else 17), sda=machine.Pin(17 if config.PIN_SHT_SDA == 16 else 16), freq=100000)
+except Exception:
+    i2c_sht_rev = None
+try:
+    i2c_sht_right = machine.SoftI2C(scl=machine.Pin(12), sda=machine.Pin(11), freq=100000) # Hang 16 (SCL), Hang 15 (SDA) ben phai
+except Exception:
+    i2c_sht_right = None
 
 # DS18B20 GP22
 ds_pin = machine.Pin(config.PIN_DS18B20)
@@ -273,22 +281,31 @@ def connect_wifi_auto():
 # 6. CAC HAM DOC CAM BIEN (NON-BLOCKING)
 # ==============================================================
 def read_sht30():
-    try:
-        i2c_sht.writeto(config.SHT30_ADDR, b'\x2C\x06')
-        time.sleep_ms(25)
-        d = i2c_sht.readfrom(config.SHT30_ADDR, 6)
-        if not d or len(d) < 6:
-            return None, None
-        # Neu tat ca deu 0x00 hoac 0xFF -> cam bien chua tiep xuc hoac long day
-        if (d[0] == 0 and d[1] == 0 and d[3] == 0) or (d[0] == 0xFF and d[1] == 0xFF):
-            return None, None
-        temp = -45.0 + (175.0 * ((d[0] << 8) | d[1]) / 65535.0)
-        hum = 100.0 * (((d[3] << 8) | d[4]) / 65535.0)
-        if temp < -40.0 or temp > 125.0 or hum <= 0.0 or hum > 100.0:
-            return None, None
-        return round(temp, 1), round(hum, 1)
-    except Exception:
-        return None, None
+    buses = [i2c_sht]
+    if 'i2c_sht_rev' in globals() and i2c_sht_rev:
+        buses.append(i2c_sht_rev)
+    if 'i2c_sht_right' in globals() and i2c_sht_right:
+        buses.append(i2c_sht_right)
+    if 'i2c_oled' in globals() and i2c_oled:
+        buses.append(i2c_oled)
+
+    for bus in buses:
+        try:
+            bus.writeto(config.SHT30_ADDR, b'\x2C\x06')
+            time.sleep_ms(25)
+            d = bus.readfrom(config.SHT30_ADDR, 6)
+            if not d or len(d) < 6:
+                continue
+            if (d[0] == 0 and d[1] == 0 and d[3] == 0) or (d[0] == 0xFF and d[1] == 0xFF):
+                continue
+            temp = -45.0 + (175.0 * ((d[0] << 8) | d[1]) / 65535.0)
+            hum = 100.0 * (((d[3] << 8) | d[4]) / 65535.0)
+            if temp < -40.0 or temp > 125.0 or hum <= 0.0 or hum > 100.0:
+                continue
+            return round(temp, 1), round(hum, 1)
+        except Exception:
+            pass
+    return None, None
 
 def read_light():
     total = 0
