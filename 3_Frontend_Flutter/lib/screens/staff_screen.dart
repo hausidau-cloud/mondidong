@@ -234,27 +234,6 @@ class _StaffScreenState extends State<StaffScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: AppColors.accent.withAlpha(20),
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(color: AppColors.accent.withAlpha(60)),
-                                ),
-                                child: const Row(
-                                  children: [
-                                    Icon(Icons.info_outline_rounded, color: AppColors.accent, size: 20),
-                                    SizedBox(width: 10),
-                                    Expanded(
-                                      child: Text(
-                                        'Nhân viên tự đăng ký tài khoản tại màn hình đăng nhập (xác thực OTP). Tại đây, Admin quản lý phân công các trạm giám sát hoặc xóa tài khoản nhân viên.',
-                                        style: TextStyle(fontSize: 12.5, color: AppColors.text, height: 1.4),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(height: 18),
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
@@ -374,15 +353,10 @@ class _StaffScreenState extends State<StaffScreen> {
                                                 ),
                                             ],
                                           ),
-                                          const SizedBox(height: 12),
-                                          const Divider(height: 1),
-                                          const SizedBox(height: 10),
-                                          if (isAdmin)
-                                            const Text(
-                                              '⭐ Quản trị viên tối cao: Toàn quyền quản lý tất cả các trạm và thiết bị.',
-                                              style: TextStyle(fontSize: 12, color: AppColors.accent),
-                                            )
-                                          else ...[
+                                          if (!isAdmin) ...[
+                                            const SizedBox(height: 12),
+                                            const Divider(height: 1),
+                                            const SizedBox(height: 10),
                                             Row(
                                               children: [
                                                 const Icon(Icons.location_on_outlined, size: 15, color: AppColors.muted),

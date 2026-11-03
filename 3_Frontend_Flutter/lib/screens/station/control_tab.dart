@@ -70,19 +70,6 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
     final relay = _relayCard(s, admin);
     final oled = _oledCard(s, admin);
     return TabBody(onRefresh: widget.onChanged, children: [
-      if (!admin)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: AppColors.warn.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
-            child: Row(children: [
-              const Icon(Icons.lock_outline_rounded, color: AppColors.warn, size: 18),
-              const SizedBox(width: 10),
-              Expanded(child: Text(isEsp ? 'Tài khoản chỉ xem — đăng nhập admin để điều khiển đèn LED.' : 'Tài khoản chỉ xem — đăng nhập admin để điều khiển relay và gửi thông báo OLED.', style: const TextStyle(fontSize: 13))),
-            ]),
-          ),
-        ),
       if (wide) ...[
         if (!isEsp)
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: relay), const SizedBox(width: 16), Expanded(child: oled)])
@@ -143,7 +130,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
             ButtonSegment(value: 'OFF', label: Text('Tắt'), icon: Icon(Icons.power_off_rounded, size: 18)),
           ],
           selected: {s.relayMode},
-          onSelectionChanged: (!admin || _busy) ? null : (v) => _mode(v.first),
+          onSelectionChanged: _busy ? null : (v) => _mode(v.first),
         ),
         const SizedBox(height: 10),
         Text(
@@ -169,7 +156,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
         const SizedBox(height: 16),
         TextField(
           controller: _msg,
-          enabled: admin && !_busy,
+          enabled: !_busy,
           maxLength: 21,
           textCapitalization: TextCapitalization.characters,
           onSubmitted: (v) => _sendOled(v),
@@ -180,17 +167,17 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
             suffixIcon: IconButton(
               tooltip: 'Gửi',
               icon: const Icon(Icons.send_rounded),
-              onPressed: admin && !_busy ? () => _sendOled(_msg.text) : null,
+              onPressed: !_busy ? () => _sendOled(_msg.text) : null,
             ),
           ),
         ),
         Wrap(spacing: 8, runSpacing: 8, children: [
-          for (final q in quick) ActionChip(label: Text(q, style: const TextStyle(fontSize: 12)), onPressed: admin && !_busy ? () => _sendOled(q) : null),
+          for (final q in quick) ActionChip(label: Text(q, style: const TextStyle(fontSize: 12)), onPressed: !_busy ? () => _sendOled(q) : null),
           if ((s.oledMsg ?? '').isNotEmpty)
             ActionChip(
               avatar: const Icon(Icons.clear_rounded, size: 16, color: AppColors.danger),
               label: const Text('Xoá thông báo', style: TextStyle(fontSize: 12)),
-              onPressed: admin && !_busy ? () => _sendOled('') : null,
+              onPressed: !_busy ? () => _sendOled('') : null,
             ),
         ]),
       ]),
