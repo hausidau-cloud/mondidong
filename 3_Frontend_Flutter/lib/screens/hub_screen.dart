@@ -495,7 +495,7 @@ class _HubScreenState extends State<HubScreen> {
           (ctx, i) => StationCard(
             station: list[i],
             onTap: () => _open(list[i]),
-            onShowQr: () => StationQrDialog.show(context, list[i]),
+            onShowQr: Session.I.isAdmin ? () => StationQrDialog.show(context, list[i]) : null,
             onDelete: () => _deleteStation(list[i]),
           ),
           childCount: list.length,
@@ -726,11 +726,11 @@ class StationCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   StatusPill(s.code.isEmpty ? 'UNASSIGNED' : s.status, dense: true),
-                  if (onShowQr != null) ...[
+                  if (Session.I.isAdmin && onShowQr != null) ...[
                     const SizedBox(width: 4),
                     IconButton(
                       icon: const Icon(Icons.qr_code_2_rounded, size: 21, color: AppColors.accent),
-                      tooltip: 'Mã QR & Mã mời vào trạm',
+                      tooltip: 'Mã QR & Mã mời vào trạm (Chỉ Admin)',
                       visualDensity: VisualDensity.compact,
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
