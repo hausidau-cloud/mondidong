@@ -261,6 +261,14 @@ class Station {
 
   /// Bien an toan suong: T - Td
   double? get dewGap => (airTemp != null && dewPoint != null) ? airTemp! - dewPoint! : null;
+
+  /// Kiem tra thiet bi co phai la ESP32 (chi dung 1 cam bien DHT11 + LED) hay khong
+  bool get isEsp32 =>
+      (deviceCode ?? code).toUpperCase().contains('ESP32') ||
+      (firmware ?? '').toLowerCase().contains('esp32') ||
+      name.toUpperCase().contains('ESP32') ||
+      (deviceName ?? '').toUpperCase().contains('ESP32') ||
+      (description ?? '').toUpperCase().contains('ESP32');
 }
 
 class Series {

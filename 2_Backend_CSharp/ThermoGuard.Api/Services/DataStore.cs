@@ -281,7 +281,7 @@ public class DataStore
             if (airT != null) airT = Math.Round(airT.Value + dev.OffsetAir, 1);
             if (probeT != null) probeT = Math.Round(probeT.Value + dev.OffsetProbe, 1);
 
-            if (picoT == null)
+            if (picoT == null && !dev.DeviceCode.ToUpperInvariant().Contains("ESP"))
             {
                 if (airT != null) picoT = Math.Round(airT.Value + 4.5, 1);
                 else if (probeT != null) picoT = Math.Round(probeT.Value + 3.0, 1);

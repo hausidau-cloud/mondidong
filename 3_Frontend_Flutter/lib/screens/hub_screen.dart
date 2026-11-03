@@ -675,32 +675,34 @@ class StationCard extends StatelessWidget {
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Row(children: [
-                          Container(width: 8, height: 8, decoration: BoxDecoration(color: AppColors.probe, borderRadius: BorderRadius.circular(2))),
+                          Container(width: 8, height: 8, decoration: BoxDecoration(color: s.isEsp32 ? AppColors.air : AppColors.probe, borderRadius: BorderRadius.circular(2))),
                           const SizedBox(width: 6),
-                          Flexible(child: Text('${p.probeLabel} · DS18B20', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.muted))),
+                          Flexible(child: Text(s.isEsp32 ? 'Nhiệt độ không khí · DHT11' : '${p.probeLabel} · DS18B20', maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: AppColors.muted))),
                         ]),
                         const SizedBox(height: 2),
                         Text.rich(
                           TextSpan(children: [
-                            TextSpan(text: fmt(s.probeTemp), style: const TextStyle(fontSize: 40, fontWeight: FontWeight.w800, color: AppColors.probe, letterSpacing: -1.5, height: 1.05)),
+                            TextSpan(text: fmt(s.isEsp32 ? s.airTemp : s.probeTemp), style: TextStyle(fontSize: 40, fontWeight: FontWeight.w800, color: s.isEsp32 ? AppColors.air : AppColors.probe, letterSpacing: -1.5, height: 1.05)),
                             const TextSpan(text: ' °C', style: TextStyle(fontSize: 15, color: AppColors.muted, fontWeight: FontWeight.w600)),
                           ]),
                           style: const TextStyle(fontFeatures: tabular),
                         ),
                       ]),
                     ),
-                    SizedBox(width: 120, height: 46, child: Sparkline(values: s.spark, color: AppColors.probe)),
+                    SizedBox(width: 120, height: 46, child: Sparkline(values: s.spark, color: s.isEsp32 ? AppColors.air : AppColors.probe)),
                   ]),
                 ),
                 const SizedBox(height: 10),
-                Opacity(opacity: offline ? 0.45 : 1, child: RangeBar(value: s.probeTemp, min: s.probeMin, max: s.probeMax)),
+                Opacity(opacity: offline ? 0.45 : 1, child: RangeBar(value: s.isEsp32 ? s.airTemp : s.probeTemp, min: s.isEsp32 ? 0 : s.probeMin, max: s.isEsp32 ? s.airTempMax : s.probeMax)),
                 const SizedBox(height: 12),
                 Opacity(
                   opacity: offline ? 0.45 : 1,
                   child: Row(children: [
-                    Expanded(child: MetricTile(label: 'Không khí', value: fmt(s.airTemp), unit: '°C', color: AppColors.air)),
-                    const SizedBox(width: 8),
-                    Expanded(child: MetricTile(label: 'Độ ẩm', value: fmt(s.airHum), unit: '%', color: AppColors.hum)),
+                    if (!s.isEsp32) ...[
+                      Expanded(child: MetricTile(label: 'Không khí', value: fmt(s.airTemp), unit: '°C', color: AppColors.air)),
+                      const SizedBox(width: 8),
+                    ],
+                    Expanded(child: MetricTile(label: s.isEsp32 ? 'Độ ẩm (DHT11)' : 'Độ ẩm', value: fmt(s.airHum), unit: '%', color: AppColors.hum)),
                     const SizedBox(width: 8),
                     Expanded(child: MetricTile(label: 'Điểm sương', value: fmt(s.dewPoint), unit: '°C', color: AppColors.dew)),
                   ]),

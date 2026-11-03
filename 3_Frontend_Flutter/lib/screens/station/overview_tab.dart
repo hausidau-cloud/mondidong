@@ -38,7 +38,7 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
     ]);
   }
 
-  // ------------------------------------------------------------------ 4 dong ho
+  // ------------------------------------------------------------------ dong ho cam bien
   Widget _gauges(Station s) {
     final p = ProfileStyle.of(s.profile);
     final span = (s.probeMax - s.probeMin).abs() < 0.01 ? 1.0 : s.probeMax - s.probeMin;
@@ -48,23 +48,38 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
     final dewRisk = gap != null && s.dewMargin > 0 && gap < s.dewMargin;
     final picoT = s.picoTemp ?? (s.airTemp != null ? double.parse((s.airTemp! + 4.5).toStringAsFixed(1)) : null);
 
-    final items = [
-      _G('DS18B20', p.probeLabel, s.probeTemp, '°C', 'Ngưỡng ${fmt(s.probeMin)} – ${fmt(s.probeMax)}°C',
-          s.probeTemp == null ? 0 : (s.probeTemp! - pLo) / (pHi - pLo), s.probeTemp == null ? AppColors.off : (pOut ? AppColors.danger : AppColors.probe)),
-      _G('SHT30', 'Nhiệt độ không khí', s.airTemp, '°C', 'Tối đa ${fmt(s.airTempMax)}°C', (s.airTemp ?? 0) / (s.airTempMax * 1.25),
-          (s.airTemp ?? 0) > s.airTempMax ? AppColors.danger : AppColors.air),
-      _G('SHT30', 'Độ ẩm tương đối', s.airHum, '%', 'Tối đa ${fmt(s.airHumMax, 0)}%', (s.airHum ?? 0) / 100,
-          (s.airHum ?? 0) > s.airHumMax ? AppColors.warn : AppColors.hum),
-      _G('TÍNH TOÁN', 'Biên an toàn sương', gap, '°C',
-          'Td = ${fmt(s.dewPoint)}°C · ${s.dewMargin > 0 ? 'báo khi < ${fmt(s.dewMargin)}' : 'tham khảo'}', gap == null ? 0 : gap / 15,
-          dewRisk ? AppColors.danger : AppColors.dew),
-      _G('MKE-S02', 'Độ tối quang trở', s.lightPct.toDouble(), '%', 'Che tối > 45% bật đèn', (s.lightPct) / 100,
-          s.lightPct >= 45 ? AppColors.warn : const Color(0xFFFACC15)),
-      _G('PICO 2 W', 'Nhiệt độ chip Pico', picoT, '°C', 'Cảm biến chip bo mạch', (picoT ?? 0) / 70.0,
-          (picoT ?? 0) > 60 ? AppColors.danger : AppColors.accent),
-    ];
+    final List<_G> items;
+    if (s.isEsp32) {
+      // Tram ESP32 chi dung duy nhat 1 cam bien DHT11 (Nhiet do + Do am + Diem suong)
+      items = [
+        _G('DHT11', 'Nhiệt độ không khí', s.airTemp, '°C', 'Tối đa ${fmt(s.airTempMax)}°C', (s.airTemp ?? 0) / (s.airTempMax * 1.25),
+            (s.airTemp ?? 0) > s.airTempMax ? AppColors.danger : AppColors.air),
+        _G('DHT11', 'Độ ẩm không khí', s.airHum, '%', 'Tối đa ${fmt(s.airHumMax, 0)}%', (s.airHum ?? 0) / 100,
+            (s.airHum ?? 0) > s.airHumMax ? AppColors.warn : AppColors.hum),
+        _G('TÍNH TOÁN', 'Biên an toàn sương', gap, '°C',
+            'Td = ${fmt(s.dewPoint)}°C · ${s.dewMargin > 0 ? 'báo khi < ${fmt(s.dewMargin)}' : 'tham khảo'}', gap == null ? 0 : gap / 15,
+            dewRisk ? AppColors.danger : AppColors.dew),
+      ];
+    } else {
+      // Tram Pico 2 W day du 3 cam bien (DS18B20 + SHT30 + Quang tro) + Chip Pico
+      items = [
+        _G('DS18B20', p.probeLabel, s.probeTemp, '°C', 'Ngưỡng ${fmt(s.probeMin)} – ${fmt(s.probeMax)}°C',
+            s.probeTemp == null ? 0 : (s.probeTemp! - pLo) / (pHi - pLo), s.probeTemp == null ? AppColors.off : (pOut ? AppColors.danger : AppColors.probe)),
+        _G('SHT30', 'Nhiệt độ không khí', s.airTemp, '°C', 'Tối đa ${fmt(s.airTempMax)}°C', (s.airTemp ?? 0) / (s.airTempMax * 1.25),
+            (s.airTemp ?? 0) > s.airTempMax ? AppColors.danger : AppColors.air),
+        _G('SHT30', 'Độ ẩm tương đối', s.airHum, '%', 'Tối đa ${fmt(s.airHumMax, 0)}%', (s.airHum ?? 0) / 100,
+            (s.airHum ?? 0) > s.airHumMax ? AppColors.warn : AppColors.hum),
+        _G('TÍNH TOÁN', 'Biên an toàn sương', gap, '°C',
+            'Td = ${fmt(s.dewPoint)}°C · ${s.dewMargin > 0 ? 'báo khi < ${fmt(s.dewMargin)}' : 'tham khảo'}', gap == null ? 0 : gap / 15,
+            dewRisk ? AppColors.danger : AppColors.dew),
+        _G('MKE-S02', 'Độ tối quang trở', s.lightPct.toDouble(), '%', 'Che tối > 45% bật đèn', (s.lightPct) / 100,
+            s.lightPct >= 45 ? AppColors.warn : const Color(0xFFFACC15)),
+        _G('PICO 2 W', 'Nhiệt độ chip Pico', picoT, '°C', 'Cảm biến chip bo mạch', (picoT ?? 0) / 70.0,
+            (picoT ?? 0) > 60 ? AppColors.danger : AppColors.accent),
+      ];
+    }
     return LayoutBuilder(builder: (ctx, c) {
-      final cols = c.maxWidth >= 1000 ? 4 : 2;
+      final cols = c.maxWidth >= 1000 ? (s.isEsp32 ? 3 : 4) : (s.isEsp32 ? (c.maxWidth >= 600 ? 3 : 2) : 2);
       final w = (c.maxWidth - 12 * (cols - 1)) / cols;
       final compact = w < 220;
       return Wrap(spacing: 12, runSpacing: 12, children: [
@@ -107,14 +122,23 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
   Widget _chart(Station s) {
     final sr = widget.series;
     final p = ProfileStyle.of(s.profile);
-    final lines = [
-      ChartLine(key: 'probe', label: p.probeLabel, values: sr.probeTemp, color: AppColors.probe, fill: true),
-      ChartLine(key: 'air', label: 'Nhiệt độ KK', values: sr.airTemp, color: AppColors.air),
-      ChartLine(key: 'pico', label: 'Nhiệt độ Pico', values: sr.picoTemp, color: const Color(0xFF38BDF8), dashed: true),
-      ChartLine(key: 'dew', label: 'Điểm sương', values: sr.dewPoint, color: AppColors.dew, dashed: true),
-      ChartLine(key: 'hum', label: 'Độ ẩm', values: sr.airHum, color: AppColors.hum, unit: '%', rightAxis: true),
-      ChartLine(key: 'light', label: 'Quang trở (MKE-S02)', values: sr.light, color: const Color(0xFFFACC15), unit: '%', rightAxis: true),
-    ];
+    final List<ChartLine> lines;
+    if (s.isEsp32) {
+      lines = [
+        ChartLine(key: 'air', label: 'Nhiệt độ (DHT11)', values: sr.airTemp, color: AppColors.air),
+        ChartLine(key: 'dew', label: 'Điểm sương', values: sr.dewPoint, color: AppColors.dew, dashed: true),
+        ChartLine(key: 'hum', label: 'Độ ẩm (DHT11)', values: sr.airHum, color: AppColors.hum, unit: '%', rightAxis: true),
+      ];
+    } else {
+      lines = [
+        ChartLine(key: 'probe', label: p.probeLabel, values: sr.probeTemp, color: AppColors.probe, fill: true),
+        ChartLine(key: 'air', label: 'Nhiệt độ KK', values: sr.airTemp, color: AppColors.air),
+        ChartLine(key: 'pico', label: 'Nhiệt độ Pico', values: sr.picoTemp, color: const Color(0xFF38BDF8), dashed: true),
+        ChartLine(key: 'dew', label: 'Điểm sương', values: sr.dewPoint, color: AppColors.dew, dashed: true),
+        ChartLine(key: 'hum', label: 'Độ ẩm', values: sr.airHum, color: AppColors.hum, unit: '%', rightAxis: true),
+        ChartLine(key: 'light', label: 'Quang trở (MKE-S02)', values: sr.light, color: const Color(0xFFFACC15), unit: '%', rightAxis: true),
+      ];
+    }
     final legend = [
       for (final l in lines) (l.key, l.label, l.color),
       ('th', 'Ngưỡng', AppColors.danger),
@@ -184,14 +208,24 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
   // ------------------------------------------------------------------ thong ke
   Widget _stats(Station s) {
     final st = s.stats;
-    final items = [
-      ('Đầu dò thấp nhất', '${fmt(st?.pMin)}°C', Icons.south_rounded, AppColors.air),
-      ('Đầu dò cao nhất', '${fmt(st?.pMax)}°C', Icons.north_rounded, AppColors.probe),
-      ('Đầu dò trung bình', '${fmt(st?.pAvg)}°C', Icons.functions_rounded, AppColors.text2),
-      ('Độ ẩm trung bình', '${fmt(st?.hAvg)}%', Icons.water_drop_outlined, AppColors.hum),
-      ('Nhiệt độ KK min / max', '${fmt(st?.aMin)} / ${fmt(st?.aMax)}°C', Icons.thermostat_auto_rounded, AppColors.air),
-      ('Relay hoạt động', st?.relayPercent == null ? '--' : '${fmt(st!.relayPercent, 0)}% thời gian', Icons.bolt_rounded, AppColors.ok),
-    ];
+    final List<(String, String, IconData, Color)> items;
+    if (s.isEsp32) {
+      items = [
+        ('Nhiệt độ DHT11 cao nhất', '${fmt(st?.aMax)}°C', Icons.north_rounded, AppColors.air),
+        ('Nhiệt độ DHT11 thấp nhất', '${fmt(st?.aMin)}°C', Icons.south_rounded, AppColors.text2),
+        ('Độ ẩm trung bình', '${fmt(st?.hAvg)}%', Icons.water_drop_outlined, AppColors.hum),
+        ('Đèn LED GPIO 23', st?.relayPercent == null ? '--' : '${fmt(st!.relayPercent, 0)}% thời gian', Icons.lightbulb_rounded, AppColors.ok),
+      ];
+    } else {
+      items = [
+        ('Đầu dò thấp nhất', '${fmt(st?.pMin)}°C', Icons.south_rounded, AppColors.air),
+        ('Đầu dò cao nhất', '${fmt(st?.pMax)}°C', Icons.north_rounded, AppColors.probe),
+        ('Đầu dò trung bình', '${fmt(st?.pAvg)}°C', Icons.functions_rounded, AppColors.text2),
+        ('Độ ẩm trung bình', '${fmt(st?.hAvg)}%', Icons.water_drop_outlined, AppColors.hum),
+        ('Nhiệt độ KK min / max', '${fmt(st?.aMin)} / ${fmt(st?.aMax)}°C', Icons.thermostat_auto_rounded, AppColors.air),
+        ('Relay hoạt động', st?.relayPercent == null ? '--' : '${fmt(st!.relayPercent, 0)}% thời gian', Icons.bolt_rounded, AppColors.ok),
+      ];
+    }
     return SectionCard(
       title: 'Thống kê 24 giờ',
       subtitle: '${st?.n ?? 0} lần đo',

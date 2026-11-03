@@ -239,7 +239,7 @@ def send_to_backend():
         "device_code": config.DEVICE_CODE,
         "air_temp": state["temp"],
         "air_hum": state["hum"],
-        "probe_temp": state["temp"],  # Dung nhiet do DHT11 lam probe neu khong co que inox
+        "probe_temp": None,  # ESP32 NodeMCU chi co DHT11, khong co dau do DS18B20
         "pico_temp": None,
         "dew_point": state["dew"],
         "light_raw": 0,
