@@ -64,11 +64,13 @@ public class AuthController : ControllerBase
 {
     private readonly AppDbContext _db;
     private readonly DataStore _store;
+    private readonly SmsService _sms;
 
-    public AuthController(AppDbContext db, DataStore store)
+    public AuthController(AppDbContext db, DataStore store, SmsService sms)
     {
         _db = db;
         _store = store;
+        _sms = sms;
     }
 
     /// <summary>
@@ -238,7 +240,7 @@ public class AuthController : ControllerBase
     /// POST /api/auth/send-otp: Gửi mã OTP xác thực qua số điện thoại (Cho Đăng ký & Quên mật khẩu)
     /// </summary>
     [HttpPost("send-otp")]
-    public IActionResult SendOtp([FromBody] SendOtpRequest req)
+    public async Task<IActionResult> SendOtp([FromBody] SendOtpRequest req)
     {
         var phone = req.phone?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(phone) || phone.Length < 9)
@@ -268,12 +270,19 @@ public class AuthController : ControllerBase
 
         var otpCode = _store.GenerateOtp(phone, purpose);
 
+        // Gọi SpeedSMS để gửi tin nhắn SMS thật
+        var (smsSent, smsMsg) = await _sms.SendOtpAsync(phone, otpCode);
+
         return Ok(new
         {
             ok = true,
-            message = $"Mã OTP xác thực đã được gửi đến số điện thoại {phone}!",
+            message = smsSent
+                ? $"Mã OTP đã được gửi qua tin nhắn SMS tới số {phone}!"
+                : $"Mã OTP ThermoGuard: {otpCode}",
             phone,
             purpose,
+            sms_sent = smsSent,
+            sms_detail = smsMsg,
             otp_demo = otpCode,
             expires_in = 300
         });
