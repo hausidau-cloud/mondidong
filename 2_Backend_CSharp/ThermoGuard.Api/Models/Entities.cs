@@ -250,6 +250,9 @@ public class AlertItem
     [JsonPropertyName("device_id")]
     public int DeviceId { get; set; }
 
+    [JsonPropertyName("station_id")]
+    public int? StationId { get; set; }
+
     [JsonPropertyName("level")]
     public string Level { get; set; } = "WARNING"; // WARNING | DANGER
 
@@ -273,6 +276,12 @@ public class RelayLogItem
 {
     [JsonPropertyName("id")]
     public int Id { get; set; }
+
+    [JsonPropertyName("device_id")]
+    public int? DeviceId { get; set; }
+
+    [JsonPropertyName("station_id")]
+    public int? StationId { get; set; }
 
     [JsonPropertyName("action")]
     public string Action { get; set; } = "ON";

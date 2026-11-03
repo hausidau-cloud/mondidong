@@ -232,7 +232,12 @@ class AlertTile extends StatelessWidget {
                 Wrap(spacing: 8, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
                   if (showDevice) Text(a.deviceName, style: const TextStyle(fontSize: 12, color: AppColors.accent, fontWeight: FontWeight.w600)),
                   Text(alertTypeLabels[a.type] ?? a.type, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
-                  Text(a.resolved ? 'xử lý ${ddmmHhmm(a.resolvedAt)}' : ago(a.createdAt), style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+                  Text(
+                    a.resolved
+                        ? 'Lúc ${ddmmHhmm(a.createdAt)} · Xong ${ddmmHhmm(a.resolvedAt)}'
+                        : 'Lúc ${ddmmHhmm(a.createdAt)} · ${ago(a.createdAt)}',
+                    style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                  ),
                   _tag(a),
                 ]),
                 if (!a.resolved)

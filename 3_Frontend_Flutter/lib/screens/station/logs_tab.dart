@@ -19,6 +19,7 @@ class LogsTab extends StatefulWidget {
 class _LogsTabState extends State<LogsTab> with AutomaticKeepAliveClientMixin {
   String _view = 'alerts';
   List<AlertItem>? _alerts;
+  List<RelayLog>? _relayLogs;
   Paged<Reading>? _readings;
   int _page = 1;
   String? _error;
@@ -37,6 +38,9 @@ class _LogsTabState extends State<LogsTab> with AutomaticKeepAliveClientMixin {
       if (_view == 'alerts') {
         final a = await Session.I.alerts(state: 'all', deviceId: widget.station.id, limit: 50);
         if (mounted) setState(() => _alerts = a.rows);
+      } else if (_view == 'relay') {
+        final st = await Session.I.station(widget.station.id);
+        if (mounted) setState(() => _relayLogs = st.relayLogs);
       } else if (_view == 'data') {
         final r = await Session.I.readings(widget.station.id, page: _page);
         if (mounted) setState(() => _readings = r);
@@ -89,7 +93,7 @@ class _LogsTabState extends State<LogsTab> with AutomaticKeepAliveClientMixin {
 
   Widget _relay() {
     final isEsp = widget.station.isEsp32;
-    final logs = widget.station.relayLogs;
+    final logs = _relayLogs ?? widget.station.relayLogs;
     if (logs.isEmpty) return Card(child: EmptyState(icon: isEsp ? Icons.lightbulb_rounded : Icons.bolt_rounded, text: isEsp ? 'Chưa có lần bật/tắt đèn LED nào' : 'Chưa có lần bật/tắt nào'));
     return Card(
       child: Column(children: [

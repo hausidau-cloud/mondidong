@@ -91,13 +91,20 @@ public class StationsController : ControllerBase
             {
                 stDict["spark"] = _store.GetSpark(dev.Id);
                 stDict["stats24h"] = _store.GetStats24h(dev.Id);
+                stDict["relay_logs"] = _store.RelayLogs
+                    .Where(l => l.DeviceId == dev.Id || l.StationId == st.Id || (l.DeviceId == null && l.StationId == null))
+                    .Take(30)
+                    .ToList();
             }
             else
             {
                 stDict["spark"] = new List<object>();
                 stDict["stats24h"] = null;
+                stDict["relay_logs"] = _store.RelayLogs
+                    .Where(l => l.StationId == st.Id || (l.DeviceId == null && l.StationId == null))
+                    .Take(30)
+                    .ToList();
             }
-            stDict["relay_logs"] = _store.RelayLogs.Take(15).ToList();
 
             return Ok(new { ok = true, station = stDict, device = stDict });
         }

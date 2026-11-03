@@ -80,6 +80,26 @@ public class DataStore
                 db.Database.ExecuteSqlRaw("ALTER TABLE Users ADD COLUMN Email VARCHAR(255) NULL;");
             }
             catch { }
+            try
+            {
+                db.Database.ExecuteSqlRaw("ALTER TABLE Alerts ADD COLUMN StationId INT NULL;");
+            }
+            catch { }
+            try
+            {
+                db.Database.ExecuteSqlRaw("ALTER TABLE RelayLogs ADD COLUMN DeviceId INT NULL;");
+            }
+            catch { }
+            try
+            {
+                db.Database.ExecuteSqlRaw("ALTER TABLE RelayLogs ADD COLUMN StationId INT NULL;");
+            }
+            catch { }
+            try
+            {
+                db.Database.ExecuteSqlRaw("ALTER TABLE RelayLogs ADD COLUMN FullName VARCHAR(255) NULL;");
+            }
+            catch { }
 
             if (db.Users.Any())
             {
@@ -98,6 +118,18 @@ public class DataStore
                 var history = db.Readings.AsNoTracking().OrderByDescending(r => r.Id).Take(500).ToList();
                 Readings.AddRange(history);
                 _nextReadingId = (history.MaxBy(r => r.Id)?.Id ?? 0) + 1;
+            }
+            if (db.Alerts.Any())
+            {
+                var history = db.Alerts.AsNoTracking().OrderByDescending(a => a.Id).Take(500).ToList();
+                Alerts.AddRange(history);
+                _nextAlertId = (history.MaxBy(a => a.Id)?.Id ?? 0) + 1;
+            }
+            if (db.RelayLogs.Any())
+            {
+                var history = db.RelayLogs.AsNoTracking().OrderByDescending(r => r.Id).Take(500).ToList();
+                RelayLogs.AddRange(history);
+                _nextRelayLogId = (history.MaxBy(r => r.Id)?.Id ?? 0) + 1;
             }
             if (db.StationAssignments.Any())
             {
@@ -323,31 +355,23 @@ public class DataStore
                 {
                     var newAlert = new AlertItem
                     {
-                        Id = _nextAlertId++,
                         DeviceId = dev.Id,
+                        StationId = dev.StationId ?? dev.Id,
                         Level = status,
                         Type = alertType,
                         Message = alertReason,
                         IsResolved = false,
                         CreatedAt = TimeHelper.VnNowStr
                     };
-                    Alerts.Insert(0, newAlert);
+                    AddAlert(newAlert);
                 }
             }
             else if (status == "OK")
             {
-                foreach (var a in Alerts.Where(a => a.DeviceId == dev.Id && !a.IsResolved && a.Type != "OFFLINE"))
-                {
-                    a.IsResolved = true;
-                    a.ResolvedAt = TimeHelper.VnNowStr;
-                }
+                ResolveAlertsForDevice(dev.Id, exceptType: "OFFLINE");
             }
 
-            foreach (var a in Alerts.Where(a => a.DeviceId == dev.Id && !a.IsResolved && a.Type == "OFFLINE"))
-            {
-                a.IsResolved = true;
-                a.ResolvedAt = TimeHelper.VnNowStr;
-            }
+            ResolveAlertsForDevice(dev.Id, onlyType: "OFFLINE");
             dev.OpenAlerts = Alerts.Count(a => a.DeviceId == dev.Id && !a.IsResolved);
 
             int finalRelay = dev.RelayState;
@@ -388,14 +412,15 @@ public class DataStore
                 dev.RelayState = finalRelay;
                 var logItem = new RelayLogItem
                 {
-                    Id = _nextRelayLogId++,
+                    DeviceId = dev.Id,
+                    StationId = dev.StationId ?? dev.Id,
                     Action = finalRelay == 1 ? "ON" : "OFF",
                     Source = dev.RelayMode == "AUTO" ? "AUTO" : "MANUAL",
                     Reason = alertReason,
                     FullName = "Hệ thống",
                     CreatedAt = TimeHelper.VnNowStr
                 };
-                RelayLogs.Insert(0, logItem);
+                AddRelayLog(logItem);
             }
 
             // Create record
@@ -445,23 +470,6 @@ public class DataStore
                 }
             });
 
-            if (!string.IsNullOrEmpty(alertType))
-            {
-                var existing = Alerts.FirstOrDefault(a => a.DeviceId == dev.Id && a.Type == alertType && !a.IsResolved);
-                if (existing == null)
-                {
-                    Alerts.Insert(0, new AlertItem
-                    {
-                        Id = _nextAlertId++,
-                        DeviceId = dev.Id,
-                        Level = status,
-                        Type = alertType,
-                        Message = alertReason,
-                        IsResolved = false,
-                        CreatedAt = TimeHelper.VnNowStr
-                    });
-                }
-            }
             dev.OpenAlerts = Alerts.Count(a => a.DeviceId == dev.Id && !a.IsResolved);
 
             var resp = new
@@ -520,26 +528,229 @@ public class DataStore
         return ("OK", "", "Môi trường an toàn");
     }
 
+    public void AddAlert(AlertItem alert)
+    {
+        lock (_lock)
+        {
+            if (alert.Id == 0)
+            {
+                alert.Id = _nextAlertId++;
+            }
+            Alerts.Insert(0, alert);
+            if (Alerts.Count > 1000) Alerts.RemoveAt(Alerts.Count - 1);
+        }
+
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                db.Alerts.Add(new AlertItem
+                {
+                    DeviceId = alert.DeviceId,
+                    StationId = alert.StationId,
+                    Level = alert.Level,
+                    Type = alert.Type,
+                    Message = alert.Message,
+                    IsResolved = alert.IsResolved,
+                    CreatedAt = alert.CreatedAt,
+                    ResolvedAt = alert.ResolvedAt
+                });
+                db.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(">> Note AddAlert DB: " + ex.Message);
+            }
+        });
+    }
+
+    public void ResolveAlertsForDevice(int deviceId, string? onlyType = null, string? exceptType = null)
+    {
+        List<int> alertIdsToUpdate;
+        string resolvedTime = TimeHelper.VnNowStr;
+
+        lock (_lock)
+        {
+            var query = Alerts.Where(a => a.DeviceId == deviceId && !a.IsResolved);
+            if (!string.IsNullOrEmpty(onlyType))
+                query = query.Where(a => a.Type == onlyType);
+            if (!string.IsNullOrEmpty(exceptType))
+                query = query.Where(a => a.Type != exceptType);
+
+            var toResolve = query.ToList();
+            if (toResolve.Count == 0) return;
+
+            foreach (var a in toResolve)
+            {
+                a.IsResolved = true;
+                a.ResolvedAt = resolvedTime;
+            }
+            alertIdsToUpdate = toResolve.Select(a => a.Id).ToList();
+        }
+
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var dbQuery = db.Alerts.Where(a => !a.IsResolved && (alertIdsToUpdate.Contains(a.Id) || a.DeviceId == deviceId));
+                if (!string.IsNullOrEmpty(onlyType))
+                    dbQuery = dbQuery.Where(a => a.Type == onlyType);
+                if (!string.IsNullOrEmpty(exceptType))
+                    dbQuery = dbQuery.Where(a => a.Type != exceptType);
+
+                var dbAlerts = dbQuery.ToList();
+                foreach (var da in dbAlerts)
+                {
+                    da.IsResolved = true;
+                    da.ResolvedAt = resolvedTime;
+                }
+                db.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(">> Note ResolveAlerts DB: " + ex.Message);
+            }
+        });
+    }
+
+    public void ResolveAlert(int alertId)
+    {
+        string resolvedTime = TimeHelper.VnNowStr;
+        lock (_lock)
+        {
+            var alert = Alerts.FirstOrDefault(a => a.Id == alertId);
+            if (alert != null)
+            {
+                alert.IsResolved = true;
+                alert.ResolvedAt = resolvedTime;
+            }
+        }
+
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var dbAlert = db.Alerts.FirstOrDefault(a => a.Id == alertId);
+                if (dbAlert != null)
+                {
+                    dbAlert.IsResolved = true;
+                    dbAlert.ResolvedAt = resolvedTime;
+                    db.SaveChanges();
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(">> Note ResolveAlert single DB: " + ex.Message);
+            }
+        });
+    }
+
+    public void ResolveAllAlerts(HashSet<int>? allowedDeviceIds = null)
+    {
+        string resolvedTime = TimeHelper.VnNowStr;
+        List<int> ids;
+        lock (_lock)
+        {
+            var list = Alerts.Where(a => !a.IsResolved);
+            if (allowedDeviceIds != null)
+            {
+                list = list.Where(a => allowedDeviceIds.Contains(a.DeviceId));
+            }
+            var toResolve = list.ToList();
+            foreach (var a in toResolve)
+            {
+                a.IsResolved = true;
+                a.ResolvedAt = resolvedTime;
+            }
+            ids = toResolve.Select(a => a.Id).ToList();
+        }
+
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var dbAlerts = db.Alerts.Where(a => !a.IsResolved && ids.Contains(a.Id)).ToList();
+                foreach (var da in dbAlerts)
+                {
+                    da.IsResolved = true;
+                    da.ResolvedAt = resolvedTime;
+                }
+                db.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(">> Note ResolveAllAlerts DB: " + ex.Message);
+            }
+        });
+    }
+
+    public void AddRelayLog(RelayLogItem log)
+    {
+        lock (_lock)
+        {
+            if (log.Id == 0)
+            {
+                log.Id = _nextRelayLogId++;
+            }
+            RelayLogs.Insert(0, log);
+            if (RelayLogs.Count > 1000) RelayLogs.RemoveAt(RelayLogs.Count - 1);
+        }
+
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                db.RelayLogs.Add(new RelayLogItem
+                {
+                    DeviceId = log.DeviceId,
+                    StationId = log.StationId,
+                    Action = log.Action,
+                    Source = log.Source,
+                    Reason = log.Reason,
+                    FullName = log.FullName,
+                    CreatedAt = log.CreatedAt
+                });
+                db.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(">> Note AddRelayLog DB: " + ex.Message);
+            }
+        });
+    }
+
     public void AddOfflineAlert(Device dev)
     {
         lock (_lock)
         {
             var existing = Alerts.FirstOrDefault(a => a.DeviceId == dev.Id && a.Type == "OFFLINE" && !a.IsResolved);
-            if (existing == null)
-            {
-                var newAlert = new AlertItem
-                {
-                    Id = _nextAlertId++,
-                    DeviceId = dev.Id,
-                    Level = "WARNING",
-                    Type = "OFFLINE",
-                    Message = $"Trạm {dev.Name} ({dev.DeviceCode}) mất kết nối > {dev.OfflineAfter} giây!",
-                    IsResolved = false,
-                    CreatedAt = TimeHelper.VnNowStr
-                };
-                Alerts.Insert(0, newAlert);
-                dev.OpenAlerts = Alerts.Count(a => a.DeviceId == dev.Id && !a.IsResolved);
-            }
+            if (existing != null) return;
+        }
+
+        var newAlert = new AlertItem
+        {
+            DeviceId = dev.Id,
+            StationId = dev.StationId ?? dev.Id,
+            Level = "WARNING",
+            Type = "OFFLINE",
+            Message = $"Trạm {dev.Name} ({dev.DeviceCode}) mất kết nối > {dev.OfflineAfter} giây!",
+            IsResolved = false,
+            CreatedAt = TimeHelper.VnNowStr
+        };
+        AddAlert(newAlert);
+        lock (_lock)
+        {
+            dev.OpenAlerts = Alerts.Count(a => a.DeviceId == dev.Id && !a.IsResolved);
         }
     }
 

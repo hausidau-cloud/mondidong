@@ -18,6 +18,17 @@ public class ControlController : ControllerBase
         _store = store;
     }
 
+    private AppUser? GetCurrentUser()
+    {
+        var authHeader = Request.Headers.Authorization.ToString();
+        if (authHeader.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+        {
+            var token = authHeader["Bearer ".Length..].Trim();
+            if (_store.ActiveSessions.TryGetValue(token, out var user)) return user;
+        }
+        return null;
+    }
+
     private static double? ReadDouble(JsonNode? node)
     {
         if (node == null) return null;
@@ -49,8 +60,20 @@ public class ControlController : ControllerBase
             return NotFound(new { ok = false, error = "Không tìm thấy thiết bị" });
         }
 
+        var curUser = GetCurrentUser();
+
         if (act == "relay")
         {
+            if (curUser != null && curUser.Role == "viewer")
+            {
+                var allowedStationIds = _store.GetStationIdsForUser(curUser.Id);
+                var isAllowed = allowedStationIds.Contains(dev.Id) || (dev.StationId.HasValue && allowedStationIds.Contains(dev.StationId.Value));
+                if (!isAllowed)
+                {
+                    return Forbid();
+                }
+            }
+
             var mode = body?["mode"]?.ToString().ToUpperInvariant() ?? "AUTO";
             if (mode != "AUTO" && mode != "ON" && mode != "OFF") mode = "AUTO";
 
@@ -58,12 +81,14 @@ public class ControlController : ControllerBase
             if (mode == "ON") dev.RelayState = 1;
             if (mode == "OFF") dev.RelayState = 0;
 
-            _store.RelayLogs.Insert(0, new Models.RelayLogItem
+            _store.AddRelayLog(new Models.RelayLogItem
             {
+                DeviceId = dev.Id,
+                StationId = dev.StationId ?? dev.Id,
                 Action = mode == "ON" ? "ON" : (mode == "OFF" ? "OFF" : "AUTO"),
                 Source = "MANUAL",
                 Reason = $"Đổi chế độ {mode} từ App Flutter",
-                FullName = "Quản trị viên",
+                FullName = curUser?.FullName ?? "Quản trị viên",
                 CreatedAt = TimeHelper.VnNowStr
             });
 
