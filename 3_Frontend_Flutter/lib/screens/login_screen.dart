@@ -165,8 +165,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                         phone: p,
                                         purpose: 'register',
                                       );
+                                      final isRealSms = res['sms_sent'] == true;
                                       final demoCode = res['otp_demo']?.toString();
-                                      if (demoCode != null) {
+                                      if (!isRealSms && demoCode != null) {
                                         otpCtrl.text = demoCode;
                                       }
                                       setDState(() {
@@ -185,7 +186,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                       if (ctx.mounted) {
                                         ScaffoldMessenger.of(ctx).showSnackBar(
                                           SnackBar(
-                                            content: Text('Mã OTP xác thực gửi tới $p: $demoCode'),
+                                            content: Text(isRealSms
+                                                ? 'Đã gửi tin nhắn SMS OTP đến số $p! Vui lòng kiểm tra tin nhắn.'
+                                                : 'Mã OTP xác thực gửi tới $p: $demoCode'),
                                             backgroundColor: const Color(0xFF133E26),
                                             duration: const Duration(seconds: 5),
                                           ),
@@ -421,8 +424,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                         phone: p,
                                         purpose: 'forgot_password',
                                       );
+                                      final isRealSms = res['sms_sent'] == true;
                                       final demoCode = res['otp_demo']?.toString();
-                                      if (demoCode != null) {
+                                      if (!isRealSms && demoCode != null) {
                                         otpCtrl.text = demoCode;
                                       }
                                       setDState(() {
@@ -441,7 +445,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                       if (ctx.mounted) {
                                         ScaffoldMessenger.of(ctx).showSnackBar(
                                           SnackBar(
-                                            content: Text('Mã OTP đặt lại mật khẩu gửi tới $p: $demoCode'),
+                                            content: Text(isRealSms
+                                                ? 'Đã gửi tin nhắn SMS OTP đến số $p! Vui lòng kiểm tra tin nhắn.'
+                                                : 'Mã OTP đặt lại mật khẩu gửi tới $p: $demoCode'),
                                             backgroundColor: const Color(0xFF133E26),
                                             duration: const Duration(seconds: 5),
                                           ),

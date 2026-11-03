@@ -43,13 +43,18 @@ public class SmsService
             var authBytes = Encoding.ASCII.GetBytes($"{token}:x");
             request.Headers.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(authBytes));
 
+            var deviceId = _config["SpeedSMS:DeviceId"]?.Trim() ?? "";
+            var isGateway = !string.IsNullOrWhiteSpace(deviceId);
+            var smsType = isGateway ? 5 : 2;
+            var sender = isGateway ? deviceId : (_config["SpeedSMS:Sender"]?.Trim() ?? "");
+
             var payload = new
             {
                 to = new[] { cleanPhone },
                 content = content,
-                sms_type = 2,
-                smsType = 2,
-                sender = ""
+                sms_type = smsType,
+                smsType = smsType,
+                sender = sender
             };
 
             request.Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json");
