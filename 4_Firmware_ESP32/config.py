@@ -5,7 +5,7 @@
 
 # 1. DANH SACH WI-FI (Tu dong quet va ket noi mang san co)
 WIFI_LIST = [
-    ("_hhau.05_", "00000000"),
+    #("_hhau.05_", "00000000"),
     ("iPhone", "88888888"),
     ("Bekind Coffee", "camonquykhach"),
     ("Quan Buu", "0777803936"),
