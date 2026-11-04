@@ -213,7 +213,10 @@ class AlertTile extends StatelessWidget {
       child: InkWell(
         borderRadius: BorderRadius.circular(18),
         onTap: showDevice
-            ? () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => StationScreen(stationId: a.deviceId)))
+            ? () {
+                final targetId = (a.stationId != null && a.stationId! > 0) ? a.stationId! : a.deviceId;
+                Navigator.of(context).push(MaterialPageRoute(builder: (_) => StationScreen(stationId: targetId)));
+              }
             : null,
         child: Padding(
           padding: const EdgeInsets.all(14),
