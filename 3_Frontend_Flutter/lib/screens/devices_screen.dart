@@ -109,8 +109,8 @@ class _DevicesScreenState extends State<DevicesScreen> {
             const Expanded(child: Text('Thêm thiết bị IoT mới', style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800))),
           ]),
           content: SingleChildScrollView(
-            child: SizedBox(
-              width: 440,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 440),
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (err != null)
                   Container(
@@ -128,6 +128,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 const Text('1. Chọn loại thiết bị phần cứng (List thiết bị)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.accent)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: selectedPreset,
                   dropdownColor: AppColors.surface,
                   decoration: InputDecoration(
@@ -141,7 +142,12 @@ class _DevicesScreenState extends State<DevicesScreen> {
                     for (final p in presets)
                       DropdownMenuItem<String>(
                         value: p['id'],
-                        child: Text(p['title']!, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        child: Text(
+                          p['title']!,
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                        ),
                       ),
                   ],
                   onChanged: (val) {
@@ -165,6 +171,7 @@ class _DevicesScreenState extends State<DevicesScreen> {
                 const Text('2. Chọn Trạm giám sát kết nối (List trạm)', style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: AppColors.accent)),
                 const SizedBox(height: 6),
                 DropdownButtonFormField<int?>(
+                  isExpanded: true,
                   initialValue: selectedStationId,
                   dropdownColor: AppColors.surface,
                   decoration: InputDecoration(
@@ -177,13 +184,23 @@ class _DevicesScreenState extends State<DevicesScreen> {
                   items: [
                     const DropdownMenuItem<int?>(
                       value: null,
-                      child: Text('-- Chưa gán vào trạm nào --', style: TextStyle(color: AppColors.muted)),
+                      child: Text(
+                        '-- Chưa gán vào trạm nào --',
+                        overflow: TextOverflow.ellipsis,
+                        maxLines: 1,
+                        style: TextStyle(color: AppColors.muted),
+                      ),
                     ),
                     if (_stations != null)
                       for (final s in _stations!)
                         DropdownMenuItem<int?>(
                           value: s.id,
-                          child: Text('${s.name} (${s.location ?? "Khu vực"})', style: const TextStyle(fontWeight: FontWeight.w600)),
+                          child: Text(
+                            '${s.name} (${s.location ?? "Khu vực"})',
+                            overflow: TextOverflow.ellipsis,
+                            maxLines: 1,
+                            style: const TextStyle(fontWeight: FontWeight.w600),
+                          ),
                         ),
                   ],
                   onChanged: (val) {
@@ -483,6 +500,7 @@ SEND_INTERVAL_DEFAULT = 2
               Text('Chọn trạm giám sát mà thiết bị "${d.name}" (${d.code}) sẽ gửi dữ liệu đo đạc vào:', style: const TextStyle(fontSize: 13, height: 1.4)),
               const SizedBox(height: 14),
               DropdownButtonFormField<int?>(
+                isExpanded: true,
                 initialValue: selectedId,
                 dropdownColor: AppColors.surface,
                 decoration: InputDecoration(
@@ -494,13 +512,23 @@ SEND_INTERVAL_DEFAULT = 2
                 items: [
                   const DropdownMenuItem<int?>(
                     value: null,
-                    child: Text('-- Không gán vào trạm nào --', style: TextStyle(color: AppColors.muted)),
+                    child: Text(
+                      '-- Không gán vào trạm nào --',
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
+                      style: TextStyle(color: AppColors.muted),
+                    ),
                   ),
                   if (_stations != null)
                     for (final s in _stations!)
                       DropdownMenuItem<int?>(
                         value: s.id,
-                        child: Text('${s.name} (${s.location ?? "Khu vực"})', style: const TextStyle(fontWeight: FontWeight.w600)),
+                        child: Text(
+                          '${s.name} (${s.location ?? "Khu vực"})',
+                          overflow: TextOverflow.ellipsis,
+                          maxLines: 1,
+                          style: const TextStyle(fontWeight: FontWeight.w600),
+                        ),
                       ),
                 ],
                 onChanged: (val) {
