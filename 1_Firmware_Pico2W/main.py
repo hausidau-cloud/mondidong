@@ -82,8 +82,11 @@ try:
 except Exception:
     pico_led = machine.Pin(25, machine.Pin.OUT)
 
-# OLED GP14 (SDA), GP15 (SCL)
-i2c_oled = machine.SoftI2C(scl=machine.Pin(config.PIN_OLED_SCL), sda=machine.Pin(config.PIN_OLED_SDA), freq=400000)
+# OLED GP14 (SDA), GP15 (SCL): Dung Hardware I2C1 tan so 100kHz chuan de chong nhieu tren breadboard
+try:
+    i2c_oled = machine.I2C(1, scl=machine.Pin(config.PIN_OLED_SCL), sda=machine.Pin(config.PIN_OLED_SDA), freq=100000)
+except Exception:
+    i2c_oled = machine.SoftI2C(scl=machine.Pin(config.PIN_OLED_SCL), sda=machine.Pin(config.PIN_OLED_SDA), freq=100000)
 try:
     oled = SSD1306(128, 64, i2c_oled, addr=config.OLED_ADDR)
 except Exception as e:
