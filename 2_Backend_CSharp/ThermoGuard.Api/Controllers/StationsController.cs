@@ -74,19 +74,55 @@ public class StationsController : ControllerBase
 
         if (id.HasValue)
         {
-            if (allowedStationIds != null && !allowedStationIds.Contains(id.Value))
+            var st = _store.GetStation(id.Value);
+            var dev = _store.Devices.FirstOrDefault(d => d.Id == id.Value);
+
+            // Nếu không tìm thấy trạm theo ID, nhưng ID này là DeviceId:
+            if (st == null && dev != null)
             {
-                return Forbid();
+                if (dev.StationId.HasValue)
+                {
+                    st = _store.GetStation(dev.StationId.Value);
+                }
+
+                if (st == null)
+                {
+                    st = new StationItem
+                    {
+                        Id = dev.Id,
+                        Name = dev.Name,
+                        Location = dev.Location ?? "Khu vực thiết bị",
+                        Description = dev.Description,
+                        RelayLabel = dev.RelayLabel,
+                        CreatedAt = TimeHelper.VnNowStr
+                    };
+                }
             }
 
-            var st = _store.GetStation(id.Value);
             if (st == null)
             {
                 return NotFound(new { ok = false, error = "Không tìm thấy trạm giám sát" });
             }
 
+            if (allowedStationIds != null)
+            {
+                bool allowed = allowedStationIds.Contains(st.Id) || allowedStationIds.Contains(id.Value);
+                if (dev != null)
+                {
+                    if (allowedStationIds.Contains(dev.Id)) allowed = true;
+                    if (dev.StationId.HasValue && allowedStationIds.Contains(dev.StationId.Value)) allowed = true;
+                }
+                if (!allowed)
+                {
+                    return Forbid();
+                }
+            }
+
             var stDict = BuildStationPublic(st);
-            var dev = _store.Devices.FirstOrDefault(d => d.StationId == st.Id || (d.StationId == null && d.Id == st.Id));
+            if (dev == null)
+            {
+                dev = _store.Devices.FirstOrDefault(d => d.StationId == st.Id || (d.StationId == null && d.Id == st.Id));
+            }
             if (dev != null)
             {
                 stDict["spark"] = _store.GetSpark(dev.Id);

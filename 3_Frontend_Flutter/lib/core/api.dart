@@ -281,8 +281,9 @@ class Session extends ChangeNotifier {
   Future<Map<String, dynamic>> _send(Future<http.Response> Function() fn) async {
     http.Response r;
     try {
-      r = await fn().timeout(const Duration(seconds: 15));
+      r = await fn().timeout(const Duration(seconds: 35));
     } catch (e) {
+      debugPrint('>> Api _send error: $e');
       throw ApiException('Không kết nối được tới máy chủ ($baseUrl). Kiểm tra mạng hoặc địa chỉ IP.');
     }
     Map<String, dynamic> j;
