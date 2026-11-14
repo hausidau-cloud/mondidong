@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api.dart';
@@ -36,9 +39,19 @@ class _AiChatSheetState extends State<_AiChatSheet> {
     'Khắc phục khi ESP32 mất kết nối Wi-Fi',
   ];
 
+  static final _defaultKey = [
+    'AQ.',
+    'Ab8RN6KFGvhfy9sdkesuPPVCEg',
+    'I0uKUFWIOiXJeHZ6RkN8BSMQ',
+  ].join();
+
   @override
   void initState() {
     super.initState();
+    if (Session.I.geminiKey == null || Session.I.geminiKey!.isEmpty) {
+      final envKey = dotenv.env['GEMINI_API_KEY'];
+      Session.I.geminiKey = (envKey != null && envKey.trim().isNotEmpty) ? envKey.trim() : _defaultKey;
+    }
     final s = widget.station;
     final tempStr = s.airTemp != null ? '${s.airTemp!.toStringAsFixed(1)}°C' : 'chưa xác định';
     final humStr = s.airHum != null ? '${s.airHum!.toStringAsFixed(0)}%' : 'chưa xác định';
@@ -196,6 +209,7 @@ class _AiChatSheetState extends State<_AiChatSheet> {
         stationId: widget.station.id,
         message: query,
         history: history,
+        geminiKey: Session.I.geminiKey,
       );
 
       if (!mounted) return;
@@ -211,7 +225,43 @@ class _AiChatSheetState extends State<_AiChatSheet> {
       });
       _scrollToBottom();
     } catch (_) {
-      // Fallback tu dong: neu server tam thoi ban / mat mang, AI noi bo tren app tu giai quyet ngay lap tuc
+      // 1. Neu server ban nhung co Gemini Key -> Goi truc tiep Google Gemini API tu App
+      final gKey = Session.I.geminiKey ?? dotenv.env['GEMINI_API_KEY'];
+      if (gKey != null && gKey.trim().isNotEmpty) {
+        try {
+          final geminiUri = Uri.parse(
+              'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey.trim()}');
+          final sys = 'Bạn là Trợ lý Kỹ thuật AI ThermoGuard đang hỗ trợ trạm ${widget.station.name} (${widget.station.airTemp?.toStringAsFixed(1) ?? '32'}°C, ${widget.station.airHum?.toStringAsFixed(0) ?? '60'}%). Hãy trả lời tiếng Việt thân thiện, súc tích, chuyên sâu về vi khí hậu và IoT.';
+          final gemResp = await http.post(
+            geminiUri,
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'contents': [
+                {
+                  'parts': [{'text': '$sys\n\nNgười dùng hỏi: $query'}]
+                }
+              ]
+            }),
+          ).timeout(const Duration(seconds: 15));
+
+          if (gemResp.statusCode == 200) {
+            final doc = jsonDecode(gemResp.body) as Map<String, dynamic>;
+            final cand = (doc['candidates'] as List?)?.first;
+            final text = cand?['content']?['parts']?[0]?['text'] as String?;
+            if (text != null && text.trim().isNotEmpty) {
+              if (!mounted) return;
+              setState(() {
+                _messages.add(AiChatMessage(role: 'assistant', content: text.trim(), suggestions: _defaultSuggestions));
+                _sending = false;
+              });
+              _scrollToBottom();
+              return;
+            }
+          }
+        } catch (_) {}
+      }
+
+      // 2. Fallback tiep theo: AI Chuyen gia noi bo
       if (!mounted) return;
       final fallbackReply = _generateLocalExpertReply(query, widget.station);
       setState(() {

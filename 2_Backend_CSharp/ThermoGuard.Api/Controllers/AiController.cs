@@ -363,8 +363,9 @@ public class AiController : ControllerBase
         {
             try
             {
-                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
-                var geminiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={apiKey}";
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+                var modelName = _config["Gemini:Model"] ?? "gemini-2.5-flash";
+                var geminiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
                 
                 var systemContext = $@"Bạn là Trợ lý Kỹ thuật AI của hệ thống IoT ThermoGuard. Bạn đang hỗ trợ kỹ thuật trực tiếp cho người vận hành.
 Thông tin thời gian thực của trạm hiện tại:
