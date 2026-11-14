@@ -5,6 +5,8 @@
 
 # 1. DANH SACH WI-FI (Tu dong quet va ket noi mang san co)
 WIFI_LIST = [
+    ("Duy Thuc_2", "thuchuong"),
+    ("Duy thuc", "thuchuong"),
     #("_hhau.05_", "00000000"),
     ("iPhone", "88888888"),
     ("Bekind Coffee", "camonquykhach"),
@@ -31,3 +33,30 @@ PIN_LED     = 2       # GPIO 2 (Den LED nho gan tren mach ESP32 NodeMCU)
 # 6. NGUONG DIEU KHIEN CANH BAO CUC BO (FAIL-SAFE KHI MAT MANG)
 TEMP_THRESHOLD = 30.0  # Nhiet do >= 30.0 do C -> Bat den canh bao
 HUM_THRESHOLD  = 75.0  # Do am >= 75% -> Bat canh bao
+
+# 7. BANG TRA CUU TOA DO TU DONG THEO TUNG WI-FI
+# Cu ket noi vao Wi-Fi nao -> ESP32 tu dong lay dung toa do & dia chi cua noi do!
+WIFI_LOCATIONS = {
+    "Duy Thuc_2": {
+        "lat": 10.8220,
+        "lon": 106.6257,
+        "address": "Phòng của bạn - Đường Trường Chinh, TP.HCM",
+    },
+    "Duy thuc": {
+        "lat": 10.8220,
+        "lon": 106.6257,
+        "address": "Phòng của bạn - Đường Trường Chinh, TP.HCM",
+    },
+    "Bekind Coffee": {
+        "lat": 10.7952,
+        "lon": 106.6631,
+        "address": "Bekind Coffee - TP. Hồ Chí Minh",
+    },
+    "Quan Buu": {
+        "lat": 10.8150,
+        "lon": 106.6320,
+        "address": "Quán Bửu - TP. Hồ Chí Minh",
+    },
+}
+
+

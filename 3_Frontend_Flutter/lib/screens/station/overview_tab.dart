@@ -30,12 +30,74 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
     super.build(context);
     final s = widget.station;
     return TabBody(onRefresh: widget.onRefresh, children: [
+      _locationBanner(s),
+      const SizedBox(height: 12),
       _gauges(s),
       const SizedBox(height: 16),
       _chart(s),
       const SizedBox(height: 16),
       _stats(s),
     ]);
+  }
+
+  // ------------------------------------------------------------------ banner dinh vi GPS
+  Widget _locationBanner(Station s) {
+    final loc = (s.location != null && s.location!.isNotEmpty) ? s.location! : 'Đang định vị qua Wi-Fi...';
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: AppColors.accent.withAlpha(30),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.location_on_rounded, color: AppColors.accent, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'VỊ TRÍ & ĐỊNH VỊ GPS',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.muted, letterSpacing: 0.6),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  loc,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text),
+                ),
+              ],
+            ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: Colors.green.withAlpha(30),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.green.withAlpha(75)),
+            ),
+            child: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.wifi_rounded, size: 13, color: Colors.green),
+                SizedBox(width: 4),
+                Text('GPS Wi-Fi', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.green)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ------------------------------------------------------------------ dong ho cam bien

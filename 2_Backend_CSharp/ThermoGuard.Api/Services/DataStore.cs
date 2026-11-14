@@ -266,6 +266,7 @@ public class DataStore
             double? airT = null, airH = null, probeT = null, dew = null, picoT = null;
             int? lightRaw = 0, lightPct = 0, relayState = 0, rssi = null;
             string? fw = null;
+            string? locFromPayload = null;
 
             // 1. Unpack payload
             if (!string.IsNullOrEmpty(req.Payload))
@@ -293,6 +294,7 @@ public class DataStore
                     if (root.TryGetProperty("relay_state", out var rs) && rs.ValueKind == JsonValueKind.Number) relayState = rs.GetInt32();
                     if (root.TryGetProperty("rssi", out var rsVal) && rsVal.ValueKind == JsonValueKind.Number) rssi = rsVal.GetInt32();
                     if (root.TryGetProperty("fw", out var fwVal) && fwVal.ValueKind == JsonValueKind.String) fw = fwVal.GetString();
+                    if (root.TryGetProperty("location", out var locVal) && locVal.ValueKind == JsonValueKind.String) locFromPayload = locVal.GetString();
                 }
                 catch (Exception ex)
                 {
@@ -340,6 +342,15 @@ public class DataStore
             dev.LightPct = lightPct ?? 0;
             dev.Rssi = rssi;
             if (!string.IsNullOrEmpty(fw)) dev.Firmware = fw;
+            if (!string.IsNullOrEmpty(locFromPayload))
+            {
+                dev.Location = locFromPayload;
+                if (dev.StationId.HasValue)
+                {
+                    var st = Stations.FirstOrDefault(s => s.Id == dev.StationId.Value);
+                    if (st != null) st.Location = locFromPayload;
+                }
+            }
             dev.LastSeenTime = DateTime.UtcNow;
             dev.LastSeen = TimeHelper.VnNowStr;
 

@@ -7,6 +7,8 @@ import '../../core/format.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import '../../widgets/report_dialog.dart';
+import 'ai_tab.dart';
 import 'config_tab.dart';
 import 'control_tab.dart';
 import 'logs_tab.dart';
@@ -79,7 +81,7 @@ class _StationScreenState extends State<StationScreen> {
     }
     final p = ProfileStyle.of(s.profile);
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Scaffold(
         body: NestedScrollView(
           headerSliverBuilder: (ctx, _) => [
@@ -89,6 +91,11 @@ class _StationScreenState extends State<StationScreen> {
               titleSpacing: 0,
               title: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
               actions: [
+                IconButton(
+                  tooltip: 'Báo cáo Kiểm định Đồ án',
+                  icon: const Icon(Icons.assessment_outlined),
+                  onPressed: () => showStationReportDialog(context, s),
+                ),
                 IconButton(tooltip: 'Làm mới', onPressed: refresh, icon: const Icon(Icons.refresh_rounded)),
                 const SizedBox(width: 6),
               ],
@@ -129,6 +136,7 @@ class _StationScreenState extends State<StationScreen> {
                 isScrollable: true,
                 tabs: [
                   Tab(text: 'Tổng quan'),
+                  Tab(text: 'AI Chẩn đoán'),
                   Tab(text: 'Điều khiển'),
                   Tab(text: 'Nhật ký'),
                   Tab(text: 'Cấu hình'),
@@ -141,6 +149,7 @@ class _StationScreenState extends State<StationScreen> {
             Expanded(
               child: TabBarView(children: [
                 OverviewTab(station: s, series: _series, range: _range, onRange: _setRange, onRefresh: refresh),
+                AiTab(station: s, onActionDone: refresh),
                 ControlTab(station: s, alerts: _alerts, onChanged: refresh),
                 LogsTab(station: s),
                 ConfigTab(station: s, onSaved: refresh),

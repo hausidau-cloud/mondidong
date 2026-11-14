@@ -24,12 +24,12 @@ except ImportError:
 
 import config
 
-FW_VERSION = "esp32-dht11-1.0"
+FW_VERSION = "esp32-dht11-ipgps-2.0"
 INGEST_URL = config.SERVER_URL.rstrip("/") + "/api/ingest"
 TIME_URL   = config.SERVER_URL.rstrip("/") + "/api/time"
 
 print("==================================================")
-print(">> KHOI DONG FIRMWARE ESP32 (DONG BO APP FLUTTER)")
+print(">> KHOI DONG FIRMWARE ESP32 + DINH VI IP (CACH 2)")
 print(">> Thiet bi:", config.DEVICE_CODE)
 print(">> Phien ban:", FW_VERSION)
 print("==================================================")
@@ -64,6 +64,10 @@ state = {
     "mode": "AUTO",
     "reason": "",
     "interval": config.SEND_INTERVAL_DEFAULT,
+    "connected_ssid": "",
+    "lat": None,
+    "lon": None,
+    "address": "",
 }
 
 time_offset_ms = 0
@@ -193,7 +197,8 @@ def connect_wifi():
             wait -= 1
 
         if wlan.isconnected():
-            print(">> KET NOI WI-FI THANH CONG!")
+            state["connected_ssid"] = ssid
+            print(">> KET NOI WI-FI THANH CONG: '{}'!".format(ssid))
             print(">> Dia chi IP ESP32:", wlan.ifconfig()[0])
             return True
 
@@ -201,7 +206,68 @@ def connect_wifi():
     return False
 
 # ==============================================================
-# 5. DOC CAM BIEN DHT11
+# 5. DINH VI VI TRI TU DONG THEO TUNG WI-FI & IP FALLBACK
+# ==============================================================
+def resolve_auto_location():
+    """Tu dong dinh vi: Neu la Wi-Fi da biet thi lay toa do chuan 100%, neu la mang la thi fallback qua IP"""
+    if not wlan.isconnected():
+        return False
+
+    ssid = state.get("connected_ssid", "")
+    wifi_locs = getattr(config, "WIFI_LOCATIONS", {})
+
+    # 1. Kiem tra xem mang Wi-Fi vua ket noi co trong danh sach dinh vi chinh xac khong
+    if ssid and ssid in wifi_locs:
+        target = wifi_locs[ssid]
+        state["lat"] = target.get("lat")
+        state["lon"] = target.get("lon")
+        state["address"] = target.get("address", ssid)
+        print("==================================================")
+        print("📍 [GPS-AUTO] TU DONG NHAN DIEN THEO WI-FI '{}'".format(ssid))
+        print(">> Toa do (Lat, Lon) : {}, {}".format(state["lat"], state["lon"]))
+        print(">> Dia chi chinh xac : {}".format(state["address"]))
+        print(">> Xem tren Google Maps: https://www.google.com/maps?q={},{}".format(state["lat"], state["lon"]))
+        print("==================================================")
+        return True
+
+    # 2. Neu la mang Wi-Fi moi hoan toan -> Tu dong dinh vi qua IP (Fallback)
+    print(">> [GPS-AUTO] Wi-Fi '{}' la mang moi, dang dinh vi tu dong qua IP...".format(ssid or "Moi"))
+    r = None
+    try:
+        r = requests.get("http://ip-api.com/json", timeout=6)
+        if r.status_code == 200:
+            res = r.json()
+            if res.get("status") == "success":
+                lat = res.get("lat")
+                lon = res.get("lon")
+                city = res.get("city", "")
+                region = res.get("regionName", "")
+                country = res.get("country", "")
+                ip_addr = res.get("query", "")
+
+                state["lat"] = lat
+                state["lon"] = lon
+                loc_text = "{}, {}".format(city, region) if city else region
+                state["address"] = "{}, {}".format(loc_text, country) if loc_text else country
+
+                print("==================================================")
+                print("📍 [GPS-IP] DINH VI QUA IP CHO MANG LA THANH CONG!")
+                print(">> Dia chi IP Public :", ip_addr)
+                print(">> Khu vuc           :", state["address"])
+                print(">> Toa do (Lat, Lon) : {}, {}".format(lat, lon))
+                print(">> Xem tren Google Maps: https://www.google.com/maps?q={},{}".format(lat, lon))
+                print("==================================================")
+                return True
+    except Exception as e:
+        print(">> [GPS-IP] Loi dinh vi IP:", e)
+    finally:
+        if r is not None:
+            try: r.close()
+            except Exception: pass
+    return False
+
+# ==============================================================
+# 6. DOC CAM BIEN DHT11
 # ==============================================================
 def read_dht():
     if not dht_sensor:
@@ -247,6 +313,9 @@ def send_to_backend():
         "relay_state": 1 if state["led"] else 0,
         "rssi": -55,
         "fw": FW_VERSION,
+        "lat": state["lat"],
+        "lon": state["lon"],
+        "location": state["address"] or ("{}, {}".format(state["lat"], state["lon"]) if state["lat"] is not None else None),
     }
     payload_str = json.dumps(payload_obj)
     ts = now_ms()
@@ -306,27 +375,41 @@ def send_to_backend():
 # 8. VONG LAP CHINH
 # ==============================================================
 def main():
+    # 1. Ket noi vao Wi-Fi
     connect_wifi()
     sync_time()
 
+    # 2. Tu dong dinh vi ngay khi ket noi mang
+    if wlan.isconnected():
+        resolve_auto_location()
+
     last_send = 0
     fail_count = 0
+    last_gps_update = time.ticks_ms()
 
     while True:
         try:
-            # 1. Kiem tra Wi-Fi neu bi rot mang
+            # 1. Kiem tra Wi-Fi neu bi rot mang hoac chuyen sang Wi-Fi khac
             if not wlan.isconnected():
                 print(">> Mat Wi-Fi, dang ket noi lai...")
                 connect_wifi()
+                if wlan.isconnected():
+                    resolve_auto_location()
 
-            # 2. Doc cam bien DHT11
+            # 2. Dinh ky cap nhat lai vi tri moi 30 phut
+            now = time.ticks_ms()
+            if state["lat"] is None or time.ticks_diff(now, last_gps_update) >= 1800000:
+                last_gps_update = now
+                if wlan.isconnected():
+                    resolve_auto_location()
+
+            # 3. Doc cam bien DHT11
             t, h = read_dht()
             state["temp"] = t
             state["hum"] = h
             state["dew"] = dew_point(t, h)
 
-            # 3. Kiem tra chu ky va gui len Cloud
-            now = time.ticks_ms()
+            # 4. Kiem tra chu ky va gui len Cloud
             interval_ms = state["interval"] * 1000
 
             if time.ticks_diff(now, last_send) >= interval_ms:

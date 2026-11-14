@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../widgets/common.dart';
 import 'alerts_screen.dart';
 import 'hub_screen.dart';
+import 'map_screen.dart';
 import 'settings_screen.dart';
 
 class HomeShell extends StatefulWidget {
@@ -71,7 +72,7 @@ class _HomeShellState extends State<HomeShell> {
                 ]),
               ),
             ]),
-            action: SnackBarAction(label: 'XEM', onPressed: () => setState(() => _tab = 1)),
+            action: SnackBarAction(label: 'XEM', onPressed: () => setState(() => _tab = 2)),
           ));
         }
         _seen!.addAll(ids);
@@ -89,6 +90,7 @@ class _HomeShellState extends State<HomeShell> {
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final pages = [
       const HubScreen(),
+      const MapScreen(),
       AlertsScreen(onChanged: _poll),
       const SettingsScreen(),
     ];
@@ -112,6 +114,7 @@ class _HomeShellState extends State<HomeShell> {
             leading: const Padding(padding: EdgeInsets.only(top: 12, bottom: 20), child: BrandLogo(size: 42)),
             destinations: [
               const NavigationRailDestination(icon: Icon(Icons.space_dashboard_outlined), selectedIcon: Icon(Icons.space_dashboard_rounded), label: Text('Tổng quan')),
+              const NavigationRailDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map_rounded), label: Text('Bản đồ GIS')),
               NavigationRailDestination(icon: badgeIcon(Icons.notifications_none_rounded), selectedIcon: badgeIcon(Icons.notifications_rounded), label: const Text('Cảnh báo')),
               const NavigationRailDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: Text('Tài khoản')),
             ],
@@ -129,6 +132,7 @@ class _HomeShellState extends State<HomeShell> {
         onDestinationSelected: (i) => setState(() => _tab = i),
         destinations: [
           const NavigationDestination(icon: Icon(Icons.space_dashboard_outlined), selectedIcon: Icon(Icons.space_dashboard_rounded), label: 'Tổng quan'),
+          const NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map_rounded), label: 'Bản đồ GIS'),
           NavigationDestination(icon: badgeIcon(Icons.notifications_none_rounded), selectedIcon: badgeIcon(Icons.notifications_rounded), label: 'Cảnh báo'),
           const NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Tài khoản'),
         ],

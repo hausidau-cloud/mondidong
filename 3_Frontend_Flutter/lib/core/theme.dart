@@ -20,6 +20,9 @@ class AppColors {
   static const muted = Color(0xFF6F7F92);
 
   static const accent = Color(0xFF38BDF8);
+  static const primary = Color(0xFF38BDF8);
+  static const primaryLight = Color(0xFF7DD3FC);
+  static const text3 = Color(0xFF6F7F92);
 
   // Mau du lieu cam bien
   static const air = Color(0xFF38BDF8); // SHT30 nhiet do

@@ -435,3 +435,212 @@ class AlertPage {
     );
   }
 }
+
+// -----------------------------------------------------------------------------
+// Models cho AI Chẩn đoán & Báo cáo đồ án chuyên ngành
+// -----------------------------------------------------------------------------
+
+class AiRecommendation {
+  final String type; // success | info | warning | danger
+  final String title;
+  final String description;
+  final String? actionKey;
+
+  AiRecommendation({
+    required this.type,
+    required this.title,
+    required this.description,
+    this.actionKey,
+  });
+
+  factory AiRecommendation.fromJson(Map<String, dynamic> j) => AiRecommendation(
+        type: (j['type'] ?? 'info').toString(),
+        title: (j['title'] ?? '').toString(),
+        description: (j['description'] ?? '').toString(),
+        actionKey: j['action_key']?.toString(),
+      );
+}
+
+class AiDiagnosis {
+  final int stationId;
+  final String stationName;
+  final String location;
+  final bool isOnline;
+  final double healthScore;
+  final String healthStatus;
+  final double currentTemp;
+  final double currentHum;
+  final double dewPoint;
+  final double dewMargin;
+  final String condensationRisk;
+  final String wifiQuality;
+  final int rssi;
+  final String tempTrend;
+  final int anomaliesCount;
+  final List<String> anomalies;
+  final String forecast1h;
+  final List<AiRecommendation> recommendations;
+  final String analyzedAt;
+
+  AiDiagnosis({
+    required this.stationId,
+    required this.stationName,
+    required this.location,
+    required this.isOnline,
+    required this.healthScore,
+    required this.healthStatus,
+    required this.currentTemp,
+    required this.currentHum,
+    required this.dewPoint,
+    required this.dewMargin,
+    required this.condensationRisk,
+    required this.wifiQuality,
+    required this.rssi,
+    required this.tempTrend,
+    required this.anomaliesCount,
+    required this.anomalies,
+    required this.forecast1h,
+    required this.recommendations,
+    required this.analyzedAt,
+  });
+
+  factory AiDiagnosis.fromJson(Map<String, dynamic> j) {
+    return AiDiagnosis(
+      stationId: toInt(j['station_id']),
+      stationName: (j['station_name'] ?? '').toString(),
+      location: (j['location'] ?? '').toString(),
+      isOnline: j['is_online'] == true,
+      healthScore: toDbl(j['health_score']) ?? 0.0,
+      healthStatus: (j['health_status'] ?? 'Bình thường').toString(),
+      currentTemp: toDbl(j['current_temp']) ?? 0.0,
+      currentHum: toDbl(j['current_hum']) ?? 0.0,
+      dewPoint: toDbl(j['dew_point']) ?? 0.0,
+      dewMargin: toDbl(j['dew_margin']) ?? 0.0,
+      condensationRisk: (j['condensation_risk'] ?? 'Thấp').toString(),
+      wifiQuality: (j['wifi_quality'] ?? 'Bình thường').toString(),
+      rssi: toInt(j['rssi']),
+      tempTrend: (j['temp_trend'] ?? 'Ổn định').toString(),
+      anomaliesCount: toInt(j['anomalies_count']),
+      anomalies: ((j['anomalies'] as List?) ?? []).map((e) => e.toString()).toList(),
+      forecast1h: (j['forecast_1h'] ?? '').toString(),
+      recommendations: ((j['recommendations'] as List?) ?? [])
+          .map((e) => AiRecommendation.fromJson(e as Map<String, dynamic>))
+          .toList(),
+      analyzedAt: (j['analyzed_at'] ?? '').toString(),
+    );
+  }
+}
+
+class SystemAiOverview {
+  final int totalStations;
+  final int onlineStations;
+  final int offlineStations;
+  final int activeAlerts;
+  final double systemHealthScore;
+  final String statusGrade;
+  final String lastAuditAt;
+
+  SystemAiOverview({
+    required this.totalStations,
+    required this.onlineStations,
+    required this.offlineStations,
+    required this.activeAlerts,
+    required this.systemHealthScore,
+    required this.statusGrade,
+    required this.lastAuditAt,
+  });
+
+  factory SystemAiOverview.fromJson(Map<String, dynamic> j) => SystemAiOverview(
+        totalStations: toInt(j['total_stations']),
+        onlineStations: toInt(j['online_stations']),
+        offlineStations: toInt(j['offline_stations']),
+        activeAlerts: toInt(j['active_alerts']),
+        systemHealthScore: toDbl(j['system_health_score']) ?? 0.0,
+        statusGrade: (j['status_grade'] ?? 'TỐT').toString(),
+        lastAuditAt: (j['last_audit_at'] ?? '').toString(),
+      );
+}
+
+class StationReport {
+  final String reportTitle;
+  final String projectName;
+  final String generatedAt;
+  final int stationId;
+  final String stationName;
+  final String deviceCode;
+  final String location;
+  final String firmware;
+  final String status;
+  final String relayLabel;
+  final int sampleCount;
+  final double? minTemp, maxTemp, avgTemp;
+  final double? minHum, maxHum, avgHum;
+  final double uptimePercent;
+  final int totalAlerts, unresolvedAlerts, relaySwitchCount;
+  final String grade, standardCompliance, stabilityRating, examinerNotes;
+
+  StationReport({
+    required this.reportTitle,
+    required this.projectName,
+    required this.generatedAt,
+    required this.stationId,
+    required this.stationName,
+    required this.deviceCode,
+    required this.location,
+    required this.firmware,
+    required this.status,
+    required this.relayLabel,
+    required this.sampleCount,
+    this.minTemp,
+    this.maxTemp,
+    this.avgTemp,
+    this.minHum,
+    this.maxHum,
+    this.avgHum,
+    required this.uptimePercent,
+    required this.totalAlerts,
+    required this.unresolvedAlerts,
+    required this.relaySwitchCount,
+    required this.grade,
+    required this.standardCompliance,
+    required this.stabilityRating,
+    required this.examinerNotes,
+  });
+
+  factory StationReport.fromJson(Map<String, dynamic> j) {
+    final stInfo = (j['station_info'] as Map?) ?? const {};
+    final stats = (j['statistics'] as Map?) ?? const {};
+    final temp = (stats['temp'] as Map?) ?? const {};
+    final hum = (stats['humidity'] as Map?) ?? const {};
+    final assess = (j['capstone_assessment'] as Map?) ?? const {};
+
+    return StationReport(
+      reportTitle: (j['report_title'] ?? 'BÁO CÁO KIỂM ĐỊNH IOT').toString(),
+      projectName: (j['project_name'] ?? 'ThermoGuard IoT').toString(),
+      generatedAt: (j['generated_at'] ?? '').toString(),
+      stationId: toInt(stInfo['id']),
+      stationName: (stInfo['name'] ?? '').toString(),
+      deviceCode: (stInfo['device_code'] ?? '').toString(),
+      location: (stInfo['location'] ?? '').toString(),
+      firmware: (stInfo['firmware'] ?? '').toString(),
+      status: (stInfo['status'] ?? 'ONLINE').toString(),
+      relayLabel: (stInfo['relay_label'] ?? 'Rơ-le').toString(),
+      sampleCount: toInt(stats['sample_count']),
+      minTemp: toDbl(temp['min']),
+      maxTemp: toDbl(temp['max']),
+      avgTemp: toDbl(temp['avg']),
+      minHum: toDbl(hum['min']),
+      maxHum: toDbl(hum['max']),
+      avgHum: toDbl(hum['avg']),
+      uptimePercent: toDbl(stats['uptime_percent']) ?? 99.0,
+      totalAlerts: toInt(stats['total_alerts']),
+      unresolvedAlerts: toInt(stats['unresolved_alerts']),
+      relaySwitchCount: toInt(stats['relay_switch_count']),
+      grade: (assess['grade'] ?? 'A').toString(),
+      standardCompliance: (assess['standard_compliance'] ?? '').toString(),
+      stabilityRating: (assess['stability_rating'] ?? 'Cao').toString(),
+      examinerNotes: (assess['examiner_notes'] ?? '').toString(),
+    );
+  }
+}
+

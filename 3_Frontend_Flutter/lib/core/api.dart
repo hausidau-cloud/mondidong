@@ -544,6 +544,29 @@ class Session extends ChangeNotifier {
   Future<void> deleteDevice(int deviceId) async {
     await delete('devices/$deviceId');
   }
+
+  // ------------------------------------------------------------------ AI & Bao cao Do An
+  /// Chan doan AI thong minh & du bao rui ro tram
+  Future<AiDiagnosis> diagnoseStation(int stationId) async {
+    final j = await get('ai/diagnose/$stationId');
+    return AiDiagnosis.fromJson(j);
+  }
+
+  /// Danh gia suc khoe tong the he thong IoT
+  Future<SystemAiOverview> systemAiOverview() async {
+    final j = await get('ai/system-overview');
+    return SystemAiOverview.fromJson(j);
+  }
+
+  /// Bao cao kiem dinh chat luong van hanh phuc vu do an
+  Future<StationReport> stationReport(int stationId) async {
+    final j = await get('reports/station/$stationId');
+    return StationReport.fromJson(j);
+  }
+
+  /// Duong dan tai file CSV du lieu do
+  String csvReportUrl(int stationId) => '$baseUrl/api/reports/station/$stationId/csv';
 }
+
 
 
