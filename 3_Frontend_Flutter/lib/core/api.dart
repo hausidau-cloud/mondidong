@@ -566,7 +566,24 @@ class Session extends ChangeNotifier {
 
   /// Duong dan tai file CSV du lieu do
   String csvReportUrl(int stationId) => '$baseUrl/api/reports/station/$stationId/csv';
+
+  /// Tro chuyen & giai quyet van de truc tiep voi Tro ly AI
+  Future<AiChatResponse> askAiChat({
+    required int stationId,
+    required String message,
+    List<Map<String, String>>? history,
+    String? geminiKey,
+  }) async {
+    final j = await post('ai/chat', {
+      'station_id': stationId,
+      'message': message,
+      'history': ?history,
+      'gemini_key': ?geminiKey,
+    });
+    return AiChatResponse.fromJson(j);
+  }
 }
+
 
 
 

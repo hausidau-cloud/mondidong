@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/report_dialog.dart';
+import 'ai_chat_sheet.dart';
 import 'ai_tab.dart';
 import 'config_tab.dart';
 import 'control_tab.dart';
@@ -91,6 +92,11 @@ class _StationScreenState extends State<StationScreen> {
               titleSpacing: 0,
               title: Text(s.name, maxLines: 1, overflow: TextOverflow.ellipsis),
               actions: [
+                IconButton(
+                  tooltip: 'Chat với AI',
+                  icon: const Icon(Icons.smart_toy_outlined),
+                  onPressed: () => showAiChatModal(context, s),
+                ),
                 IconButton(
                   tooltip: 'Báo cáo Kiểm định Đồ án',
                   icon: const Icon(Icons.assessment_outlined),

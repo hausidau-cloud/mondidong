@@ -5,6 +5,7 @@ import '../../core/api.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
+import 'ai_chat_sheet.dart';
 import 'station_screen.dart';
 
 class AiTab extends StatefulWidget {
@@ -103,6 +104,10 @@ class _AiTabState extends State<AiTab> {
     return TabBody(
       onRefresh: () => _fetch(),
       children: [
+        // 0. AI Chatbox Assistant Action Banner
+        _buildChatBanner(),
+        const SizedBox(height: 16),
+
         // 1. Health Score Header Gauge
         _buildHealthScoreCard(d),
         const SizedBox(height: 16),
@@ -124,6 +129,67 @@ class _AiTabState extends State<AiTab> {
         // 5. Smart Actionable Recommendations
         _buildRecommendationsSection(d),
       ],
+    );
+  }
+
+  Widget _buildChatBanner() {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            const Color(0xFF0284C7).withValues(alpha: 0.25),
+            const Color(0xFF6366F1).withValues(alpha: 0.15),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.4)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Color(0xFF38BDF8), Color(0xFF6366F1)],
+              ),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.chat_bubble_outline_rounded, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Hỏi đáp Kỹ thuật với AI',
+                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: Colors.white),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Hỏi AI cách giải quyết khi nhiệt độ cao, đọng sương, sự cố Rơ-le...',
+                  style: TextStyle(fontSize: 12.5, color: AppColors.text2, height: 1.25),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            ),
+            icon: const Icon(Icons.smart_toy_rounded, size: 16),
+            label: const Text('Chat ngay', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+            onPressed: () => showAiChatModal(context, widget.station),
+          ),
+        ],
+      ),
     );
   }
 

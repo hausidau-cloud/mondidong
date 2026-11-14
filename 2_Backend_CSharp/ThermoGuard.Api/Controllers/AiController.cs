@@ -322,4 +322,240 @@ public class AiController : ControllerBase
             last_audit_at = TimeHelper.VnNowStr
         });
     }
+
+    /// <summary>
+    /// POST /api/ai/chat: Trợ lý AI Kỹ thuật giải đáp thắc mắc và hỗ trợ xử lý sự cố vi khí hậu IoT theo ngữ cảnh
+    /// </summary>
+    [HttpPost("chat")]
+    public async Task<IActionResult> ChatWithAi([FromBody] AiChatRequest req)
+    {
+        if (string.IsNullOrWhiteSpace(req.message))
+        {
+            return BadRequest(new { ok = false, error = "Tin nhắn không được để trống." });
+        }
+
+        int stationId = req.station_id ?? 1;
+        var st = _store.GetStation(stationId);
+        var dev = _store.Devices.FirstOrDefault(d => d.StationId == stationId)
+                  ?? _store.Devices.FirstOrDefault(d => d.Id == stationId)
+                  ?? _store.Devices.FirstOrDefault();
+
+        var stationName = st?.Name ?? dev?.Name ?? $"Trạm #{stationId}";
+        var location = st?.Location ?? dev?.Location ?? "Chưa rõ vị trí";
+        double curTemp = dev?.AirTemp ?? 30.0;
+        double curHum = dev?.AirHum ?? 55.0;
+        double curDew = dev?.DewPoint ?? (curTemp - ((100 - curHum) / 5.0));
+        double dewMargin = Math.Round(curTemp - curDew, 1);
+        string status = dev?.Status ?? "ONLINE";
+        string relayMode = dev?.RelayMode ?? "AUTO";
+        int relayState = dev?.RelayState ?? 0;
+        int rssi = dev?.Rssi ?? -55;
+        string firmware = dev?.Firmware ?? "esp32-dht11-ipgps-2.0";
+
+        // Thử gọi Google Gemini API nếu có cấu hình key
+        string? apiKey = !string.IsNullOrWhiteSpace(req.gemini_key) 
+            ? req.gemini_key 
+            : Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+
+        if (!string.IsNullOrWhiteSpace(apiKey))
+        {
+            try
+            {
+                using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+                var geminiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={apiKey}";
+                
+                var systemContext = $@"Bạn là Trợ lý Kỹ thuật AI của hệ thống IoT ThermoGuard. Bạn đang hỗ trợ kỹ thuật trực tiếp cho người vận hành.
+Thông tin thời gian thực của trạm hiện tại:
+- Tên trạm: {stationName} (ID: {stationId})
+- Vị trí: {location}
+- Nhiệt độ không khí: {curTemp:F1}°C (Ngưỡng an toàn: {dev?.AirTempMax ?? 40}°C)
+- Độ ẩm không khí: {curHum:F1}% (Ngưỡng an toàn: {dev?.AirHumMax ?? 75}%)
+- Điểm đọng sương (Dew Point): {curDew:F1}°C (Biên độ an toàn: {dewMargin}°C)
+- Trạng thái thiết bị: {status} (Tín hiệu Wi-Fi: {rssi} dBm)
+- Rơ-le / Thiết bị tải: {dev?.RelayLabel ?? "Bóng đèn 220V / Rơ-le"} (Chế độ: {relayMode}, Đang: {(relayState == 1 ? "BẬT" : "TẮT")})
+- Firmware: {firmware}
+
+Hãy trả lời bằng tiếng Việt thân thiện, súc tích, chuyên sâu về kỹ thuật IoT, nêu rõ nguyên nhân và các bước giải quyết từng bước (step-by-step). Định dạng markdown đẹp mắt kèm icon.";
+
+                var payload = new
+                {
+                    contents = new[]
+                    {
+                        new
+                        {
+                            role = "user",
+                            parts = new[] { new { text = $"{systemContext}\n\nNgười dùng hỏi: {req.message}" } }
+                        }
+                    }
+                };
+
+                var content = new StringContent(System.Text.Json.JsonSerializer.Serialize(payload), System.Text.Encoding.UTF8, "application/json");
+                var resp = await http.PostAsync(geminiUrl, content);
+                if (resp.IsSuccessStatusCode)
+                {
+                    var raw = await resp.Content.ReadAsStringAsync();
+                    using var doc = System.Text.Json.JsonDocument.Parse(raw);
+                    var candidate = doc.RootElement.GetProperty("candidates")[0];
+                    var text = candidate.GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString();
+
+                    if (!string.IsNullOrWhiteSpace(text))
+                    {
+                        return Ok(new
+                        {
+                            ok = true,
+                            reply = text,
+                            model = "gemini-1.5-flash",
+                            suggestions = GenerateSmartSuggestions(req.message, curTemp, curHum, dewMargin)
+                        });
+                    }
+                }
+            }
+            catch { }
+        }
+
+        // BỘ MÁY CHUYÊN GIA IOT NỘI BỘ (Autonomous Expert Engine - Không phụ thuộc Internet ngoài)
+        string reply = GenerateExpertReply(req.message, stationName, location, curTemp, curHum, curDew, dewMargin, status, relayMode, relayState, rssi, dev?.AirTempMax ?? 40.0, dev?.AirHumMax ?? 75.0);
+        var suggestions = GenerateSmartSuggestions(req.message, curTemp, curHum, dewMargin);
+
+        return Ok(new
+        {
+            ok = true,
+            reply,
+            model = "thermoguard-expert-system",
+            suggestions,
+            station_context = new
+            {
+                name = stationName,
+                temp = curTemp,
+                hum = curHum,
+                dew_margin = dewMargin,
+                relay = relayState,
+                status
+            }
+        });
+    }
+
+    private static string GenerateExpertReply(
+        string q, string stName, string loc,
+        double t, double h, double dew, double margin,
+        string status, string relayMode, int relayState, int rssi,
+        double tMax, double hMax)
+    {
+        string lower = q.ToLowerInvariant();
+
+        // 1. Hỏi về tình trạng trạm hiện tại / tổng quan
+        if (lower.Contains("tổng quan") || lower.Contains("tình trạng") || lower.Contains("hiện tại") || lower.Contains("sức khỏe") || lower.Contains("thế nào"))
+        {
+            string relayText = relayState == 1 ? "Đang BẬT" : "Đang TẮT";
+            string dewAlert = margin < 2.0 
+                ? "⚠️ **Cực kỳ nguy hiểm:** Biên độ sương chỉ còn " + margin + "°C! Nguy cơ chập vi mạch." 
+                : "✅ **An toàn:** Biên độ đọng sương đạt " + margin + "°C (Ngưỡng an toàn tối thiểu là 3.0°C).";
+
+            return $@"📊 **BÁO CÁO NHANH TÌNH TRẠNG {stName.ToUpper()}:**
+📍 **Vị trí:** {loc}
+- **Nhiệt độ:** `{t:F1}°C` {(t > tMax ? "🔴 (VƯỢT NGƯỠNG " + tMax + "°C)" : "🟢 (Bình thường)")}
+- **Độ ẩm:** `{h:F1}%` {(h > hMax ? "🟠 (VƯỢT NGƯỠNG " + hMax + "%)" : "🟢 (Lý tưởng 40-70%)")}
+- **Điểm đọng sương:** `{dew:F1}°C` (Biên an toàn: `+{margin}°C`)
+- **Tín hiệu Wi-Fi:** `{rssi} dBm` {(rssi >= -65 ? "🟢 (Rất tốt)" : (rssi >= -80 ? "🟡 (Trung bình)" : "🔴 (Yếu)"))}
+- **Rơ-le / Thiết bị ngoại vi:** `{relayText}` (Chế độ: `{relayMode}`)
+
+💡 {dewAlert}";
+        }
+
+        // 2. Hỏi về nhiệt độ cao / quá nhiệt
+        if (lower.Contains("nhiệt độ cao") || lower.Contains("quá nhiệt") || lower.Contains("nóng") || lower.Contains("giảm nhiệt") || lower.Contains("nhiệt độ"))
+        {
+            return $@"🌡️ **HƯỚNG DẪN XỬ LÝ KHI NHIỆT ĐỘ TĂNG CAO:**
+Nhiệt độ hiện tại của trạm đo được là **{t:F1}°C** (Ngưỡng cảnh báo: **{tMax:F1}°C**).
+
+**Các bước xử lý kỹ thuật đề xuất:**
+1. 🌬️ **Kích hoạt tải làm mát:** Chuyển Rơ-le sang chế độ **ON** trên tab *Điều khiển* để bật quạt tản nhiệt hoặc hệ thống thông gió ngay lập tức.
+2. 🔄 **Cấu hình tự động (AUTO):** Đảm bảo rơ-le đang ở chế độ **AUTO**, trạm sẽ tự động đóng tiếp điểm rơ-le khi nhiệt độ vượt quá `{tMax:F1}°C`.
+3. 📦 **Kiểm tra vị trí đặt trạm:** Tránh ánh nắng mặt trời chiếu trực diện hoặc đặt cạnh các nguồn phát nhiệt lớn (nguồn xung, biến áp, dàn nóng máy lạnh).
+4. ⚙️ **Hiệu chuẩn cảm biến:** Nếu nghi ngờ cảm biến DHT11 bị trôi thông số, vào tab *Cấu hình* > chỉnh lại `Offset Nhiệt độ` (-1.0°C đến -2.0°C).";
+        }
+
+        // 3. Hỏi về điểm đọng sương (Dew Point) & Ngưng tụ
+        if (lower.Contains("đọng sương") || lower.Contains("sương") || lower.Contains("ngưng tụ") || lower.Contains("dew point") || lower.Contains("ẩm ướt"))
+        {
+            return $@"💧 **HIỆN TƯỢNG ĐỌNG SƯƠNG & CÁCH PHÒNG CHỐNG TRONG IOT:**
+
+- **Điểm đọng sương hiện tại:** `{dew:F1}°C`
+- **Biên an toàn ($\Delta T$):** `{margin}°C` ($\Delta T = T_{{không khí}} - T_{{điểm sương}}$).
+
+**Tại sao đọng sương lại nguy hiểm?**
+Khi nhiệt độ bề mặt linh kiện tụt xuống bằng hoặc thấp hơn điểm đọng sương, hơi nước trong không khí sẽ chuyển pha từ thể khí sang thể lỏng bám trực tiếp lên bo mạch ESP32 và chân cảm biến DHT11, dẫn đến:
+- Chập điện giữa các đường mạch in (VCC và GND).
+- Oxy hóa rỉ sét chân hàn và làm sai lệch số đo cảm biến.
+
+**Biện pháp giải quyết:**
+1. 💡 **Gia nhiệt nhẹ:** Bật bóng đèn sấy hoặc thanh nhiệt nối qua Rơ-le để nâng nhiệt độ bề mặt bo mạch cao hơn điểm đọng sương ít nhất **3°C**.
+2. 🌪️ **Tăng đối lưu không khí:** Bật quạt lưu thông để giải tỏa vùng không khí bão hòa hơi ẩm quanh trạm.
+3. 🧪 **Bổ sung hạt chống ẩm Silica Gel** bên trong hộp kín chứa mạch.";
+        }
+
+        // 4. Hỏi về Rơ-le / Thiết bị tải / Không bật được
+        if (lower.Contains("rơ-le") || lower.Contains("relay") || lower.Contains("bóng đèn") || lower.Contains("không bật") || lower.Contains("không nhảy"))
+        {
+            return $@"⚡ **HƯỚNG DẪN KIỂM TRA & ĐIỀU KHIỂN RƠ-LE:**
+Trạng thái rơ-le hiện tại: **{(relayState == 1 ? "ĐANG BẬT (ON)" : "ĐANG TẮT (OFF)")}** | Chế độ: **{relayMode}**
+
+**Các bước khắc phục sự cố rơ-le:**
+1. 📱 **Thử bật bằng tay từ App:** Chuyển chế độ rơ-le sang **ON** từ tab *Điều khiển* để kiểm tra lệnh qua mạng Render Cloud có truyền về ESP32 không.
+2. 🔌 **Kiểm tra nguồn cấp rơ-le:** Cuộn hút rơ-le 5V tiêu thụ dòng khá lớn (70-100mA). Hãy đảm bảo cấp nguồn qua cổng MicroUSB với củ sạc tối thiểu **5V / 1.5A - 2A**, không nên chỉ cắm cổng USB laptop cấp dòng yếu.
+3. 📌 **Kiểm tra chân điều khiển:** 
+   - Chân tín hiệu Rơ-le nối vào **GPIO 23** của ESP32.
+   - Đèn LED báo trên mạch ESP32 nối chân **GPIO 2** (sẽ sáng đồng bộ khi rơ-le kích hoạt).
+4. 🎛️ **Kiểm tra ngưỡng tự động:** Nếu để chế độ AUTO, rơ-le chỉ nhảy khi `Nhiệt độ >= {tMax}°C` hoặc `Biên độ sương < 3.0°C`.";
+        }
+
+        // 5. Hỏi về Wi-Fi / Mất kết nối / OFFLINE
+        if (lower.Contains("wifi") || lower.Contains("wi-fi") || lower.Contains("mất mạng") || lower.Contains("offline") || lower.Contains("ngắt kết nối") || lower.Contains("mất kết nối"))
+        {
+            return $@"📶 **KHẮC PHỤC SỰ CỐ MẤT KẾT NỐI WI-FI (OFFLINE):**
+Cường độ sóng ghi nhận lần cuối: **{rssi} dBm** (Trạng thái: **{status}**).
+
+**Checklist xử lý kết nối:**
+1. 📡 **Kiểm tra băng tần Wi-Fi:** Chip ESP32 **chỉ hỗ trợ băng tần 2.4 GHz**, không hỗ trợ Wi-Fi 5 GHz. Nếu router phát song song 2 băng tần, hãy kết nối vào tên SSID 2.4GHz.
+2. 🔑 **Kiểm tra danh sách Wi-Fi trong firmware:** Mở file `config.py` trên ESP32 và đảm bảo tên Wi-Fi + Mật khẩu đã được khai báo chính xác trong mảng `WIFI_LIST`.
+3. 📍 **Khoảng cách truyền dẫn:** Nếu RSSI dưới `-80 dBm`, tín hiệu rất suy hao, dễ mất gói tin HMAC. Hãy dời ESP32 gần cục phát Wi-Fi hơn hoặc dùng bộ kích sóng.
+4. 🔄 **Cơ chế tự động Failover:** Firmware ESP32 ThermoGuard đã tích hợp thuật toán tự động quét mạng và thử kết nối lại sau mỗi 5 giây khi mất tín hiệu.";
+        }
+
+        // 6. Câu hỏi mặc định / trợ giúp tổng quát
+        return $@"🤖 **TRỢ LÝ KỸ THUẬT IOT THERMOGUARD:**
+Tôi đã nhận câu hỏi của bạn: *""{q}""*.
+
+Dựa trên dữ liệu hiện trường của **{stName}** (`{t:F1}°C`, `{h:F1}%`, Điểm sương `{dew:F1}°C`):
+- Hệ thống vi xử lý ESP32 và cảm biến DHT11 đang gửi gói tin định kỳ 2 giây/lần.
+- Chế độ rơ-le hiện tại: `{relayMode}` (Trạng thái: `{(relayState == 1 ? "BẬT" : "TẮT")}`).
+
+Bạn có thể chọn một trong các chủ đề cần xử lý bên dưới hoặc đặt câu hỏi chi tiết hơn:";
+    }
+
+    private static List<string> GenerateSmartSuggestions(string q, double t, double h, double margin)
+    {
+        var list = new List<string>();
+        if (t > 31.0) list.Add("Cách hạ nhiệt độ trạm nhanh nhất?");
+        if (margin < 3.5) list.Add("Làm sao để tránh đọng sương?");
+        list.Add("Tình trạng tổng quan trạm hiện tại?");
+        list.Add("Kiểm tra Rơ-le và Bóng đèn 220V");
+        list.Add("Khắc phục khi ESP32 mất Wi-Fi");
+        return list;
+    }
 }
+
+public class AiChatRequest
+{
+    public int? station_id { get; set; }
+    public string message { get; set; } = "";
+    public List<AiChatMessageItem>? history { get; set; }
+    public string? gemini_key { get; set; }
+}
+
+public class AiChatMessageItem
+{
+    public string role { get; set; } = "user"; // user | assistant
+    public string content { get; set; } = "";
+}
+

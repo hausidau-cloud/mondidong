@@ -644,3 +644,41 @@ class StationReport {
   }
 }
 
+class AiChatMessage {
+  final String role; // user | assistant
+  final String content;
+  final DateTime time;
+  final List<String> suggestions;
+
+  AiChatMessage({
+    required this.role,
+    required this.content,
+    DateTime? time,
+    this.suggestions = const [],
+  }) : time = time ?? DateTime.now();
+
+  bool get isUser => role == 'user';
+}
+
+class AiChatResponse {
+  final bool ok;
+  final String reply;
+  final String model;
+  final List<String> suggestions;
+
+  AiChatResponse({
+    required this.ok,
+    required this.reply,
+    required this.model,
+    this.suggestions = const [],
+  });
+
+  factory AiChatResponse.fromJson(Map<String, dynamic> j) => AiChatResponse(
+        ok: j['ok'] == true,
+        reply: (j['reply'] ?? '').toString(),
+        model: (j['model'] ?? '').toString(),
+        suggestions: ((j['suggestions'] as List?) ?? []).map((e) => e.toString()).toList(),
+      );
+}
+
+
