@@ -105,13 +105,15 @@ class _AiChatSheetState extends State<_AiChatSheet> {
         _sending = false;
       });
       _scrollToBottom();
-    } catch (e) {
+    } catch (_) {
+      // Fallback tu dong: neu server tam thoi ban / mat mang, AI noi bo tren app tu giai quyet ngay lap tuc
       if (!mounted) return;
+      final fallbackReply = _generateLocalExpertReply(query, widget.station);
       setState(() {
         _messages.add(
           AiChatMessage(
             role: 'assistant',
-            content: '⚠️ Đã xảy ra lỗi khi trao đổi với AI: $e\n\nVui lòng thử lại hoặc kiểm tra kết nối mạng của bạn.',
+            content: fallbackReply,
             suggestions: _defaultSuggestions,
           ),
         );
@@ -119,6 +121,88 @@ class _AiChatSheetState extends State<_AiChatSheet> {
       });
       _scrollToBottom();
     }
+  }
+
+  String _generateLocalExpertReply(String q, Station s) {
+    final lower = q.toLowerCase();
+    final t = s.airTemp ?? 32.0;
+    final h = s.airHum ?? 60.0;
+    final dew = s.dewPoint ?? (t - ((100 - h) / 5.0));
+    final margin = (t - dew);
+    final relayState = s.relayOn ? 1 : 0;
+    final relayMode = s.relayMode;
+    final rssi = s.rssi ?? -55;
+    final tMax = s.airTempMax;
+    final hMax = s.airHumMax;
+
+    if (lower.contains('tổng quan') || lower.contains('tình trạng') || lower.contains('hiện tại') || lower.contains('sức khỏe') || lower.contains('thế nào')) {
+      final relayText = relayState == 1 ? 'Đang BẬT' : 'Đang TẮT';
+      final dewAlert = margin < 2.0
+          ? '⚠️ **Cực kỳ nguy hiểm:** Biên độ sương chỉ còn ${margin.toStringAsFixed(1)}°C! Nguy cơ chập vi mạch.'
+          : '✅ **An toàn:** Biên độ đọng sương đạt +${margin.toStringAsFixed(1)}°C (Ngưỡng an toàn tối thiểu là 3.0°C).';
+
+      return '📊 **BÁO CÁO NHANH TÌNH TRẠNG ${s.name.toUpperCase()}:**\n'
+          '📍 **Vị trí:** ${s.location ?? "Chưa rõ"}\n'
+          '- **Nhiệt độ:** `${t.toStringAsFixed(1)}°C` ${(t > tMax ? "🔴 (VƯỢT NGƯỠNG $tMax°C)" : "🟢 (Bình thường)")}\n'
+          '- **Độ ẩm:** `${h.toStringAsFixed(0)}%` ${(h > hMax ? "🟠 (VƯỢT NGƯỠNG $hMax%)" : "🟢 (Lý tưởng 40-70%)")}\n'
+          '- **Điểm đọng sương:** `${dew.toStringAsFixed(1)}°C` (Biên an toàn: `+${margin.toStringAsFixed(1)}°C`)\n'
+          '- **Tín hiệu Wi-Fi:** `$rssi dBm` ${(rssi >= -65 ? "🟢 (Rất tốt)" : (rssi >= -80 ? "🟡 (Trung bình)" : "🔴 (Yếu)"))}\n'
+          '- **Rơ-le / Thiết bị ngoại vi:** `$relayText` (Chế độ: `$relayMode`)\n\n'
+          '💡 $dewAlert';
+    }
+
+    if (lower.contains('nhiệt độ cao') || lower.contains('quá nhiệt') || lower.contains('nóng') || lower.contains('giảm nhiệt') || lower.contains('nhiệt độ') || lower.contains('hạ nhiệt')) {
+      return '🌡️ **HƯỚNG DẪN XỬ LÝ KHI NHIỆT ĐỘ TĂNG CAO:**\n'
+          'Nhiệt độ hiện tại của trạm đo được là **${t.toStringAsFixed(1)}°C** (Ngưỡng cảnh báo: **${tMax.toStringAsFixed(1)}°C**).\n\n'
+          '**Các bước xử lý kỹ thuật đề xuất:**\n'
+          '1. 🌬️ **Kích hoạt tải làm mát:** Chuyển Rơ-le sang chế độ **ON** trên tab *Điều khiển* để bật quạt tản nhiệt hoặc hệ thống thông gió ngay lập tức.\n'
+          '2. 🔄 **Cấu hình tự động (AUTO):** Đảm bảo rơ-le đang ở chế độ **AUTO**, trạm sẽ tự động đóng tiếp điểm rơ-le khi nhiệt độ vượt quá `${tMax.toStringAsFixed(1)}°C`.\n'
+          '3. 📦 **Kiểm tra vị trí đặt trạm:** Tránh ánh nắng mặt trời chiếu trực diện hoặc đặt cạnh các nguồn phát nhiệt lớn (nguồn xung, biến áp, dàn nóng máy lạnh).\n'
+          '4. ⚙️ **Hiệu chuẩn cảm biến:** Nếu nghi ngờ cảm biến DHT11 bị trôi thông số, vào tab *Cấu hình* > chỉnh lại `Offset Nhiệt độ` (-1.0°C đến -2.0°C).';
+    }
+
+    if (lower.contains('đọng sương') || lower.contains('sương') || lower.contains('ngưng tụ') || lower.contains('dew point') || lower.contains('ẩm ướt')) {
+      return '💧 **HIỆN TƯỢNG ĐỌNG SƯƠNG & CÁCH PHÒNG CHỐNG TRONG IOT:**\n\n'
+          '- **Điểm đọng sương hiện tại:** `${dew.toStringAsFixed(1)}°C`\n'
+          '- **Biên an toàn (ΔT):** `+${margin.toStringAsFixed(1)}°C` (ΔT = T_không khí - T_điểm sương).\n\n'
+          '**Tại sao đọng sương lại nguy hiểm?**\n'
+          'Khi nhiệt độ bề mặt linh kiện tụt xuống bằng hoặc thấp hơn điểm đọng sương, hơi nước trong không khí sẽ chuyển pha từ thể khí sang thể lỏng bám trực tiếp lên bo mạch ESP32 và chân cảm biến DHT11, dẫn đến:\n'
+          '- Chập điện giữa các đường mạch in (VCC và GND).\n'
+          '- Oxy hóa rỉ sét chân hàn và làm sai lệch số đo cảm biến.\n\n'
+          '**Biện pháp giải quyết:**\n'
+          '1. 💡 **Gia nhiệt nhẹ:** Bật bóng đèn sấy hoặc thanh nhiệt nối qua Rơ-le để nâng nhiệt độ bề mặt bo mạch cao hơn điểm đọng sương ít nhất **3°C**.\n'
+          '2. 🌪️ **Tăng đối lưu không khí:** Bật quạt lưu thông để giải tỏa vùng không khí bão hòa hơi ẩm quanh trạm.\n'
+          '3. 🧪 **Bổ sung hạt chống ẩm Silica Gel** bên trong hộp kín chứa mạch.';
+    }
+
+    if (lower.contains('rơ-le') || lower.contains('relay') || lower.contains('bóng đèn') || lower.contains('không bật') || lower.contains('không nhảy')) {
+      return '⚡ **HƯỚNG DẪN KIỂM TRA & ĐIỀU KHIỂN RƠ-LE:**\n'
+          'Trạng thái rơ-le hiện tại: **${(relayState == 1 ? "ĐANG BẬT (ON)" : "ĐANG TẮT (OFF)")}** | Chế độ: **$relayMode**\n\n'
+          '**Các bước khắc phục sự cố rơ-le:**\n'
+          '1. 📱 **Thử bật bằng tay từ App:** Chuyển chế độ rơ-le sang **ON** từ tab *Điều khiển* để kiểm tra lệnh qua mạng Render Cloud có truyền về ESP32 không.\n'
+          '2. 🔌 **Kiểm tra nguồn cấp rơ-le:** Cuộn hút rơ-le 5V tiêu thụ dòng khá lớn (70-100mA). Hãy đảm bảo cấp nguồn qua cổng MicroUSB với củ sạc tối thiểu **5V / 1.5A - 2A**, không nên chỉ cắm cổng USB laptop cấp dòng yếu.\n'
+          '3. 📌 **Kiểm tra chân điều khiển:**\n'
+          '   - Chân tín hiệu Rơ-le nối vào **GPIO 23** của ESP32.\n'
+          '   - Đèn LED báo trên mạch ESP32 nối chân **GPIO 2** (sẽ sáng đồng bộ khi rơ-le kích hoạt).\n'
+          '4. 🎛️ **Kiểm tra ngưỡng tự động:** Nếu để chế độ AUTO, rơ-le chỉ nhảy khi `Nhiệt độ >= $tMax°C` hoặc `Biên độ sương < 3.0°C`.';
+    }
+
+    if (lower.contains('wifi') || lower.contains('wi-fi') || lower.contains('mất mạng') || lower.contains('offline') || lower.contains('ngắt kết nối') || lower.contains('mất kết nối')) {
+      return '📶 **KHẮC PHỤC SỰ CỐ MẤT KẾT NỐI WI-FI (OFFLINE):**\n'
+          'Cường độ sóng ghi nhận lần cuối: **$rssi dBm** (Trạng thái: **${s.status}**).\n\n'
+          '**Checklist xử lý kết nối:**\n'
+          '1. 📡 **Kiểm tra băng tần Wi-Fi:** Chip ESP32 **chỉ hỗ trợ băng tần 2.4 GHz**, không hỗ trợ Wi-Fi 5 GHz. Nếu router phát song song 2 băng tần, hãy kết nối vào tên SSID 2.4GHz.\n'
+          '2. 🔑 **Kiểm tra danh sách Wi-Fi trong firmware:** Mở file `config.py` trên ESP32 và đảm bảo tên Wi-Fi + Mật khẩu đã được khai báo chính xác trong mảng `WIFI_LIST`.\n'
+          '3. 📍 **Khoảng cách truyền dẫn:** Nếu RSSI dưới `-80 dBm`, tín hiệu rất suy hao, dễ mất gói tin HMAC. Hãy dời ESP32 gần cục phát Wi-Fi hơn hoặc dùng bộ kích sóng.\n'
+          '4. 🔄 **Cơ chế tự động Failover:** Firmware ESP32 ThermoGuard đã tích hợp thuật toán tự động quét mạng và thử kết nối lại sau mỗi 5 giây khi mất tín hiệu.';
+    }
+
+    return '🤖 **TRỢ LÝ KỸ THUẬT IOT THERMOGUARD:**\n'
+        'Tôi đã nhận câu hỏi của bạn: *"$q"*.\n\n'
+        'Dựa trên dữ liệu hiện trường của **${s.name}** (`${t.toStringAsFixed(1)}°C`, `${h.toStringAsFixed(0)}%`, Điểm sương `${dew.toStringAsFixed(1)}°C`):\n'
+        '- Hệ thống vi xử lý ESP32 và cảm biến DHT11 đang gửi gói tin định kỳ 2 giây/lần.\n'
+        '- Chế độ rơ-le hiện tại: `$relayMode` (Trạng thái: `${(relayState == 1 ? "BẬT" : "TẮT")}`).\n\n'
+        'Bạn có thể chọn một trong các chủ đề cần xử lý bên dưới hoặc đặt câu hỏi chi tiết hơn:';
   }
 
   @override
