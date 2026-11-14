@@ -18,10 +18,12 @@ public class AiRecommendation
 public class AiController : ControllerBase
 {
     private readonly DataStore _store;
+    private readonly IConfiguration _config;
 
-    public AiController(DataStore store)
+    public AiController(DataStore store, IConfiguration config)
     {
         _store = store;
+        _config = config;
     }
 
     /// <summary>
@@ -354,8 +356,8 @@ public class AiController : ControllerBase
 
         // Thử gọi Google Gemini API nếu có cấu hình key
         string? apiKey = !string.IsNullOrWhiteSpace(req.gemini_key) 
-            ? req.gemini_key 
-            : Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+            ? req.gemini_key.Trim()
+            : (_config["Gemini:ApiKey"] ?? _config["GEMINI_API_KEY"] ?? Environment.GetEnvironmentVariable("GEMINI_API_KEY"));
 
         if (!string.IsNullOrWhiteSpace(apiKey))
         {

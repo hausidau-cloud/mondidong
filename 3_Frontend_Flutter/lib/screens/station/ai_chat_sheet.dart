@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/api.dart';
 import '../../core/theme.dart';
@@ -68,6 +69,110 @@ class _AiChatSheetState extends State<_AiChatSheet> {
         );
       }
     });
+  }
+
+  void _showGeminiKeyDialog() {
+    final keyCtrl = TextEditingController(text: Session.I.geminiKey ?? '');
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(18),
+          side: const BorderSide(color: AppColors.border),
+        ),
+        title: const Row(
+          children: [
+            Icon(Icons.vpn_key_rounded, color: AppColors.primary, size: 22),
+            SizedBox(width: 8),
+            Text('Cấu hình Google Gemini API', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Gắn API Token của Gemini để AI trả lời được mọi câu hỏi tự do (tưới cây, nông nghiệp, mở rộng, code...):',
+              style: TextStyle(fontSize: 13, color: AppColors.text2, height: 1.35),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: keyCtrl,
+              style: const TextStyle(fontSize: 13, color: AppColors.text),
+              decoration: InputDecoration(
+                hintText: 'Dán API Key (bắt đầu bằng AIza...)',
+                hintStyle: const TextStyle(fontSize: 12, color: AppColors.text3),
+                filled: true,
+                fillColor: AppColors.surface2,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                isDense: true,
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextButton.icon(
+              style: TextButton.styleFrom(padding: EdgeInsets.zero),
+              icon: const Icon(Icons.open_in_new_rounded, size: 14, color: Color(0xFF38BDF8)),
+              label: const Text(
+                'Lấy Key miễn phí tại Google AI Studio (Không cần thẻ)',
+                style: TextStyle(fontSize: 11.5, color: Color(0xFF38BDF8), decoration: TextDecoration.underline),
+              ),
+              onPressed: () {
+                launchUrl(
+                  Uri.parse('https://aistudio.google.com/app/apikey'),
+                  mode: LaunchMode.externalApplication,
+                );
+              },
+            ),
+          ],
+        ),
+        actions: [
+          if (Session.I.geminiKey != null)
+            TextButton(
+              onPressed: () async {
+                await Session.I.setGeminiKey(null);
+                if (ctx.mounted) Navigator.pop(ctx);
+                if (mounted) {
+                  setState(() {});
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Đã hủy Token. Quay về AI Chuyên gia IoT nội bộ.')),
+                  );
+                }
+              },
+              child: const Text('Xóa Token', style: TextStyle(color: AppColors.danger)),
+            ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Hủy', style: TextStyle(color: AppColors.text2)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              final newKey = keyCtrl.text.trim();
+              await Session.I.setGeminiKey(newKey);
+              if (ctx.mounted) Navigator.pop(ctx);
+              if (mounted) {
+                setState(() {});
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      newKey.isNotEmpty
+                          ? '✨ Đã kích hoạt Google Gemini 1.5 Flash thành công!'
+                          : 'Đã lưu cấu hình.',
+                    ),
+                  ),
+                );
+              }
+            },
+            child: const Text('Lưu Key'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _sendMessage(String text) async {
@@ -281,14 +386,48 @@ class _AiChatSheetState extends State<_AiChatSheet> {
                         'Trợ lý Kỹ thuật AI ThermoGuard',
                         style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.text),
                       ),
-                      Text(
-                        'Đang phân tích trực tiếp: ${s.name}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 12, color: AppColors.primaryLight, fontWeight: FontWeight.w600),
+                      const SizedBox(height: 1),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Session.I.geminiKey != null
+                                  ? AppColors.ok.withValues(alpha: 0.15)
+                                  : AppColors.primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              Session.I.geminiKey != null ? '✨ Gemini Flash LLM' : '⚡ AI Chuyên gia IoT',
+                              style: TextStyle(
+                                fontSize: 10.5,
+                                fontWeight: FontWeight.w700,
+                                color: Session.I.geminiKey != null ? AppColors.ok : AppColors.primaryLight,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              s.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 11.5, color: AppColors.text2),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
+                ),
+                IconButton(
+                  tooltip: 'Cài đặt Gemini Token',
+                  icon: Icon(
+                    Icons.vpn_key_rounded,
+                    color: Session.I.geminiKey != null ? AppColors.ok : AppColors.text2,
+                    size: 20,
+                  ),
+                  onPressed: _showGeminiKeyDialog,
                 ),
                 IconButton(
                   icon: const Icon(Icons.close_rounded, color: AppColors.text2),

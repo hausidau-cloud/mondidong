@@ -34,10 +34,12 @@ class Session extends ChangeNotifier {
   static const _kUrl = 'tg_server_url';
   static const _kToken = 'tg_token';
   static const _kUser = 'tg_user';
+  static const _kGeminiKey = 'tg_gemini_key';
 
   String baseUrl = defaultServer();
   String? token;
   AppUser? user;
+  String? geminiKey;
   bool ready = false;
 
   bool get loggedIn => token != null && user != null;
@@ -60,6 +62,7 @@ class Session extends ChangeNotifier {
       token = p.getString(_kToken);
       final u = p.getString(_kUser);
       if (u != null) user = AppUser.fromJson(jsonDecode(u) as Map<String, dynamic>);
+      geminiKey = p.getString(_kGeminiKey) ?? dotenv.env['GEMINI_API_KEY'];
       if (token != null) {
         // Kiem tra token con han
         try {
@@ -567,6 +570,20 @@ class Session extends ChangeNotifier {
   /// Duong dan tai file CSV du lieu do
   String csvReportUrl(int stationId) => '$baseUrl/api/reports/station/$stationId/csv';
 
+  /// Luu khoa Google Gemini API Key
+  Future<void> setGeminiKey(String? key) async {
+    final p = await SharedPreferences.getInstance();
+    final clean = key?.trim();
+    if (clean != null && clean.isNotEmpty) {
+      geminiKey = clean;
+      await p.setString(_kGeminiKey, clean);
+    } else {
+      geminiKey = null;
+      await p.remove(_kGeminiKey);
+    }
+    notifyListeners();
+  }
+
   /// Tro chuyen & giai quyet van de truc tiep voi Tro ly AI
   Future<AiChatResponse> askAiChat({
     required int stationId,
@@ -574,11 +591,12 @@ class Session extends ChangeNotifier {
     List<Map<String, String>>? history,
     String? geminiKey,
   }) async {
+    final keyToUse = (geminiKey != null && geminiKey.trim().isNotEmpty) ? geminiKey.trim() : this.geminiKey;
     final j = await post('ai/chat', {
       'station_id': stationId,
       'message': message,
       'history': ?history,
-      'gemini_key': ?geminiKey,
+      'gemini_key': ?keyToUse,
     });
     return AiChatResponse.fromJson(j);
   }
