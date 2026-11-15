@@ -367,18 +367,8 @@ public class AiController : ControllerBase
                 var modelName = _config["Gemini:Model"] ?? "gemini-2.5-flash";
                 var geminiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
                 
-                var systemContext = $@"Bạn là Trợ lý Kỹ thuật AI của hệ thống IoT ThermoGuard. Bạn đang hỗ trợ kỹ thuật trực tiếp cho người vận hành.
-Thông tin thời gian thực của trạm hiện tại:
-- Tên trạm: {stationName} (ID: {stationId})
-- Vị trí: {location}
-- Nhiệt độ không khí: {curTemp:F1}°C (Ngưỡng an toàn: {dev?.AirTempMax ?? 40}°C)
-- Độ ẩm không khí: {curHum:F1}% (Ngưỡng an toàn: {dev?.AirHumMax ?? 75}%)
-- Điểm đọng sương (Dew Point): {curDew:F1}°C (Biên độ an toàn: {dewMargin}°C)
-- Trạng thái thiết bị: {status} (Tín hiệu Wi-Fi: {rssi} dBm)
-- Rơ-le / Thiết bị tải: {dev?.RelayLabel ?? "Bóng đèn 220V / Rơ-le"} (Chế độ: {relayMode}, Đang: {(relayState == 1 ? "BẬT" : "TẮT")})
-- Firmware: {firmware}
-
-Hãy trả lời bằng tiếng Việt thân thiện, súc tích, chuyên sâu về kỹ thuật IoT, nêu rõ nguyên nhân và các bước giải quyết từng bước (step-by-step). Định dạng markdown đẹp mắt kèm icon.";
+                var systemContext = $@"Bạn là Trợ lý AI hệ thống IoT ThermoGuard hỗ trợ trạm {stationName} (Nhiệt độ: {curTemp:F1}°C, Độ ẩm: {curHum:F1}%, Điểm sương: {curDew:F1}°C, Rơ-le: {(relayState == 1 ? "BẬT" : "TẮT")}).
+YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂM (tối đa 2 đến 3 câu ngắn, dưới 70 từ, không chào hỏi lan man).";
 
                 var payload = new
                 {
@@ -389,6 +379,15 @@ Hãy trả lời bằng tiếng Việt thân thiện, súc tích, chuyên sâu v
                             role = "user",
                             parts = new[] { new { text = $"{systemContext}\n\nNgười dùng hỏi: {req.message}" } }
                         }
+                    },
+                    generationConfig = new
+                    {
+                        thinkingConfig = new
+                        {
+                            thinkingBudget = 0
+                        },
+                        maxOutputTokens = 350,
+                        temperature = 0.3
                     }
                 };
 
@@ -406,8 +405,8 @@ Hãy trả lời bằng tiếng Việt thân thiện, súc tích, chuyên sâu v
                         return Ok(new
                         {
                             ok = true,
-                            reply = text,
-                            model = "gemini-1.5-flash",
+                            reply = text.Trim(),
+                            model = "gemini-2.5-flash",
                             suggestions = GenerateSmartSuggestions(req.message, curTemp, curHum, dewMargin)
                         });
                     }
@@ -446,94 +445,45 @@ Hãy trả lời bằng tiếng Việt thân thiện, súc tích, chuyên sâu v
     {
         string lower = q.ToLowerInvariant();
 
-        // 1. Hỏi về tình trạng trạm hiện tại / tổng quan
+        // 1. Hỏi về tưới nước / làm mát bằng nước
+        if (lower.Contains("tưới nước") || lower.Contains("tưới cây") || lower.Contains("nước"))
+        {
+            return $"💧 **Về việc tưới nước:** Trạm {stName} đang có độ ẩm khá cao ({h:F1}%) và nhiệt độ {t:F1}°C. Không nên tưới nước gần khu vực đặt vi mạch ESP32 để tránh hơi ẩm bão hòa gây đọng sương chập mạch. Nếu muốn hạ nhiệt, giải pháp an toàn là bật quạt thông gió qua Rơ-le.";
+        }
+
+        // 2. Hỏi về tình trạng trạm hiện tại / tổng quan
         if (lower.Contains("tổng quan") || lower.Contains("tình trạng") || lower.Contains("hiện tại") || lower.Contains("sức khỏe") || lower.Contains("thế nào"))
         {
-            string relayText = relayState == 1 ? "Đang BẬT" : "Đang TẮT";
-            string dewAlert = margin < 2.0 
-                ? "⚠️ **Cực kỳ nguy hiểm:** Biên độ sương chỉ còn " + margin + "°C! Nguy cơ chập vi mạch." 
-                : "✅ **An toàn:** Biên độ đọng sương đạt " + margin + "°C (Ngưỡng an toàn tối thiểu là 3.0°C).";
-
-            return $@"📊 **BÁO CÁO NHANH TÌNH TRẠNG {stName.ToUpper()}:**
-📍 **Vị trí:** {loc}
-- **Nhiệt độ:** `{t:F1}°C` {(t > tMax ? "🔴 (VƯỢT NGƯỠNG " + tMax + "°C)" : "🟢 (Bình thường)")}
-- **Độ ẩm:** `{h:F1}%` {(h > hMax ? "🟠 (VƯỢT NGƯỠNG " + hMax + "%)" : "🟢 (Lý tưởng 40-70%)")}
-- **Điểm đọng sương:** `{dew:F1}°C` (Biên an toàn: `+{margin}°C`)
-- **Tín hiệu Wi-Fi:** `{rssi} dBm` {(rssi >= -65 ? "🟢 (Rất tốt)" : (rssi >= -80 ? "🟡 (Trung bình)" : "🔴 (Yếu)"))}
-- **Rơ-le / Thiết bị ngoại vi:** `{relayText}` (Chế độ: `{relayMode}`)
-
-💡 {dewAlert}";
+            string relayText = relayState == 1 ? "BẬT" : "TẮT";
+            return $"📊 **Trạm {stName}:** Nhiệt độ `{t:F1}°C` (Ngưỡng {tMax}°C), Độ ẩm `{h:F1}%`, Điểm sương `{dew:F1}°C` (Biên an toàn `+{margin}°C`). Rơ-le: `{relayText}`, Wi-Fi: `{rssi} dBm`. Trạng thái: {(status == "OK" ? "Hoạt động tốt." : status)}";
         }
 
-        // 2. Hỏi về nhiệt độ cao / quá nhiệt
-        if (lower.Contains("nhiệt độ cao") || lower.Contains("quá nhiệt") || lower.Contains("nóng") || lower.Contains("giảm nhiệt") || lower.Contains("nhiệt độ"))
+        // 3. Hỏi về nhiệt độ cao / quá nhiệt
+        if (lower.Contains("nhiệt độ cao") || lower.Contains("quá nhiệt") || lower.Contains("nóng") || lower.Contains("giảm nhiệt") || lower.Contains("nhiệt độ") || lower.Contains("hạ nhiệt"))
         {
-            return $@"🌡️ **HƯỚNG DẪN XỬ LÝ KHI NHIỆT ĐỘ TĂNG CAO:**
-Nhiệt độ hiện tại của trạm đo được là **{t:F1}°C** (Ngưỡng cảnh báo: **{tMax:F1}°C**).
-
-**Các bước xử lý kỹ thuật đề xuất:**
-1. 🌬️ **Kích hoạt tải làm mát:** Chuyển Rơ-le sang chế độ **ON** trên tab *Điều khiển* để bật quạt tản nhiệt hoặc hệ thống thông gió ngay lập tức.
-2. 🔄 **Cấu hình tự động (AUTO):** Đảm bảo rơ-le đang ở chế độ **AUTO**, trạm sẽ tự động đóng tiếp điểm rơ-le khi nhiệt độ vượt quá `{tMax:F1}°C`.
-3. 📦 **Kiểm tra vị trí đặt trạm:** Tránh ánh nắng mặt trời chiếu trực diện hoặc đặt cạnh các nguồn phát nhiệt lớn (nguồn xung, biến áp, dàn nóng máy lạnh).
-4. ⚙️ **Hiệu chuẩn cảm biến:** Nếu nghi ngờ cảm biến DHT11 bị trôi thông số, vào tab *Cấu hình* > chỉnh lại `Offset Nhiệt độ` (-1.0°C đến -2.0°C).";
+            return $"🌡️ **Hạ nhiệt trạm {stName} ({t:F1}°C):** 1. Bật Rơ-le sang ON để quạt tản nhiệt hoạt động. 2. Đảm bảo phòng thông thoáng, tránh ánh nắng chiếu trực tiếp. 3. Để rơ-le ở chế độ AUTO để tự bật khi vượt {tMax}°C.";
         }
 
-        // 3. Hỏi về điểm đọng sương (Dew Point) & Ngưng tụ
+        // 4. Hỏi về điểm đọng sương (Dew Point) & Ngưng tụ
         if (lower.Contains("đọng sương") || lower.Contains("sương") || lower.Contains("ngưng tụ") || lower.Contains("dew point") || lower.Contains("ẩm ướt"))
         {
-            return $@"💧 **HIỆN TƯỢNG ĐỌNG SƯƠNG & CÁCH PHÒNG CHỐNG TRONG IOT:**
-
-- **Điểm đọng sương hiện tại:** `{dew:F1}°C`
-- **Biên an toàn ($\Delta T$):** `{margin}°C` ($\Delta T = T_{{không khí}} - T_{{điểm sương}}$).
-
-**Tại sao đọng sương lại nguy hiểm?**
-Khi nhiệt độ bề mặt linh kiện tụt xuống bằng hoặc thấp hơn điểm đọng sương, hơi nước trong không khí sẽ chuyển pha từ thể khí sang thể lỏng bám trực tiếp lên bo mạch ESP32 và chân cảm biến DHT11, dẫn đến:
-- Chập điện giữa các đường mạch in (VCC và GND).
-- Oxy hóa rỉ sét chân hàn và làm sai lệch số đo cảm biến.
-
-**Biện pháp giải quyết:**
-1. 💡 **Gia nhiệt nhẹ:** Bật bóng đèn sấy hoặc thanh nhiệt nối qua Rơ-le để nâng nhiệt độ bề mặt bo mạch cao hơn điểm đọng sương ít nhất **3°C**.
-2. 🌪️ **Tăng đối lưu không khí:** Bật quạt lưu thông để giải tỏa vùng không khí bão hòa hơi ẩm quanh trạm.
-3. 🧪 **Bổ sung hạt chống ẩm Silica Gel** bên trong hộp kín chứa mạch.";
+            return $"💧 **Nguy cơ đọng sương ({dew:F1}°C):** Biên an toàn hiện tại là +{margin}°C (nguy hiểm nếu < 2.0°C). Để chống ngưng tụ hơi nước trên mạch ESP32, hãy bật bóng đèn sấy nhẹ qua Rơ-le hoặc dùng quạt thông gió.";
         }
 
-        // 4. Hỏi về Rơ-le / Thiết bị tải / Không bật được
+        // 5. Hỏi về Rơ-le / Thiết bị tải / Không bật được
         if (lower.Contains("rơ-le") || lower.Contains("relay") || lower.Contains("bóng đèn") || lower.Contains("không bật") || lower.Contains("không nhảy"))
         {
-            return $@"⚡ **HƯỚNG DẪN KIỂM TRA & ĐIỀU KHIỂN RƠ-LE:**
-Trạng thái rơ-le hiện tại: **{(relayState == 1 ? "ĐANG BẬT (ON)" : "ĐANG TẮT (OFF)")}** | Chế độ: **{relayMode}**
-
-**Các bước khắc phục sự cố rơ-le:**
-1. 📱 **Thử bật bằng tay từ App:** Chuyển chế độ rơ-le sang **ON** từ tab *Điều khiển* để kiểm tra lệnh qua mạng Render Cloud có truyền về ESP32 không.
-2. 🔌 **Kiểm tra nguồn cấp rơ-le:** Cuộn hút rơ-le 5V tiêu thụ dòng khá lớn (70-100mA). Hãy đảm bảo cấp nguồn qua cổng MicroUSB với củ sạc tối thiểu **5V / 1.5A - 2A**, không nên chỉ cắm cổng USB laptop cấp dòng yếu.
-3. 📌 **Kiểm tra chân điều khiển:** 
-   - Chân tín hiệu Rơ-le nối vào **GPIO 23** của ESP32.
-   - Đèn LED báo trên mạch ESP32 nối chân **GPIO 2** (sẽ sáng đồng bộ khi rơ-le kích hoạt).
-4. 🎛️ **Kiểm tra ngưỡng tự động:** Nếu để chế độ AUTO, rơ-le chỉ nhảy khi `Nhiệt độ >= {tMax}°C` hoặc `Biên độ sương < 3.0°C`.";
+            return $"⚡ **Xử lý Rơ-le (Hiện tại: {(relayState == 1 ? "BẬT" : "TẮT")}):** 1. Thử bật thủ công bằng nút ON trên tab Điều khiển. 2. Kiểm tra chân tín hiệu GPIO 23 và nguồn nuôi 5V/2A cho ESP32. 3. Ở chế độ AUTO, rơ-le chỉ nhảy khi nhiệt độ vượt {tMax}°C hoặc chênh lệch sương < 3°C.";
         }
 
-        // 5. Hỏi về Wi-Fi / Mất kết nối / OFFLINE
+        // 6. Hỏi về Wi-Fi / Mất kết nối / OFFLINE
         if (lower.Contains("wifi") || lower.Contains("wi-fi") || lower.Contains("mất mạng") || lower.Contains("offline") || lower.Contains("ngắt kết nối") || lower.Contains("mất kết nối"))
         {
-            return $@"📶 **KHẮC PHỤC SỰ CỐ MẤT KẾT NỐI WI-FI (OFFLINE):**
-Cường độ sóng ghi nhận lần cuối: **{rssi} dBm** (Trạng thái: **{status}**).
-
-**Checklist xử lý kết nối:**
-1. 📡 **Kiểm tra băng tần Wi-Fi:** Chip ESP32 **chỉ hỗ trợ băng tần 2.4 GHz**, không hỗ trợ Wi-Fi 5 GHz. Nếu router phát song song 2 băng tần, hãy kết nối vào tên SSID 2.4GHz.
-2. 🔑 **Kiểm tra danh sách Wi-Fi trong firmware:** Mở file `config.py` trên ESP32 và đảm bảo tên Wi-Fi + Mật khẩu đã được khai báo chính xác trong mảng `WIFI_LIST`.
-3. 📍 **Khoảng cách truyền dẫn:** Nếu RSSI dưới `-80 dBm`, tín hiệu rất suy hao, dễ mất gói tin HMAC. Hãy dời ESP32 gần cục phát Wi-Fi hơn hoặc dùng bộ kích sóng.
-4. 🔄 **Cơ chế tự động Failover:** Firmware ESP32 ThermoGuard đã tích hợp thuật toán tự động quét mạng và thử kết nối lại sau mỗi 5 giây khi mất tín hiệu.";
+            return $"📶 **Xử lý Wi-Fi ({rssi} dBm):** 1. Đảm bảo kết nối vào sóng 2.4GHz (ESP32 không bắt được 5GHz). 2. Kiểm tra SSID và mật khẩu trong `config.py`. 3. Nếu RSSI dưới -80 dBm, hãy dời trạm lại gần Access Point.";
         }
 
-        // 6. Câu hỏi mặc định / trợ giúp tổng quát
-        return $@"🤖 **TRỢ LÝ KỸ THUẬT IOT THERMOGUARD:**
-Tôi đã nhận câu hỏi của bạn: *""{q}""*.
-
-Dựa trên dữ liệu hiện trường của **{stName}** (`{t:F1}°C`, `{h:F1}%`, Điểm sương `{dew:F1}°C`):
-- Hệ thống vi xử lý ESP32 và cảm biến DHT11 đang gửi gói tin định kỳ 2 giây/lần.
-- Chế độ rơ-le hiện tại: `{relayMode}` (Trạng thái: `{(relayState == 1 ? "BẬT" : "TẮT")}`).
-
-Bạn có thể chọn một trong các chủ đề cần xử lý bên dưới hoặc đặt câu hỏi chi tiết hơn:";
+        // 7. Mặc định ngắn gọn
+        return $"🤖 **ThermoGuard AI ({stName}):** Đang ghi nhận nhiệt độ {t:F1}°C, độ ẩm {h:F1}%, rơ-le {(relayState == 1 ? "BẬT" : "TẮT")}. Vui lòng chọn câu hỏi gợi ý bên dưới hoặc hỏi cụ thể về giải nhiệt, đọng sương, rơ-le.";
     }
 
     private static List<string> GenerateSmartSuggestions(string q, double t, double h, double margin)

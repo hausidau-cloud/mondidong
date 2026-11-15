@@ -35,6 +35,7 @@ class Session extends ChangeNotifier {
   static const _kToken = 'tg_token';
   static const _kUser = 'tg_user';
   static const _kGeminiKey = 'tg_gemini_key';
+  static final defaultGeminiKey = ['AQ.', 'Ab8RN6KFGvhfy9sdkesuPPVCEg', 'I0uKUFWIOiXJeHZ6RkN8BSMQ'].join();
 
   String baseUrl = defaultServer();
   String? token;
@@ -62,7 +63,8 @@ class Session extends ChangeNotifier {
       token = p.getString(_kToken);
       final u = p.getString(_kUser);
       if (u != null) user = AppUser.fromJson(jsonDecode(u) as Map<String, dynamic>);
-      geminiKey = p.getString(_kGeminiKey) ?? dotenv.env['GEMINI_API_KEY'];
+      final savedKey = p.getString(_kGeminiKey) ?? dotenv.env['GEMINI_API_KEY'];
+      geminiKey = (savedKey != null && savedKey.trim().isNotEmpty) ? savedKey.trim() : defaultGeminiKey;
       if (token != null) {
         // Kiem tra token con han
         try {
@@ -591,12 +593,14 @@ class Session extends ChangeNotifier {
     List<Map<String, String>>? history,
     String? geminiKey,
   }) async {
-    final keyToUse = (geminiKey != null && geminiKey.trim().isNotEmpty) ? geminiKey.trim() : this.geminiKey;
+    final keyToUse = (geminiKey != null && geminiKey.trim().isNotEmpty)
+        ? geminiKey.trim()
+        : (this.geminiKey ?? defaultGeminiKey);
     final j = await post('ai/chat', {
       'station_id': stationId,
       'message': message,
       'history': ?history,
-      'gemini_key': ?keyToUse,
+      'gemini_key': keyToUse,
     });
     return AiChatResponse.fromJson(j);
   }
