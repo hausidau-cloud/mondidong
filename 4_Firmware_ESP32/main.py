@@ -202,8 +202,142 @@ def connect_wifi():
             print(">> Dia chi IP ESP32:", wlan.ifconfig()[0])
             return True
 
-    print(">> Khong ket noi duoc Wi-Fi nao, chay Offline.")
+    print(">> Khong ket noi duoc Wi-Fi nao trong danh sach.")
+    # KICH HOAT WEB CAPTIVE PORTAL DE CAU HINH WI-FI NHANH QUA DIEN THOAI
+    start_web_config_portal(timeout_sec=40)
     return False
+
+# ==============================================================
+# 4.1 WEB CAPTIVE PORTAL (SOFTAP PROVISIONING)
+# ==============================================================
+def save_wifi_to_config(new_ssid, new_pass):
+    try:
+        content = ""
+        with open("config.py", "r") as f:
+            content = f.read()
+        target = "WIFI_LIST = [\n"
+        if target in content:
+            entry = '    ("{}", "{}"),\n'.format(new_ssid, new_pass)
+            new_content = content.replace(target, target + entry, 1)
+            with open("config.py", "w") as f:
+                f.write(new_content)
+            print(">> [CONFIG] Da luu Wi-Fi '{}' vao config.py!".format(new_ssid))
+    except Exception as e:
+        print(">> [CONFIG] Loi ghi file:", e)
+
+def start_web_config_portal(timeout_sec=40):
+    """Bat SoftAP va Web Server mini de nguoi dung cau hinh Wi-Fi moi qua dien thoai ma khong can cam cap"""
+    try:
+        import usocket as socket
+    except ImportError:
+        import socket
+
+    print("==================================================")
+    print("🌐 [SOFTAP] KHOI TAO DIEM PHAT WI-FI CAU HINH NHANH")
+    print(">> Ten Wi-Fi (SSID): ThermoGuard-ESP32-Setup")
+    print(">> Vao trinh duyet tren dien thoai mo: http://192.168.4.1")
+    print(">> Thoi gian cho ket noi: {} giay".format(timeout_sec))
+    print("==================================================")
+
+    ap = network.WLAN(network.AP_IF)
+    ap.active(True)
+    ap.config(essid="ThermoGuard-ESP32-Setup", authmode=network.AUTH_OPEN)
+
+    scanned_ssids = []
+    try:
+        scan_res = wlan.scan()
+        for item in scan_res:
+            name = item[0].decode('utf-8', 'ignore').strip()
+            if name and name not in scanned_ssids:
+                scanned_ssids.append(name)
+    except Exception:
+        pass
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(('', 80))
+    s.listen(1)
+    s.settimeout(2.0)
+
+    start_time = time.time()
+    saved = False
+
+    while (time.time() - start_time) < timeout_sec:
+        led_pin.value(1)
+        time.sleep_ms(80)
+        led_pin.value(0)
+
+        try:
+            conn, addr = s.accept()
+            req = conn.recv(1024).decode('utf-8', 'ignore')
+
+            if "POST /save" in req:
+                body = req.split("\r\n\r\n")[-1] if "\r\n\r\n" in req else ""
+                params = {}
+                for pair in body.split("&"):
+                    if "=" in pair:
+                        parts = pair.split("=", 1)
+                        params[parts[0]] = parts[1].replace("+", " ").replace("%20", " ")
+
+                new_ssid = params.get("ssid", "").strip()
+                new_pass = params.get("pass", "").strip()
+
+                if new_ssid:
+                    print(">> [SOFTAP] Nhan Wi-Fi moi tu Web Portal:", new_ssid)
+                    save_wifi_to_config(new_ssid, new_pass)
+                    resp = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\r\n" \
+                           "<html><body style='font-family:sans-serif;text-align:center;padding:40px;background:#0f172a;color:#f8fafc;'>" \
+                           "<h2 style='color:#10b981;'>&#10004; Da luu Wi-Fi thanh cong!</h2>" \
+                           "<p>ESP32 dang khoi dong lai de ket noi vao <b>" + new_ssid + "</b>...</p>" \
+                           "</body></html>"
+                    conn.send(resp)
+                    conn.close()
+                    saved = True
+                    break
+            else:
+                options_html = "".join(["<option value='{}'>{}</option>".format(ssid, ssid) for ssid in scanned_ssids[:15]])
+                html = """HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\n\r\n
+<!DOCTYPE html>
+<html>
+<head>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <title>ThermoGuard Wi-Fi Setup</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; background: #0f172a; color: #f8fafc; padding: 20px; margin: 0; }
+        .card { max-width: 400px; margin: 20px auto; background: #1e293b; padding: 24px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+        h2 { color: #38bdf8; margin-top: 0; font-size: 20px; }
+        p { font-size: 13px; color: #94a3b8; line-height: 1.5; }
+        label { display: block; margin: 12px 0 6px; font-size: 13px; font-weight: 600; }
+        select, input { width: 100%; box-sizing: border-box; padding: 12px; border-radius: 8px; border: 1px solid #334155; background: #0f172a; color: #fff; font-size: 14px; margin-bottom: 12px; }
+        button { width: 100%; padding: 12px; background: #0284c7; border: none; border-radius: 8px; color: #fff; font-size: 15px; font-weight: 700; cursor: pointer; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div class='card'>
+        <h2>&#128246; ThermoGuard Wi-Fi Setup</h2>
+        <p>Ket noi Wi-Fi cho ESP32 ma khong can cam cap may tinh.</p>
+        <form method='POST' action='/save'>
+            <label>Chon Wi-Fi gan nhat:</label>
+            <select name='ssid' id='ssid_select'>""" + options_html + """</select>
+            <label>Mat khau Wi-Fi:</label>
+            <input type='password' name='pass' placeholder='Nhap mat khau...'>
+            <button type='submit'>Luu &amp; Ket Noi</button>
+        </form>
+    </div>
+</body>
+</html>"""
+                conn.send(html)
+                conn.close()
+        except OSError:
+            pass
+        except Exception:
+            pass
+
+    s.close()
+    ap.active(False)
+    if saved:
+        time.sleep(1)
+        machine.reset()
 
 # ==============================================================
 # 5. DINH VI VI TRI TU DONG THEO TUNG WI-FI & IP FALLBACK

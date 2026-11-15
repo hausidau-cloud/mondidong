@@ -649,15 +649,44 @@ class AiChatMessage {
   final String content;
   final DateTime time;
   final List<String> suggestions;
+  final AiActionItem? action;
 
   AiChatMessage({
     required this.role,
     required this.content,
     DateTime? time,
     this.suggestions = const [],
+    this.action,
   }) : time = time ?? DateTime.now();
 
   bool get isUser => role == 'user';
+}
+
+class AiActionItem {
+  final String type;
+  final String? mode;
+  final double? tempMax;
+  final double? humMax;
+  final bool executed;
+  final String message;
+
+  AiActionItem({
+    required this.type,
+    this.mode,
+    this.tempMax,
+    this.humMax,
+    this.executed = false,
+    this.message = '',
+  });
+
+  factory AiActionItem.fromJson(Map<String, dynamic> j) => AiActionItem(
+        type: (j['type'] ?? '').toString(),
+        mode: j['mode']?.toString(),
+        tempMax: j['temp_max'] != null ? (j['temp_max'] as num).toDouble() : null,
+        humMax: j['hum_max'] != null ? (j['hum_max'] as num).toDouble() : null,
+        executed: j['executed'] == true,
+        message: (j['message'] ?? '').toString(),
+      );
 }
 
 class AiChatResponse {
@@ -665,12 +694,14 @@ class AiChatResponse {
   final String reply;
   final String model;
   final List<String> suggestions;
+  final AiActionItem? action;
 
   AiChatResponse({
     required this.ok,
     required this.reply,
     required this.model,
     this.suggestions = const [],
+    this.action,
   });
 
   factory AiChatResponse.fromJson(Map<String, dynamic> j) => AiChatResponse(
@@ -678,6 +709,7 @@ class AiChatResponse {
         reply: (j['reply'] ?? '').toString(),
         model: (j['model'] ?? '').toString(),
         suggestions: ((j['suggestions'] as List?) ?? []).map((e) => e.toString()).toList(),
+        action: j['action'] is Map<String, dynamic> ? AiActionItem.fromJson(j['action']) : null,
       );
 }
 

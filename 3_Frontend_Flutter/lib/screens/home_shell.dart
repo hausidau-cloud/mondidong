@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../core/api.dart';
 import '../core/theme.dart';
@@ -59,6 +60,7 @@ class _HomeShellState extends State<HomeShell> {
         if (fresh.isNotEmpty && Session.I.loggedIn) {
           final r = fresh.first;
           final danger = r.level == 'DANGER';
+          HapticFeedback.heavyImpact();
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
             duration: const Duration(seconds: 6),
             backgroundColor: danger ? const Color(0xFF3A1320) : AppColors.surface3,

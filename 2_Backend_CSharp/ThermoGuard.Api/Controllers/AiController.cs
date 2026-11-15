@@ -354,6 +354,43 @@ public class AiController : ControllerBase
         int rssi = dev?.Rssi ?? -55;
         string firmware = dev?.Firmware ?? "esp32-dht11-ipgps-2.0";
 
+        // AI AGENT: Nhận diện ý định & Thực thi hành động thật trên phần cứng (Function / Action Calling)
+        var action = DetectActionFromMessage(req.message);
+        if (action != null && dev != null)
+        {
+            if (action.Type == "SET_RELAY")
+            {
+                var targetMode = action.Mode ?? "AUTO";
+                dev.RelayMode = targetMode;
+                if (targetMode == "ON") dev.RelayState = 1;
+                else if (targetMode == "OFF") dev.RelayState = 0;
+
+                _store.AddRelayLog(new Models.RelayLogItem
+                {
+                    DeviceId = dev.Id,
+                    StationId = dev.StationId ?? dev.Id,
+                    Action = targetMode,
+                    Source = "AI_AGENT",
+                    Reason = $"Trợ lý AI tự động thực thi lệnh từ người dùng: '{req.message}'",
+                    FullName = "Trợ lý AI ThermoGuard (Agent)",
+                    CreatedAt = TimeHelper.VnNowStr
+                });
+                _store.UpdateDevice(dev);
+                action.Executed = true;
+                action.Message = $"Đã chuyển Rơ-le sang {targetMode} thành công!";
+                relayState = dev.RelayState;
+                relayMode = dev.RelayMode;
+            }
+            else if (action.Type == "SET_THRESHOLD")
+            {
+                if (action.TempMax.HasValue) dev.AirTempMax = action.TempMax.Value;
+                if (action.HumMax.HasValue) dev.AirHumMax = action.HumMax.Value;
+                _store.UpdateDevice(dev);
+                action.Executed = true;
+                action.Message = $"Đã cập nhật ngưỡng an toàn: {(action.TempMax.HasValue ? $"Nhiệt max = {action.TempMax}°C " : "")}{(action.HumMax.HasValue ? $"Ẩm max = {action.HumMax}%" : "")}";
+            }
+        }
+
         // Thử gọi Google Gemini API nếu có cấu hình key
         string? apiKey = !string.IsNullOrWhiteSpace(req.gemini_key) 
             ? req.gemini_key.Trim()
@@ -367,7 +404,9 @@ public class AiController : ControllerBase
                 var modelName = _config["Gemini:Model"] ?? "gemini-2.5-flash";
                 var geminiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
                 
-                var systemContext = $@"Bạn là Trợ lý AI hệ thống IoT ThermoGuard hỗ trợ trạm {stationName} (Nhiệt độ: {curTemp:F1}°C, Độ ẩm: {curHum:F1}%, Điểm sương: {curDew:F1}°C, Rơ-le: {(relayState == 1 ? "BẬT" : "TẮT")}).
+                var actionNote = action != null && action.Executed ? $"\n[LƯU Ý: Hệ thống đã tự động thực thi hành động: {action.Message}. Hãy xác nhận điều này một cách thông minh cho người dùng]." : "";
+                var systemContext = $@"Bạn là Trợ lý AI Tự hành (AI Agent) hệ thống IoT ThermoGuard hỗ trợ trạm {stationName} (Nhiệt độ: {curTemp:F1}°C, Độ ẩm: {curHum:F1}%, Điểm sương: {curDew:F1}°C, Rơ-le: {(relayState == 1 ? "BẬT" : "TẮT")}).
+Bạn có quyền năng tự động điều khiển Rơ-le và cài đặt ngưỡng khi người dùng yêu cầu.{actionNote}
 YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂM (tối đa 2 đến 3 câu ngắn, dưới 70 từ, không chào hỏi lan man).";
 
                 var payload = new
@@ -406,7 +445,16 @@ YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂ
                         {
                             ok = true,
                             reply = text.Trim(),
-                            model = "gemini-2.5-flash",
+                            model = "gemini-2.5-flash (AI Agent)",
+                            action = action != null && action.Executed ? new
+                            {
+                                type = action.Type,
+                                mode = action.Mode,
+                                temp_max = action.TempMax,
+                                hum_max = action.HumMax,
+                                executed = action.Executed,
+                                message = action.Message
+                            } : null,
                             suggestions = GenerateSmartSuggestions(req.message, curTemp, curHum, dewMargin)
                         });
                     }
@@ -416,7 +464,9 @@ YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂ
         }
 
         // BỘ MÁY CHUYÊN GIA IOT NỘI BỘ (Autonomous Expert Engine - Không phụ thuộc Internet ngoài)
-        string reply = GenerateExpertReply(req.message, stationName, location, curTemp, curHum, curDew, dewMargin, status, relayMode, relayState, rssi, dev?.AirTempMax ?? 40.0, dev?.AirHumMax ?? 75.0);
+        string reply = action != null && action.Executed
+            ? $"⚡ **Lệnh AI Agent đã thực thi:** {action.Message}. Rơ-le trạm {stationName} hiện tại: {(relayState == 1 ? "BẬT" : "TẮT")} (Chế độ: {relayMode})."
+            : GenerateExpertReply(req.message, stationName, location, curTemp, curHum, curDew, dewMargin, status, relayMode, relayState, rssi, dev?.AirTempMax ?? 40.0, dev?.AirHumMax ?? 75.0);
         var suggestions = GenerateSmartSuggestions(req.message, curTemp, curHum, dewMargin);
 
         return Ok(new
@@ -424,6 +474,15 @@ YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂ
             ok = true,
             reply,
             model = "thermoguard-expert-system",
+            action = action != null && action.Executed ? new
+            {
+                type = action.Type,
+                mode = action.Mode,
+                temp_max = action.TempMax,
+                hum_max = action.HumMax,
+                executed = action.Executed,
+                message = action.Message
+            } : null,
             suggestions,
             station_context = new
             {
@@ -486,6 +545,50 @@ YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂ
         return $"🤖 **ThermoGuard AI ({stName}):** Đang ghi nhận nhiệt độ {t:F1}°C, độ ẩm {h:F1}%, rơ-le {(relayState == 1 ? "BẬT" : "TẮT")}. Vui lòng chọn câu hỏi gợi ý bên dưới hoặc hỏi cụ thể về giải nhiệt, đọng sương, rơ-le.";
     }
 
+    private static AiAction? DetectActionFromMessage(string message)
+    {
+        var lower = message.ToLowerInvariant().Trim();
+
+        // 1. Dieu khien Ro-le: BAT
+        if (lower.Contains("bật rơ-le") || lower.Contains("bật rơ le") || lower.Contains("bật relay") || 
+            lower.Contains("bật quạt") || lower.Contains("bật đèn") || lower.Contains("bật máy làm mát") ||
+            lower.Contains("turn on relay") || lower.Contains("bật thiết bị") || lower.Contains("mở rơ le") || lower.Contains("mở quạt"))
+        {
+            return new AiAction { Type = "SET_RELAY", Mode = "ON" };
+        }
+
+        // 2. Dieu khien Ro-le: TAT
+        if (lower.Contains("tắt rơ-le") || lower.Contains("tắt rơ le") || lower.Contains("tắt relay") || 
+            lower.Contains("tắt quạt") || lower.Contains("tắt đèn") || lower.Contains("ngắt rơ-le") ||
+            lower.Contains("turn off relay") || lower.Contains("tắt thiết bị") || lower.Contains("đóng rơ le"))
+        {
+            return new AiAction { Type = "SET_RELAY", Mode = "OFF" };
+        }
+
+        // 3. Dieu khien Ro-le: AUTO
+        if (lower.Contains("chuyển rơ-le sang tự động") || lower.Contains("chuyển rơ le sang tự động") || 
+            lower.Contains("chế độ auto") || lower.Contains("đặt auto") || lower.Contains("rơ-le tự động") || lower.Contains("set auto"))
+        {
+            return new AiAction { Type = "SET_RELAY", Mode = "AUTO" };
+        }
+
+        // 4. Doi nguong nhiet do
+        var tempMatch = System.Text.RegularExpressions.Regex.Match(lower, @"(ngưỡng nhiệt|nhiệt độ max|nhiệt độ tối đa|cài nhiệt độ)[^\d]*(\d+(\.\d+)?)");
+        if (tempMatch.Success && double.TryParse(tempMatch.Groups[2].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double tVal))
+        {
+            return new AiAction { Type = "SET_THRESHOLD", TempMax = tVal };
+        }
+
+        // 5. Doi nguong do am
+        var humMatch = System.Text.RegularExpressions.Regex.Match(lower, @"(ngưỡng ẩm|độ ẩm max|độ ẩm tối đa|cài độ ẩm)[^\d]*(\d+(\.\d+)?)");
+        if (humMatch.Success && double.TryParse(humMatch.Groups[2].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double hVal))
+        {
+            return new AiAction { Type = "SET_THRESHOLD", HumMax = hVal };
+        }
+
+        return null;
+    }
+
     private static List<string> GenerateSmartSuggestions(string q, double t, double h, double margin)
     {
         var list = new List<string>();
@@ -510,5 +613,15 @@ public class AiChatMessageItem
 {
     public string role { get; set; } = "user"; // user | assistant
     public string content { get; set; } = "";
+}
+
+public class AiAction
+{
+    public string Type { get; set; } = ""; // SET_RELAY | SET_THRESHOLD
+    public string? Mode { get; set; }      // ON | OFF | AUTO
+    public double? TempMax { get; set; }
+    public double? HumMax { get; set; }
+    public bool Executed { get; set; }
+    public string Message { get; set; } = "";
 }
 

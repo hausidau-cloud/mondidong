@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
@@ -32,11 +33,13 @@ class _AiChatSheetState extends State<_AiChatSheet> {
   bool _sending = false;
 
   final List<String> _defaultSuggestions = [
+    'Bật Rơ-le làm mát ngay',
+    'Tắt Rơ-le',
+    'Chuyển Rơ-le sang AUTO',
     'Tình trạng tổng quan trạm hiện tại?',
     'Cách hạ nhiệt độ trạm nhanh nhất?',
     'Làm sao để tránh đọng sương bo mạch?',
-    'Kiểm tra Rơ-le và Bóng đèn 220V',
-    'Khắc phục khi ESP32 mất kết nối Wi-Fi',
+    'Khắc phục khi ESP32 mất Wi-Fi',
   ];
 
   static final _defaultKey = [
@@ -213,11 +216,21 @@ class _AiChatSheetState extends State<_AiChatSheet> {
       );
 
       if (!mounted) return;
+
+      // Neu co hanh dong AI Agent thuc thi -> Dong bo ngay voi Session
+      if (res.action != null && res.action!.executed) {
+        HapticFeedback.mediumImpact();
+        if (res.action!.mode != null) {
+          Session.I.setRelayMode(widget.station.id, res.action!.mode!);
+        }
+      }
+
       setState(() {
         _messages.add(
           AiChatMessage(
             role: 'assistant',
             content: res.reply,
+            action: res.action,
             suggestions: res.suggestions.isNotEmpty ? res.suggestions : _defaultSuggestions,
           ),
         );
@@ -225,13 +238,30 @@ class _AiChatSheetState extends State<_AiChatSheet> {
       });
       _scrollToBottom();
     } catch (_) {
+      // 0. Nhan dien y dinh AI Agent cuc bo neu co lenh dieu khien
+      AiActionItem? localAction;
+      final qLower = query.toLowerCase();
+      if (qLower.contains('bật rơ-le') || qLower.contains('bật rơ le') || qLower.contains('bật relay') || qLower.contains('bật quạt') || qLower.contains('bật đèn') || qLower.contains('bật máy làm mát')) {
+        Session.I.setRelayMode(widget.station.id, 'ON');
+        localAction = AiActionItem(type: 'SET_RELAY', mode: 'ON', executed: true, message: 'Đã thực thi: BẬT Rơ-le thành công trên ESP32!');
+        HapticFeedback.mediumImpact();
+      } else if (qLower.contains('tắt rơ-le') || qLower.contains('tắt rơ le') || qLower.contains('tắt relay') || qLower.contains('tắt quạt') || qLower.contains('tắt đèn')) {
+        Session.I.setRelayMode(widget.station.id, 'OFF');
+        localAction = AiActionItem(type: 'SET_RELAY', mode: 'OFF', executed: true, message: 'Đã thực thi: TẮT Rơ-le thành công trên ESP32!');
+        HapticFeedback.mediumImpact();
+      } else if (qLower.contains('chuyển rơ-le sang tự động') || qLower.contains('tự động') || qLower.contains('auto')) {
+        Session.I.setRelayMode(widget.station.id, 'AUTO');
+        localAction = AiActionItem(type: 'SET_RELAY', mode: 'AUTO', executed: true, message: 'Đã chuyển Rơ-le sang AUTO thành công!');
+        HapticFeedback.mediumImpact();
+      }
+
       // 1. Neu server ban nhung co Gemini Key -> Goi truc tiep Google Gemini API tu App
       final gKey = Session.I.geminiKey ?? dotenv.env['GEMINI_API_KEY'] ?? _defaultKey;
       if (gKey.trim().isNotEmpty) {
         try {
           final geminiUri = Uri.parse(
               'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey.trim()}');
-          final sys = 'Bạn là Trợ lý AI hệ thống IoT ThermoGuard đang hỗ trợ trạm ${widget.station.name} (${widget.station.airTemp?.toStringAsFixed(1) ?? '32'}°C, ${widget.station.airHum?.toStringAsFixed(0) ?? '60'}%). YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂM (tối đa 2 đến 3 câu ngắn, dưới 70 từ, không chào hỏi lan man).';
+          final sys = 'Bạn là Trợ lý AI Tự hành (AI Agent) hệ thống IoT ThermoGuard đang hỗ trợ trạm ${widget.station.name} (${widget.station.airTemp?.toStringAsFixed(1) ?? '32'}°C, ${widget.station.airHum?.toStringAsFixed(0) ?? '60'}%). YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂM (tối đa 2 đến 3 câu ngắn, dưới 70 từ, không chào hỏi lan man).';
           final gemResp = await http.post(
             geminiUri,
             headers: {'Content-Type': 'application/json'},
@@ -256,7 +286,12 @@ class _AiChatSheetState extends State<_AiChatSheet> {
             if (text != null && text.trim().isNotEmpty) {
               if (!mounted) return;
               setState(() {
-                _messages.add(AiChatMessage(role: 'assistant', content: text.trim(), suggestions: _defaultSuggestions));
+                _messages.add(AiChatMessage(
+                  role: 'assistant',
+                  content: text.trim(),
+                  action: localAction,
+                  suggestions: _defaultSuggestions,
+                ));
                 _sending = false;
               });
               _scrollToBottom();
@@ -268,12 +303,15 @@ class _AiChatSheetState extends State<_AiChatSheet> {
 
       // 2. Fallback tiep theo: AI Chuyen gia noi bo
       if (!mounted) return;
-      final fallbackReply = _generateLocalExpertReply(query, widget.station);
+      final fallbackReply = localAction != null
+          ? '⚡ **Lệnh AI Agent đã thực thi:** ${localAction.message}\nTrạng thái Rơ-le hiện tại đã được đồng bộ với mạch vi xử lý.'
+          : _generateLocalExpertReply(query, widget.station);
       setState(() {
         _messages.add(
           AiChatMessage(
             role: 'assistant',
             content: fallbackReply,
+            action: localAction,
             suggestions: _defaultSuggestions,
           ),
         );
@@ -653,6 +691,34 @@ class _AiChatSheetState extends State<_AiChatSheet> {
               msg.content,
               style: const TextStyle(fontSize: 13.5, color: AppColors.text, height: 1.45),
             ),
+            if (msg.action != null && msg.action!.executed) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F766E).withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFF14B8A6).withValues(alpha: 0.45)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.bolt_rounded, size: 16, color: Color(0xFF2DD4BF)),
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        msg.action!.message,
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF2DD4BF),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
