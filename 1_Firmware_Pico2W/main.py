@@ -160,6 +160,10 @@ state = {
     "interval": config.SEND_INTERVAL_DEFAULT,
     "offline": True,
     "reason": "",
+    "connected_ssid": "",
+    "lat": None,
+    "lon": None,
+    "address": "",
 }
 
 # Dong bo gio server
@@ -267,10 +271,12 @@ def connect_wifi_auto():
             wifi_ip = wlan.ifconfig()[0]
             wifi_ssid = ssid
             wifi_connected = True
+            state["connected_ssid"] = ssid
             pico_led.value(1)
             print(">> KET NOI WI-FI THANH CONG! IP:", wifi_ip)
             oled_msg("WI-FI ONLINE!", ssid[:14], "IP:", wifi_ip)
             time.sleep(2)
+            resolve_auto_location()
             return True
 
     pico_led.value(0)
@@ -278,6 +284,67 @@ def connect_wifi_auto():
     print(">> Khong ket noi duoc Wi-Fi, chay Offline.")
     oled_msg("WI-FI OFFLINE", "Chay cuc bo", "Offline Mode")
     time.sleep(1.5)
+    return False
+
+# ==============================================================
+# 5.1 TU DONG DINH VI GPS THEO WI-FI VA IP PUBLIC
+# ==============================================================
+def resolve_auto_location():
+    """Tu dong dinh vi: Neu la Wi-Fi da khai bao thi lay toa do chuan 100%, neu la mang moi thi tu dong dinh vi qua IP"""
+    if not wlan.isconnected():
+        return False
+
+    ssid = state.get("connected_ssid", "")
+    wifi_locs = getattr(config, "WIFI_LOCATIONS", {})
+
+    # 1. Kiem tra xem mang Wi-Fi vua ket noi co trong danh sach toa do chuan khong
+    if ssid and ssid in wifi_locs:
+        target = wifi_locs[ssid]
+        state["lat"] = target.get("lat")
+        state["lon"] = target.get("lon")
+        state["address"] = target.get("address", ssid)
+        print("==================================================")
+        print("📍 [GPS-AUTO] TU DONG NHAN DIEN THEO WI-FI '{}'".format(ssid))
+        print(">> Toa do (Lat, Lon) : {}, {}".format(state["lat"], state["lon"]))
+        print(">> Dia chi chinh xac : {}".format(state["address"]))
+        print(">> Xem tren Google Maps: https://www.google.com/maps?q={},{}".format(state["lat"], state["lon"]))
+        print("==================================================")
+        return True
+
+    # 2. Neu la mang Wi-Fi moi hoan toan -> Tu dong dinh vi qua IP Public (Tự động 100% không cần cài đặt)
+    print(">> [GPS-AUTO] Wi-Fi '{}' la mang moi, dang dinh vi tu dong qua IP...".format(ssid or "Moi"))
+    r = None
+    try:
+        r = requests.get("http://ip-api.com/json", timeout=6)
+        if r.status_code == 200:
+            res = r.json()
+            if res.get("status") == "success":
+                lat = res.get("lat")
+                lon = res.get("lon")
+                city = res.get("city", "")
+                region = res.get("regionName", "")
+                country = res.get("country", "")
+                ip_addr = res.get("query", "")
+
+                state["lat"] = lat
+                state["lon"] = lon
+                loc_text = "{}, {}".format(city, region) if city else region
+                state["address"] = "{}, {}".format(loc_text, country) if loc_text else (ssid or "Wi-Fi Vi tri")
+
+                print("==================================================")
+                print("📍 [GPS-IP] DINH VI QUA IP CHO MANG MOI THANH CONG!")
+                print(">> Dia chi IP Public :", ip_addr)
+                print(">> Khu vuc           :", state["address"])
+                print(">> Toa do (Lat, Lon) : {}, {}".format(lat, lon))
+                print(">> Xem tren Google Maps: https://www.google.com/maps?q={},{}".format(lat, lon))
+                print("==================================================")
+                return True
+    except Exception as e:
+        print(">> [GPS-IP] Loi dinh vi IP:", e)
+    finally:
+        if r is not None:
+            try: r.close()
+            except Exception: pass
     return False
 
 # ==============================================================
@@ -395,6 +462,15 @@ def send_to_backend():
     if not wlan.isconnected():
         return False
 
+    loc_display = None
+    if state["address"]:
+        if state["lat"] is not None and state["lon"] is not None:
+            loc_display = "{} ({:.4f}, {:.4f})".format(state["address"], state["lat"], state["lon"])
+        else:
+            loc_display = state["address"]
+    elif state["lat"] is not None and state["lon"] is not None:
+        loc_display = "({:.4f}, {:.4f})".format(state["lat"], state["lon"])
+
     payload_obj = {
         "device_code": config.DEVICE_CODE,
         "air_temp": state["air_t"],
@@ -407,6 +483,9 @@ def send_to_backend():
         "relay_state": 1 if state["relay"] else 0,
         "rssi": wlan.status("rssi") if hasattr(wlan, "status") else -50,
         "fw": FW_VERSION,
+        "lat": state["lat"],
+        "lon": state["lon"],
+        "location": loc_display,
     }
     payload_str = json.dumps(payload_obj)
     ts = now_ms()
@@ -541,6 +620,7 @@ def main():
     last_ok = time.ticks_ms()
     last_wifi_retry = time.ticks_ms()
     last_sync = time.ticks_ms()
+    last_gps_update = time.ticks_ms()
     blink = False
 
     while True:
@@ -557,6 +637,11 @@ def main():
         if wlan.isconnected() and time.ticks_diff(now, last_sync) > 1800000:
             last_sync = now
             sync_time()
+
+        # 2.1 Dinh ky cap nhat lai vi tri moi 30 phut hoac khi chua co toa do
+        if wlan.isconnected() and (state["lat"] is None or time.ticks_diff(now, last_gps_update) > 1800000):
+            last_gps_update = now
+            resolve_auto_location()
 
         # 3. Doc cam bien moi 400ms (nhanh, muot)
         if time.ticks_diff(now, last_read) >= 400:

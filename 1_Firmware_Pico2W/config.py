@@ -4,6 +4,9 @@
 
 # 1. DANH SACH WI-FI (Tu dong quet va ket noi mang san co)
 WIFI_LIST = [
+    ("NHA TRO 102", "0902511322"),
+    ("Duy Thuc_2", "thuchuong"),
+    ("Duy thuc", "thuchuong"),
     ("_hhau.05_", "00000000"),
     ("iPhone", "88888888"),
     ("Bekind Coffee", "camonquykhach"),
@@ -51,3 +54,34 @@ WATER_ON_THRESHOLD   = 32.5    # Nhiet do nuoc >= 32.5 C -> BAT Relay
 WATER_OFF_THRESHOLD  = 32.4    # Nhiet do nuoc < 32.4 C -> TAT Relay
 HUM_ON_THRESHOLD     = 75.0    # Do am khong khi >= 75% -> BAT Relay
 HUM_OFF_THRESHOLD    = 70.0    # Do am khong khi < 70% -> TAT Relay
+
+# 7. BANG TRA CUU TOA DO TU DONG THEO TUNG WI-FI
+# Cu ket noi vao Wi-Fi nao -> Pico tu dong lay dung toa do & dia chi cua noi do!
+# (Neu ket noi vao Wi-Fi la, Pico tu dong dinh vi qua IP cua mang do!)
+WIFI_LOCATIONS = {
+    "NHA TRO 102": {
+        "lat": 10.8220,
+        "lon": 106.6257,
+        "address": "Nhà trọ 102 - TP. Hồ Chí Minh",
+    },
+    "Duy Thuc_2": {
+        "lat": 10.8220,
+        "lon": 106.6257,
+        "address": "Phòng của bạn - Đường Trường Chinh, TP.HCM",
+    },
+    "Duy thuc": {
+        "lat": 10.8220,
+        "lon": 106.6257,
+        "address": "Phòng của bạn - Đường Trường Chinh, TP.HCM",
+    },
+    "Bekind Coffee": {
+        "lat": 10.7952,
+        "lon": 106.6631,
+        "address": "Bekind Coffee - TP. Hồ Chí Minh",
+    },
+    "Quan Buu": {
+        "lat": 10.8150,
+        "lon": 106.6320,
+        "address": "Quán Bửu - TP. Hồ Chí Minh",
+    },
+}
