@@ -315,7 +315,7 @@ def send_to_backend():
         "fw": FW_VERSION,
         "lat": state["lat"],
         "lon": state["lon"],
-        "location": state["address"] or ("{}, {}".format(state["lat"], state["lon"]) if state["lat"] is not None else None),
+        "location": "{} ({:.4f}, {:.4f})".format(state["address"], state["lat"], state["lon"]) if (state["lat"] is not None and state["lon"] is not None) else state["address"],
     }
     payload_str = json.dumps(payload_obj)
     ts = now_ms()
