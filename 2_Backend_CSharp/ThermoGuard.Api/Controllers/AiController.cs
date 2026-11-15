@@ -326,6 +326,193 @@ public class AiController : ControllerBase
     }
 
     /// <summary>
+    /// GET /api/ai/weather-compare/{stationId}: So sánh vi khí hậu trạm với thời tiết ngoài trời & Khuyến nghị tiết kiệm năng lượng
+    /// </summary>
+    [HttpGet("weather-compare/{stationId}")]
+    public async Task<IActionResult> GetWeatherCompare(int stationId)
+    {
+        var st = _store.GetStation(stationId);
+        var dev = _store.Devices.FirstOrDefault(d => d.StationId == stationId) ?? _store.GetDevice(stationId);
+
+        double inTemp = dev?.AirTemp ?? 30.0;
+        double inHum = dev?.AirHum ?? 60.0;
+        double inDew = dev?.DewPoint ?? (inTemp - ((100 - inHum) / 5.0));
+
+        double lat = 10.8220;
+        double lon = 106.6257;
+        string locName = st?.Location ?? dev?.Location ?? "TP. Hồ Chí Minh";
+
+        if (!string.IsNullOrWhiteSpace(locName))
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(locName, @"(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)");
+            if (m.Success && double.TryParse(m.Groups[1].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double pLat)
+                          && double.TryParse(m.Groups[2].Value, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out double pLon))
+            {
+                lat = pLat;
+                lon = pLon;
+            }
+        }
+
+        double outTemp = 28.5;
+        double outHum = 75.0;
+        double outWind = 8.0;
+        string weatherDesc = "Trời mây thoáng mát";
+        string weatherIcon = "partly_cloudy";
+
+        try
+        {
+            using var http = new HttpClient { Timeout = TimeSpan.FromSeconds(5) };
+            var url = $"https://api.open-meteo.com/v1/forecast?latitude={lat.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}&longitude={lon.ToString("F4", System.Globalization.CultureInfo.InvariantCulture)}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m";
+            var resp = await http.GetAsync(url);
+            if (resp.IsSuccessStatusCode)
+            {
+                var json = await resp.Content.ReadAsStringAsync();
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                if (doc.RootElement.TryGetProperty("current", out var cur))
+                {
+                    outTemp = cur.GetProperty("temperature_2m").GetDouble();
+                    outHum = cur.GetProperty("relative_humidity_2m").GetDouble();
+                    outWind = cur.GetProperty("wind_speed_10m").GetDouble();
+                    int wcode = cur.GetProperty("weather_code").GetInt32();
+
+                    if (wcode == 0) { weatherDesc = "Trời quang đãng / Nắng đẹp"; weatherIcon = "sunny"; }
+                    else if (wcode <= 3) { weatherDesc = "Trời có mây thoáng mát"; weatherIcon = "partly_cloudy"; }
+                    else if (wcode >= 51 && wcode <= 67) { weatherDesc = "Trời mưa / Ẩm ướt"; weatherIcon = "rainy"; }
+                    else if (wcode >= 95) { weatherDesc = "Dông sét / Mưa bão"; weatherIcon = "thunderstorm"; }
+                    else { weatherDesc = "Nhiều mây / Dịu mát"; weatherIcon = "cloudy"; }
+                }
+            }
+        }
+        catch { }
+
+        double deltaTemp = Math.Round(inTemp - outTemp, 1);
+        double deltaHum = Math.Round(inHum - outHum, 1);
+
+        string energyAdvice;
+        string adviceType;
+
+        if (deltaTemp >= 1.5)
+        {
+            energyAdvice = $"Ngoài trời đang mát hơn trong trạm {deltaTemp:F1}°C ({outTemp:F1}°C vs {inTemp:F1}°C). Hãy mở cửa thông gió tự nhiên thay vì máy lạnh để tiết kiệm năng lượng!";
+            adviceType = "GREEN";
+        }
+        else if (outHum >= 85.0)
+        {
+            energyAdvice = $"Độ ẩm ngoài trời rất cao ({outHum:F0}%). Chú ý đóng kín cửa phòng trạm để tránh hơi ẩm bão hòa gây đọng sương vi mạch điện tử.";
+            adviceType = "WARN";
+        }
+        else
+        {
+            energyAdvice = $"Vi khí hậu phòng trạm và ngoài trời đang ở mức cân bằng ổn định (Chênh lệch: {deltaTemp:F1}°C).";
+            adviceType = "NORMAL";
+        }
+
+        return Ok(new
+        {
+            ok = true,
+            station_id = stationId,
+            station_name = st?.Name ?? dev?.Name ?? $"Trạm #{stationId}",
+            indoor = new
+            {
+                temp = inTemp,
+                hum = inHum,
+                dew_point = inDew,
+                relay_state = dev?.RelayState ?? 0
+            },
+            outdoor = new
+            {
+                temp = outTemp,
+                hum = outHum,
+                wind_speed = outWind,
+                condition = weatherDesc,
+                icon = weatherIcon
+            },
+            delta = new
+            {
+                temp = deltaTemp,
+                hum = deltaHum
+            },
+            energy_advice = energyAdvice,
+            advice_type = adviceType
+        });
+    }
+
+    /// <summary>
+    /// GET /api/ai/sensor-diagnostics/{stationId}: Chẩn đoán sức khỏe phần cứng, phát hiện kẹt cảm biến & nhiễu xung
+    /// </summary>
+    [HttpGet("sensor-diagnostics/{stationId}")]
+    public IActionResult GetSensorDiagnostics(int stationId)
+    {
+        var st = _store.GetStation(stationId);
+        var dev = _store.Devices.FirstOrDefault(d => d.StationId == stationId) ?? _store.GetDevice(stationId);
+
+        var list = _store.Readings
+            .Where(r => r.DeviceId == (dev?.Id ?? stationId) || r.DeviceId == stationId)
+            .OrderByDescending(r => r.Id)
+            .Take(30)
+            .ToList();
+
+        string status = "HEALTHY";
+        string severity = "NORMAL";
+        string diagnosticMessage = "Cảm biến DHT11 hoạt động tốt, độ nhạy cao và tín hiệu đo ổn định.";
+        double signalScore = 98.0;
+
+        if (dev == null || (dev.AirTemp == null && dev.AirHum == null))
+        {
+            status = "DISCONNECTED";
+            severity = "DANGER";
+            diagnosticMessage = "Chưa phát hiện tín hiệu cảm biến. Vui lòng kiểm tra cáp cắm chân GPIO 4 và nguồn 5V cho DHT11.";
+            signalScore = 15.0;
+        }
+        else if (list.Count >= 8)
+        {
+            var validList = list.Where(r => r.AirTemp.HasValue && r.AirHum.HasValue).ToList();
+            if (validList.Count >= 5)
+            {
+                var temps = validList.Select(r => r.AirTemp!.Value).ToList();
+                var hums = validList.Select(r => r.AirHum!.Value).ToList();
+
+                double tRange = temps.Max() - temps.Min();
+                double hRange = hums.Max() - hums.Min();
+
+                if (tRange < 0.05 && hRange < 0.05)
+                {
+                    status = "FROZEN_SUSPECTED";
+                    severity = "WARN";
+                    diagnosticMessage = "Giá trị đo không đổi suốt nhiều chu kỳ. Nghi ngờ màng cảm biến bị bụi bám hoặc bộ đệm ADC vi xử lý bị kẹt.";
+                    signalScore = 65.0;
+                }
+                else
+                {
+                    for (int i = 0; i < temps.Count - 1; i++)
+                    {
+                        if (Math.Abs(temps[i] - temps[i + 1]) >= 10.0)
+                        {
+                            status = "SPIKE_DETECTED";
+                            severity = "WARN";
+                            diagnosticMessage = "Phát hiện xung nhiễu tín hiệu đột biến (> 10°C trong thời gian ngắn). Hãy kiểm tra chân mass (GND) chống nhiễu.";
+                            signalScore = 78.0;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        return Ok(new
+        {
+            ok = true,
+            station_id = stationId,
+            status,
+            severity,
+            score = signalScore,
+            message = diagnosticMessage,
+            total_samples = list.Count,
+            last_checked = TimeHelper.VnNowStr
+        });
+    }
+
+    /// <summary>
     /// POST /api/ai/chat: Trợ lý AI Kỹ thuật giải đáp thắc mắc và hỗ trợ xử lý sự cố vi khí hậu IoT theo ngữ cảnh
     /// </summary>
     [HttpPost("chat")]
@@ -388,6 +575,14 @@ public class AiController : ControllerBase
                 _store.UpdateDevice(dev);
                 action.Executed = true;
                 action.Message = $"Đã cập nhật ngưỡng an toàn: {(action.TempMax.HasValue ? $"Nhiệt max = {action.TempMax}°C " : "")}{(action.HumMax.HasValue ? $"Ẩm max = {action.HumMax}%" : "")}";
+            }
+            else if (action.Type == "SCHEDULE_TIMER")
+            {
+                var targetMode = action.Mode ?? "OFF";
+                int mins = action.DurationMinutes > 0 ? action.DurationMinutes : 15;
+                _store.AddSchedule(stationId, dev.Id, "COUNTDOWN", targetMode, mins);
+                action.Executed = true;
+                action.Message = $"Đã kích hoạt hẹn giờ: Chuyển Rơ-le sang {targetMode} sau {mins} phút!";
             }
         }
 
@@ -586,6 +781,14 @@ YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂ
             return new AiAction { Type = "SET_THRESHOLD", HumMax = hVal };
         }
 
+        // 6. Hen gio dem nguoc (Smart Countdown Timer)
+        var timerMatch = System.Text.RegularExpressions.Regex.Match(lower, @"(hẹn giờ|đếm ngược|sau)[^\d]*(\d+)\s*(phút|p|m)");
+        if (timerMatch.Success && int.TryParse(timerMatch.Groups[2].Value, out int minVal))
+        {
+            var targetMode = lower.Contains("bật") ? "ON" : "OFF";
+            return new AiAction { Type = "SCHEDULE_TIMER", Mode = targetMode, DurationMinutes = minVal };
+        }
+
         return null;
     }
 
@@ -617,10 +820,11 @@ public class AiChatMessageItem
 
 public class AiAction
 {
-    public string Type { get; set; } = ""; // SET_RELAY | SET_THRESHOLD
+    public string Type { get; set; } = ""; // SET_RELAY | SET_THRESHOLD | SCHEDULE_TIMER
     public string? Mode { get; set; }      // ON | OFF | AUTO
     public double? TempMax { get; set; }
     public double? HumMax { get; set; }
+    public int DurationMinutes { get; set; }
     public bool Executed { get; set; }
     public string Message { get; set; } = "";
 }

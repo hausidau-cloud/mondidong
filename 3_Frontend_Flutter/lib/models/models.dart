@@ -713,4 +713,132 @@ class AiChatResponse {
       );
 }
 
+class WeatherCompareData {
+  final int stationId;
+  final String stationName;
+  final double indoorTemp;
+  final double indoorHum;
+  final double indoorDew;
+  final double outdoorTemp;
+  final double outdoorHum;
+  final double outdoorWind;
+  final String condition;
+  final String icon;
+  final double deltaTemp;
+  final double deltaHum;
+  final String energyAdvice;
+  final String adviceType;
+
+  WeatherCompareData({
+    required this.stationId,
+    required this.stationName,
+    required this.indoorTemp,
+    required this.indoorHum,
+    required this.indoorDew,
+    required this.outdoorTemp,
+    required this.outdoorHum,
+    required this.outdoorWind,
+    required this.condition,
+    required this.icon,
+    required this.deltaTemp,
+    required this.deltaHum,
+    required this.energyAdvice,
+    required this.adviceType,
+  });
+
+  factory WeatherCompareData.fromJson(Map<String, dynamic> j) {
+    final ind = (j['indoor'] as Map<String, dynamic>?) ?? {};
+    final out = (j['outdoor'] as Map<String, dynamic>?) ?? {};
+    final d = (j['delta'] as Map<String, dynamic>?) ?? {};
+    double toD(dynamic v, double fallback) => v is num ? v.toDouble() : fallback;
+
+    return WeatherCompareData(
+      stationId: (j['station_id'] as num?)?.toInt() ?? 1,
+      stationName: (j['station_name'] ?? '').toString(),
+      indoorTemp: toD(ind['temp'], 30.0),
+      indoorHum: toD(ind['hum'], 60.0),
+      indoorDew: toD(ind['dew_point'], 22.0),
+      outdoorTemp: toD(out['temp'], 28.0),
+      outdoorHum: toD(out['hum'], 75.0),
+      outdoorWind: toD(out['wind_speed'], 8.0),
+      condition: (out['condition'] ?? 'Có mây').toString(),
+      icon: (out['icon'] ?? 'partly_cloudy').toString(),
+      deltaTemp: toD(d['temp'], 2.0),
+      deltaHum: toD(d['hum'], -15.0),
+      energyAdvice: (j['energy_advice'] ?? '').toString(),
+      adviceType: (j['advice_type'] ?? 'NORMAL').toString(),
+    );
+  }
+}
+
+class SensorDiagnosticsData {
+  final int stationId;
+  final String status;
+  final String severity;
+  final double score;
+  final String message;
+  final int totalSamples;
+  final String lastChecked;
+
+  SensorDiagnosticsData({
+    required this.stationId,
+    required this.status,
+    required this.severity,
+    required this.score,
+    required this.message,
+    required this.totalSamples,
+    required this.lastChecked,
+  });
+
+  factory SensorDiagnosticsData.fromJson(Map<String, dynamic> j) {
+    return SensorDiagnosticsData(
+      stationId: (j['station_id'] as num?)?.toInt() ?? 1,
+      status: (j['status'] ?? 'HEALTHY').toString(),
+      severity: (j['severity'] ?? 'NORMAL').toString(),
+      score: (j['score'] as num?)?.toDouble() ?? 95.0,
+      message: (j['message'] ?? '').toString(),
+      totalSamples: (j['total_samples'] as num?)?.toInt() ?? 0,
+      lastChecked: (j['last_checked'] ?? '').toString(),
+    );
+  }
+}
+
+class RelaySchedule {
+  final int id;
+  final int stationId;
+  final int deviceId;
+  final String type;
+  final String targetMode;
+  final int durationMinutes;
+  final int secondsRemaining;
+  final bool executed;
+  final String createdAt;
+
+  RelaySchedule({
+    required this.id,
+    required this.stationId,
+    required this.deviceId,
+    required this.type,
+    required this.targetMode,
+    required this.durationMinutes,
+    required this.secondsRemaining,
+    required this.executed,
+    required this.createdAt,
+  });
+
+  factory RelaySchedule.fromJson(Map<String, dynamic> j) {
+    return RelaySchedule(
+      id: (j['id'] as num?)?.toInt() ?? 0,
+      stationId: (j['station_id'] as num?)?.toInt() ?? 0,
+      deviceId: (j['device_id'] as num?)?.toInt() ?? 0,
+      type: (j['type'] ?? 'COUNTDOWN').toString(),
+      targetMode: (j['target_mode'] ?? 'OFF').toString(),
+      durationMinutes: (j['duration_minutes'] as num?)?.toInt() ?? 15,
+      secondsRemaining: (j['seconds_remaining'] as num?)?.toInt() ?? 0,
+      executed: j['executed'] == true,
+      createdAt: (j['created_at'] ?? '').toString(),
+    );
+  }
+}
+
 

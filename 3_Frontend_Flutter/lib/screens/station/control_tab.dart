@@ -21,14 +21,61 @@ class ControlTab extends StatefulWidget {
 class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMixin {
   final _msg = TextEditingController();
   bool _busy = false;
+  List<RelaySchedule> _schedules = [];
 
   @override
   bool get wantKeepAlive => true;
 
   @override
+  void initState() {
+    super.initState();
+    _loadSchedules();
+  }
+
+  @override
   void dispose() {
     _msg.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadSchedules() async {
+    try {
+      final list = await Session.I.relaySchedules(widget.station.id);
+      if (mounted) setState(() => _schedules = list);
+    } catch (_) {}
+  }
+
+  Future<void> _setCountdown(int minutes, String mode) async {
+    setState(() => _busy = true);
+    try {
+      final ok = await Session.I.createRelaySchedule(
+        stationId: widget.station.id,
+        minutes: minutes,
+        targetMode: mode,
+      );
+      if (mounted) {
+        if (ok) {
+          toast(context, '⏱️ Đã kích hoạt hẹn giờ chuyển sang $mode sau $minutes phút');
+          _loadSchedules();
+        } else {
+          toast(context, 'Không thể đặt hẹn giờ', error: true);
+        }
+      }
+    } catch (e) {
+      if (mounted) toast(context, e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _cancelSchedule(int id) async {
+    try {
+      await Session.I.cancelRelaySchedule(id);
+      if (mounted) {
+        toast(context, 'Đã hủy lịch hẹn giờ');
+        _loadSchedules();
+      }
+    } catch (_) {}
   }
 
   Future<void> _mode(String m) async {
@@ -69,14 +116,22 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
     final wide = MediaQuery.sizeOf(context).width >= 900;
     final relay = _relayCard(s, admin);
     final oled = _oledCard(s, admin);
+    final sched = _schedulerCard(s);
     return TabBody(onRefresh: widget.onChanged, children: [
       if (wide) ...[
-        if (!isEsp)
-          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Expanded(child: relay), const SizedBox(width: 16), Expanded(child: oled)])
-        else
-          relay,
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: relay),
+          const SizedBox(width: 16),
+          Expanded(child: sched),
+        ]),
+        if (!isEsp) ...[
+          const SizedBox(height: 16),
+          oled,
+        ],
       ] else ...[
         relay,
+        const SizedBox(height: 16),
+        sched,
         if (!isEsp) ...[
           const SizedBox(height: 16),
           oled,
@@ -85,6 +140,93 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
       const SizedBox(height: 16),
       _logicCard(s),
     ]);
+  }
+
+  Widget _schedulerCard(Station s) {
+    return SectionCard(
+      title: 'Hẹn giờ Đếm ngược (Smart Scheduler)',
+      subtitle: 'Tự động Bật / Tắt Rơ-le sau một khoảng thời gian',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ActionChip(
+                avatar: const Icon(Icons.timer_outlined, size: 16, color: AppColors.warn),
+                label: const Text('Tắt sau 15p'),
+                onPressed: _busy ? null : () => _setCountdown(15, 'OFF'),
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.timer_outlined, size: 16, color: AppColors.warn),
+                label: const Text('Tắt sau 30p'),
+                onPressed: _busy ? null : () => _setCountdown(30, 'OFF'),
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.timer_outlined, size: 16, color: AppColors.warn),
+                label: const Text('Tắt sau 1 giờ'),
+                onPressed: _busy ? null : () => _setCountdown(60, 'OFF'),
+              ),
+              ActionChip(
+                avatar: const Icon(Icons.flash_on_rounded, size: 16, color: AppColors.ok),
+                label: const Text('Bật sau 15p'),
+                onPressed: _busy ? null : () => _setCountdown(15, 'ON'),
+              ),
+            ],
+          ),
+          if (_schedules.isNotEmpty) ...[
+            const SizedBox(height: 14),
+            const Divider(color: AppColors.border, height: 1),
+            const SizedBox(height: 10),
+            Text(
+              'LỊCH HẸN GIỜ ĐANG CHẠY (${_schedules.length}):',
+              style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: AppColors.text3, letterSpacing: 0.5),
+            ),
+            const SizedBox(height: 8),
+            ..._schedules.map((sc) {
+              final minsLeft = (sc.secondsRemaining / 60).ceil();
+              final isOff = sc.targetMode == 'OFF';
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: AppColors.surface2,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.hourglass_top_rounded, size: 18, color: isOff ? AppColors.warn : AppColors.ok),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Chuyển sang ${sc.targetMode == "ON" ? "BẬT" : "TẮT"} Rơ-le',
+                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.text),
+                          ),
+                          Text(
+                            'Còn lại ~$minsLeft phút (Tổng ${sc.durationMinutes}p)',
+                            style: const TextStyle(fontSize: 11.5, color: AppColors.text2),
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded, size: 18, color: AppColors.danger),
+                      tooltip: 'Hủy lịch này',
+                      onPressed: () => _cancelSchedule(sc.id),
+                    ),
+                  ],
+                ),
+              );
+            }),
+          ],
+        ],
+      ),
+    );
   }
 
   Widget _relayCard(Station s, bool admin) {

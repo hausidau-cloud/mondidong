@@ -19,6 +19,7 @@ public class DataStore
     public List<AlertItem> Alerts { get; } = new();
     public List<RelayLogItem> RelayLogs { get; } = new();
     public List<StationAssignment> Assignments { get; } = new();
+    public List<RelayScheduleItem> Schedules { get; } = new();
     public Dictionary<string, AppUser> ActiveSessions { get; } = new();
     public Dictionary<string, OtpItem> OtpStore { get; } = new();
 
@@ -921,6 +922,51 @@ public class DataStore
                     OtpStore.Remove(key); // Dùng 1 lần rồi hủy
                     return true;
                 }
+            }
+            return false;
+        }
+    }
+
+    public RelayScheduleItem AddSchedule(int stationId, int deviceId, string type, string targetMode, int minutes, string timeOfDay = "")
+    {
+        lock (_lock)
+        {
+            var s = new RelayScheduleItem
+            {
+                Id = Schedules.Count > 0 ? Schedules.Max(x => x.Id) + 1 : 1,
+                StationId = stationId,
+                DeviceId = deviceId,
+                Type = type,
+                TargetMode = targetMode.ToUpperInvariant(),
+                DurationMinutes = minutes,
+                TimeOfDay = timeOfDay,
+                TriggerAt = DateTime.UtcNow.AddMinutes(minutes),
+                Executed = false,
+                CreatedAt = TimeHelper.VnNowStr
+            };
+            Schedules.Add(s);
+            return s;
+        }
+    }
+
+    public List<RelayScheduleItem> GetActiveSchedules(int stationId)
+    {
+        lock (_lock)
+        {
+            var now = DateTime.UtcNow;
+            return Schedules.Where(s => s.StationId == stationId && !s.Executed && s.TriggerAt > now).ToList();
+        }
+    }
+
+    public bool CancelSchedule(int scheduleId)
+    {
+        lock (_lock)
+        {
+            var s = Schedules.FirstOrDefault(x => x.Id == scheduleId);
+            if (s != null)
+            {
+                Schedules.Remove(s);
+                return true;
             }
             return false;
         }

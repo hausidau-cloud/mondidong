@@ -58,6 +58,42 @@ public class StationAssignment
     public DateTime AssignedAt { get; set; } = TimeHelper.VnNow;
 }
 
+public class RelayScheduleItem
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("station_id")]
+    public int StationId { get; set; }
+
+    [JsonPropertyName("device_id")]
+    public int DeviceId { get; set; }
+
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = "COUNTDOWN"; // COUNTDOWN | DAILY
+
+    [JsonPropertyName("target_mode")]
+    public string TargetMode { get; set; } = "OFF"; // ON | OFF | AUTO
+
+    [JsonPropertyName("duration_minutes")]
+    public int DurationMinutes { get; set; }
+
+    [JsonPropertyName("trigger_at")]
+    public DateTime TriggerAt { get; set; }
+
+    [JsonPropertyName("time_of_day")]
+    public string TimeOfDay { get; set; } = "";
+
+    [JsonPropertyName("executed")]
+    public bool Executed { get; set; }
+
+    [JsonPropertyName("created_at")]
+    public string CreatedAt { get; set; } = "";
+
+    [JsonPropertyName("seconds_remaining")]
+    public int SecondsRemaining => (int)Math.Max(0, (TriggerAt - DateTime.UtcNow).TotalSeconds);
+}
+
 
 public class StationItem
 {

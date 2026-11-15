@@ -604,6 +604,46 @@ class Session extends ChangeNotifier {
     });
     return AiChatResponse.fromJson(j);
   }
+
+  /// So sanh vi khi hau tram voi thoi tiet ngoai troi Open-Meteo
+  Future<WeatherCompareData> weatherCompare(int stationId) async {
+    final j = await get('ai/weather-compare/$stationId');
+    return WeatherCompareData.fromJson(j);
+  }
+
+  /// Chan doan suc khoe cam bien DHT11 & phat hien bat thuong
+  Future<SensorDiagnosticsData> sensorDiagnostics(int stationId) async {
+    final j = await get('ai/sensor-diagnostics/$stationId');
+    return SensorDiagnosticsData.fromJson(j);
+  }
+
+  /// Lay danh sach hen gio dem nguoc Ro-le dang hoat dong
+  Future<List<RelaySchedule>> relaySchedules(int stationId) async {
+    final j = await get('control/schedule/$stationId');
+    final list = (j['schedules'] as List?) ?? [];
+    return list.map((e) => RelaySchedule.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Tao hen gio dem nguoc Ro-le (Smart Countdown Timer)
+  Future<bool> createRelaySchedule({
+    required int stationId,
+    required int minutes,
+    String targetMode = 'OFF',
+  }) async {
+    final j = await post('control/schedule', {
+      'station_id': stationId,
+      'minutes': minutes,
+      'target_mode': targetMode,
+      'type': 'COUNTDOWN',
+    });
+    return j['ok'] == true;
+  }
+
+  /// Huy hen gio Ro-le
+  Future<bool> cancelRelaySchedule(int scheduleId) async {
+    final j = await delete('control/schedule/$scheduleId');
+    return j['ok'] == true;
+  }
 }
 
 

@@ -32,6 +32,7 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMixin {
   List<Station> _stations = [];
   bool _loading = true;
+  bool _showHeatmap = true;
   String? _error;
   StationGeo? _selected;
   Timer? _timer;
@@ -237,38 +238,73 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                           Positioned(
                             top: 12,
                             left: 16,
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: AppColors.surface.withValues(alpha: 0.9),
-                                borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: AppColors.border),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.3),
-                                    blurRadius: 8,
-                                    offset: const Offset(0, 3),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                  decoration: BoxDecoration(
+                                    color: AppColors.surface.withValues(alpha: 0.9),
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: AppColors.border),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: Colors.black.withValues(alpha: 0.3),
+                                        blurRadius: 8,
+                                        offset: const Offset(0, 3),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const Icon(Icons.satellite_alt_rounded, size: 16, color: AppColors.primary),
-                                  const SizedBox(width: 8),
-                                  Text(
-                                    _selected != null
-                                        ? '${_selected!.lat.toStringAsFixed(4)}°N, ${_selected!.lon.toStringAsFixed(4)}°E'
-                                        : 'TP. Hồ Chí Minh (WGS84)',
-                                    style: const TextStyle(
-                                      fontFamily: 'monospace',
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: AppColors.text2,
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const Icon(Icons.satellite_alt_rounded, size: 16, color: AppColors.primary),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        _selected != null
+                                            ? '${_selected!.lat.toStringAsFixed(4)}°N, ${_selected!.lon.toStringAsFixed(4)}°E'
+                                            : 'TP. Hồ Chí Minh (WGS84)',
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: AppColors.text2,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                InkWell(
+                                  onTap: () => setState(() => _showHeatmap = !_showHeatmap),
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                                    decoration: BoxDecoration(
+                                      color: _showHeatmap ? const Color(0xFFF97316).withValues(alpha: 0.18) : AppColors.surface.withValues(alpha: 0.9),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(
+                                        color: _showHeatmap ? const Color(0xFFF97316).withValues(alpha: 0.5) : AppColors.border,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.whatshot_rounded, size: 16, color: _showHeatmap ? const Color(0xFFF97316) : AppColors.text3),
+                                        const SizedBox(width: 6),
+                                        Text(
+                                          _showHeatmap ? 'Nhiệt: BẬT' : 'Nhiệt: TẮT',
+                                          style: TextStyle(
+                                            fontSize: 11.5,
+                                            fontWeight: FontWeight.w600,
+                                            color: _showHeatmap ? const Color(0xFFF97316) : AppColors.text3,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                ],
-                              ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -325,6 +361,44 @@ class _MapScreenState extends State<MapScreen> with SingleTickerProviderStateMix
                   painter: _GisGridPainter(pulseValue: _pulseController.value),
                 ),
               ),
+
+              // Lớp phủ Bản đồ Nhiệt vi khí hậu (Dynamic Heatmap Layer)
+              if (_showHeatmap)
+                ...geos.map((g) {
+                  final normX = (g.lon - boundMinLon) / (boundMaxLon - boundMinLon);
+                  final normY = 1.0 - ((g.lat - boundMinLat) / (boundMaxLat - boundMinLat));
+                  final posX = (normX * (w - 120)) + 60;
+                  final posY = (normY * (h - 140)) + 70;
+
+                  final temp = g.station.airTemp ?? 28.0;
+                  final isHot = temp >= 32.0;
+                  final isWarm = temp >= 30.0;
+                  final heatColor = isHot
+                      ? const Color(0xFFEF4444)
+                      : (isWarm ? const Color(0xFFF97316) : const Color(0xFF10B981));
+
+                  return Positioned(
+                    left: posX - 90,
+                    top: posY - 90,
+                    child: IgnorePointer(
+                      child: Container(
+                        width: 180,
+                        height: 180,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          gradient: RadialGradient(
+                            colors: [
+                              heatColor.withValues(alpha: 0.35 + (_pulseController.value * 0.08)),
+                              heatColor.withValues(alpha: 0.15),
+                              heatColor.withValues(alpha: 0.0),
+                            ],
+                            stops: const [0.0, 0.45, 1.0],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
 
               // Các điểm trạm IoT trên tọa độ
               ...geos.map((g) {

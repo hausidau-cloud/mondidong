@@ -24,6 +24,8 @@ class AiTab extends StatefulWidget {
 
 class _AiTabState extends State<AiTab> {
   AiDiagnosis? _diag;
+  WeatherCompareData? _weather;
+  SensorDiagnosticsData? _sensorDiag;
   bool _loading = true;
   String? _error;
   Timer? _timer;
@@ -44,10 +46,21 @@ class _AiTabState extends State<AiTab> {
   Future<void> _fetch({bool silent = false}) async {
     if (!silent) setState(() => _loading = true);
     try {
-      final res = await Session.I.diagnoseStation(widget.station.id);
+      final diag = await Session.I.diagnoseStation(widget.station.id);
+      WeatherCompareData? weather;
+      SensorDiagnosticsData? sensor;
+      try {
+        weather = await Session.I.weatherCompare(widget.station.id);
+      } catch (_) {}
+      try {
+        sensor = await Session.I.sensorDiagnostics(widget.station.id);
+      } catch (_) {}
+
       if (!mounted) return;
       setState(() {
-        _diag = res;
+        _diag = diag;
+        _weather = weather;
+        _sensorDiag = sensor;
         _loading = false;
         _error = null;
       });
@@ -111,6 +124,18 @@ class _AiTabState extends State<AiTab> {
         // 1. Health Score Header Gauge
         _buildHealthScoreCard(d),
         const SizedBox(height: 16),
+
+        // 1.1 Weather Fusion: So sánh thời tiết ngoài trời & Tiết kiệm năng lượng
+        if (_weather != null) ...[
+          _buildWeatherCompareCard(_weather!),
+          const SizedBox(height: 16),
+        ],
+
+        // 1.2 Kiểm định phần cứng cảm biến & Phát hiện bất thường
+        if (_sensorDiag != null) ...[
+          _buildSensorDiagnosticsCard(_sensorDiag!),
+          const SizedBox(height: 16),
+        ],
 
         // 2. Dew Point & Condensation Prediction
         _buildDewPointRiskCard(d),
@@ -586,6 +611,201 @@ class _AiTabState extends State<AiTab> {
                 ],
               ],
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWeatherCompareCard(WeatherCompareData w) {
+    final isGreen = w.adviceType == 'GREEN';
+    final isWarn = w.adviceType == 'WARN';
+    final badgeColor = isGreen ? const Color(0xFF10B981) : (isWarn ? const Color(0xFFF59E0B) : const Color(0xFF38BDF8));
+
+    IconData weatherIcon;
+    switch (w.icon) {
+      case 'sunny':
+        weatherIcon = Icons.wb_sunny_rounded;
+        break;
+      case 'rainy':
+        weatherIcon = Icons.water_drop_rounded;
+        break;
+      case 'thunderstorm':
+        weatherIcon = Icons.thunderstorm_rounded;
+        break;
+      case 'cloudy':
+        weatherIcon = Icons.cloud_rounded;
+        break;
+      default:
+        weatherIcon = Icons.wb_cloudy_rounded;
+    }
+
+    return SectionCard(
+      title: 'Thời tiết Ngoài trời & Tiết kiệm Năng lượng (Weather Fusion)',
+      subtitle: 'Tích hợp dữ liệu thời tiết thực tế Open-Meteo theo tọa độ GIS',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface2,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.home_work_rounded, size: 16, color: AppColors.primary),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              widget.station.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.text2),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${w.indoorTemp.toStringAsFixed(1)}°C',
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.text),
+                      ),
+                      Text(
+                        'Độ ẩm: ${w.indoorHum.toStringAsFixed(0)}%',
+                        style: const TextStyle(fontSize: 12, color: AppColors.text3),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface2,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.border),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(weatherIcon, size: 16, color: const Color(0xFFFBBF24)),
+                          const SizedBox(width: 6),
+                          const Text(
+                            'Ngoài trời (Meteo)',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.text2),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '${w.outdoorTemp.toStringAsFixed(1)}°C',
+                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: AppColors.text),
+                      ),
+                      Text(
+                        '${w.condition} • ${w.outdoorHum.toStringAsFixed(0)}%',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 12, color: AppColors.text3),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: badgeColor.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: badgeColor.withValues(alpha: 0.35)),
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(isGreen ? Icons.eco_rounded : (isWarn ? Icons.warning_amber_rounded : Icons.info_outline_rounded),
+                    color: badgeColor, size: 20),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    w.energyAdvice,
+                    style: TextStyle(fontSize: 12.5, color: badgeColor, height: 1.4, fontWeight: FontWeight.w500),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSensorDiagnosticsCard(SensorDiagnosticsData s) {
+    final isDanger = s.severity == 'DANGER';
+    final isWarn = s.severity == 'WARN';
+    final color = isDanger ? AppColors.danger : (isWarn ? AppColors.warn : AppColors.ok);
+
+    return SectionCard(
+      title: 'Kiểm định Cảm biến DHT11 & Chẩn đoán Bất thường',
+      subtitle: 'Thuật toán thống kê phát hiện kẹt dữ liệu, đơ chip & nhiễu xung',
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: color.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: color.withValues(alpha: 0.4)),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(isDanger ? Icons.cancel_rounded : (isWarn ? Icons.warning_rounded : Icons.check_circle_rounded),
+                        color: color, size: 16),
+                    const SizedBox(width: 6),
+                    Text(
+                      s.status == 'HEALTHY'
+                          ? 'ĐỘ NHẠY TỐT'
+                          : (s.status == 'FROZEN_SUSPECTED'
+                              ? 'NGHI VẤN KẸT CẢM BIẾN'
+                              : (s.status == 'SPIKE_DETECTED' ? 'NHIỄU XUNG TÍN HIỆU' : 'MẤT KẾT NỐI DHT11')),
+                      style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700, color: color),
+                    ),
+                  ],
+                ),
+              ),
+              const Spacer(),
+              Text(
+                'Điểm tin cậy: ${s.score.toStringAsFixed(0)}/100',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.text2),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Text(
+            s.message,
+            style: const TextStyle(fontSize: 13, color: AppColors.text, height: 1.4),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Phân tích trên ${s.totalSamples} mẫu đo chuỗi thời gian gần nhất • ${s.lastChecked}',
+            style: const TextStyle(fontSize: 11, color: AppColors.text3),
           ),
         ],
       ),

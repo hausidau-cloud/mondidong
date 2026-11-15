@@ -162,4 +162,52 @@ public class ControlController : ControllerBase
 
         return BadRequest(new { ok = false, error = "Hành động không hợp lệ" });
     }
+
+    [HttpGet("schedule/{stationId}")]
+    public IActionResult GetSchedules(int stationId)
+    {
+        var list = _store.GetActiveSchedules(stationId);
+        return Ok(new
+        {
+            ok = true,
+            schedules = list
+        });
+    }
+
+    [HttpPost("schedule")]
+    public IActionResult CreateSchedule([FromBody] JsonObject? body)
+    {
+        var stId = ReadInt(body?["station_id"]) ?? 1;
+        var devId = ReadInt(body?["device_id"]);
+        var dev = devId.HasValue 
+            ? _store.GetDevice(devId.Value) 
+            : (_store.Devices.FirstOrDefault(d => d.StationId == stId) ?? _store.GetDevice(stId));
+
+        if (dev == null)
+            return NotFound(new { ok = false, error = "Không tìm thấy thiết bị" });
+
+        var minutes = ReadInt(body?["minutes"]) ?? 15;
+        var targetMode = body?["target_mode"]?.ToString().ToUpperInvariant() ?? "OFF";
+        var type = body?["type"]?.ToString().ToUpperInvariant() ?? "COUNTDOWN";
+
+        var sched = _store.AddSchedule(stId, dev.Id, type, targetMode, minutes);
+
+        return Ok(new
+        {
+            ok = true,
+            message = $"Đã lên lịch hẹn giờ: Chuyển Rơ-le sang {targetMode} sau {minutes} phút",
+            schedule = sched
+        });
+    }
+
+    [HttpDelete("schedule/{scheduleId}")]
+    public IActionResult CancelSchedule(int scheduleId)
+    {
+        var ok = _store.CancelSchedule(scheduleId);
+        return Ok(new
+        {
+            ok,
+            message = ok ? "Đã hủy lịch hẹn giờ" : "Không tìm thấy lịch hẹn giờ"
+        });
+    }
 }
