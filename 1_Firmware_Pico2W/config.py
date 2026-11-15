@@ -8,7 +8,7 @@ WIFI_LIST = [
     ("Duy Thuc_2", "thuchuong"),
     ("Duy thuc", "thuchuong"),
     ("_hhau.05_", "00000000"),
-    ("iPhone", "88888888"),
+   
     ("Bekind Coffee", "camonquykhach"),
     ("Quan Buu", "0777803936"),
 ]
