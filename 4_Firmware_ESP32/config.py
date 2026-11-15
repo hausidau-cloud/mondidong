@@ -5,6 +5,7 @@
 
 # 1. DANH SACH WI-FI (Tu dong quet va ket noi mang san co)
 WIFI_LIST = [
+    ("NHA TRO 102", "0902511322"),
     ("Duy Thuc_2", "thuchuong"),
     ("Duy thuc", "thuchuong"),
     #("_hhau.05_", "00000000"),
@@ -37,6 +38,11 @@ HUM_THRESHOLD  = 75.0  # Do am >= 75% -> Bat canh bao
 # 7. BANG TRA CUU TOA DO TU DONG THEO TUNG WI-FI
 # Cu ket noi vao Wi-Fi nao -> ESP32 tu dong lay dung toa do & dia chi cua noi do!
 WIFI_LOCATIONS = {
+    "NHA TRO 102": {
+        "lat": 10.8220,
+        "lon": 106.6257,
+        "address": "Nhà trọ 102 - TP. Hồ Chí Minh",
+    },
     "Duy Thuc_2": {
         "lat": 10.8220,
         "lon": 106.6257,
