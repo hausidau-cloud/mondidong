@@ -128,6 +128,36 @@ public class TeamMessage
 }
 
 
+public class StationActuator
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = ""; // misting | fan | light | pump | siren
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("type")]
+    public string Type { get; set; } = ""; // MISTING | FAN | LIGHT | PUMP | SIREN
+
+    [JsonPropertyName("state")]
+    public bool State { get; set; } = false;
+
+    [JsonPropertyName("mode")]
+    public string Mode { get; set; } = "AUTO"; // AUTO | MANUAL
+
+    [JsonPropertyName("level")]
+    public int Level { get; set; } = 1;
+
+    [JsonPropertyName("icon")]
+    public string Icon { get; set; } = "";
+
+    [JsonPropertyName("description")]
+    public string Description { get; set; } = "";
+
+    [JsonPropertyName("updated_at")]
+    public string UpdatedAt { get; set; } = "";
+}
+
 public class StationItem
 {
     [JsonPropertyName("id")]

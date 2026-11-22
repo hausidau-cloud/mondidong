@@ -210,4 +210,100 @@ public class ControlController : ControllerBase
             message = ok ? "Đã hủy lịch hẹn giờ" : "Không tìm thấy lịch hẹn giờ"
         });
     }
+
+    /// <summary>
+    /// GET /api/control/actuators/{stationId}: Danh sách 5 thiết bị chấp hành ngoại vi (Phun sương, Quạt, Đèn sấy, Bơm tưới, Còi hú)
+    /// </summary>
+    [HttpGet("actuators/{stationId}")]
+    public IActionResult GetActuators(int stationId)
+    {
+        var list = _store.GetStationActuators(stationId);
+        return Ok(new
+        {
+            ok = true,
+            station_id = stationId,
+            actuators = list
+        });
+    }
+
+    /// <summary>
+    /// POST /api/control/actuator: Điều khiển thiết bị chấp hành (Bật/Tắt, Chế độ Tự động/Thủ công, Cấp độ)
+    /// </summary>
+    [HttpPost("actuator")]
+    public IActionResult UpdateActuator([FromBody] JsonObject? body)
+    {
+        var stId = ReadInt(body?["station_id"]) ?? 1;
+        var actId = body?["actuator_id"]?.ToString()?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(actId))
+        {
+            return BadRequest(new { ok = false, error = "Mã thiết bị chấp hành không được để trống" });
+        }
+
+        bool? state = null;
+        if (body?["state"] != null)
+        {
+            state = body["state"]!.ToString().ToLowerInvariant() == "true" || body["state"]!.ToString() == "1";
+        }
+
+        var mode = body?["mode"]?.ToString()?.ToUpperInvariant();
+        var level = ReadInt(body?["level"]);
+
+        var curUser = GetCurrentUser();
+        var operatorName = curUser?.FullName ?? "Quản trị viên";
+
+        var updated = _store.UpdateActuator(stId, actId, state, mode, level, operatorName);
+        if (updated == null)
+        {
+            return NotFound(new { ok = false, error = $"Không tìm thấy thiết bị chấp hành '{actId}'" });
+        }
+
+        return Ok(new
+        {
+            ok = true,
+            message = $"Đã cập nhật {updated.Name}: {(updated.State ? "BẬT" : "TẮT")} (Chế độ {updated.Mode}, Cấp {updated.Level})",
+            actuator = updated
+        });
+    }
+
+    /// <summary>
+    /// POST /api/control/actuator/test: Kích hoạt test tức thì thiết bị ngoại vi trong N giây (Ví dụ: Test còi hú, Phun sương test)
+    /// </summary>
+    [HttpPost("actuator/test")]
+    public IActionResult TestActuator([FromBody] JsonObject? body)
+    {
+        var stId = ReadInt(body?["station_id"]) ?? 1;
+        var actId = body?["actuator_id"]?.ToString()?.Trim() ?? "siren";
+        var duration = ReadInt(body?["duration_seconds"]) ?? 5;
+        if (duration < 1) duration = 5;
+        if (duration > 60) duration = 60;
+
+        var curUser = GetCurrentUser();
+        var operatorName = curUser?.FullName ?? "Quản trị viên";
+
+        // 1. Bat test
+        var item = _store.UpdateActuator(stId, actId, true, "MANUAL", 3, $"{operatorName} (TEST {duration}s)");
+        if (item == null)
+        {
+            return NotFound(new { ok = false, error = $"Không tìm thấy thiết bị '{actId}'" });
+        }
+
+        // 2. Tu dong tat sau N giay
+        Task.Run(async () =>
+        {
+            try
+            {
+                await Task.Delay(duration * 1000);
+                _store.UpdateActuator(stId, actId, false, "AUTO", 1, "Hệ thống (Kết thúc TEST)");
+            }
+            catch { }
+        });
+
+        return Ok(new
+        {
+            ok = true,
+            message = $"Đang kích hoạt TEST {item.Name} trong {duration} giây...",
+            actuator = item,
+            duration_seconds = duration
+        });
+    }
 }

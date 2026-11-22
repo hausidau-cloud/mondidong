@@ -21,6 +21,7 @@ public class DataStore
     public List<StationAssignment> Assignments { get; } = new();
     public List<RelayScheduleItem> Schedules { get; } = new();
     public List<TeamMessage> TeamMessages { get; } = new();
+    public Dictionary<int, List<StationActuator>> StationActuators { get; } = new();
     public Dictionary<string, AppUser> ActiveSessions { get; } = new();
     public Dictionary<string, OtpItem> OtpStore { get; } = new();
 
@@ -1076,6 +1077,120 @@ public class DataStore
         });
 
         return true;
+    }
+
+    public List<StationActuator> GetStationActuators(int stationId)
+    {
+        lock (StationActuators)
+        {
+            if (!StationActuators.TryGetValue(stationId, out var list) || list == null || list.Count == 0)
+            {
+                list = CreateDefaultActuators(stationId);
+                StationActuators[stationId] = list;
+            }
+            return list.ToList();
+        }
+    }
+
+    private static List<StationActuator> CreateDefaultActuators(int stationId)
+    {
+        var now = TimeHelper.VnNowStr;
+        return new List<StationActuator>
+        {
+            new()
+            {
+                Id = "misting",
+                Name = "Hệ thống Phun sương Vi khí hậu",
+                Type = "MISTING",
+                State = false,
+                Mode = "AUTO",
+                Level = 1,
+                Icon = "water_drop",
+                Description = "Bơm cao áp phun sương siêu mịn làm mát & tạo ẩm khi thời tiết hanh khô (Độ ẩm < 60%)",
+                UpdatedAt = now
+            },
+            new()
+            {
+                Id = "fan",
+                Name = "Quạt Thông gió Đối lưu Khí",
+                Type = "FAN",
+                State = false,
+                Mode = "AUTO",
+                Level = 2,
+                Icon = "air",
+                Description = "Quạt hút nhiệt xả khí nóng và đối lưu khí tươi, đẩy ẩm chống va chạm điểm sương",
+                UpdatedAt = now
+            },
+            new()
+            {
+                Id = "light",
+                Name = "Đèn Sưởi Bức xạ & Quang hợp",
+                Type = "LIGHT",
+                State = false,
+                Mode = "AUTO",
+                Level = 2,
+                Icon = "lightbulb",
+                Description = "Đèn nhiệt hồng ngoại sấy khô chống ngưng tụ ẩm và bổ sung quang phổ khi trời tối",
+                UpdatedAt = now
+            },
+            new()
+            {
+                Id = "pump",
+                Name = "Bơm Nước Tưới Nhỏ giọt & Tuần hoàn",
+                Type = "PUMP",
+                State = false,
+                Mode = "MANUAL",
+                Level = 1,
+                Icon = "opacity",
+                Description = "Van điện từ & máy bơm cấp nước tưới tự động hoặc tuần hoàn nước dinh dưỡng",
+                UpdatedAt = now
+            },
+            new()
+            {
+                Id = "siren",
+                Name = "Còi Hú Báo động & Đèn Chớp Khẩn cấp",
+                Type = "SIREN",
+                State = false,
+                Mode = "AUTO",
+                Level = 1,
+                Icon = "emergency",
+                Description = "Còi hú 105dB kết hợp đèn chớp strobe cảnh báo sự cố vi khí hậu tại hiện trường (DANGER)",
+                UpdatedAt = now
+            }
+        };
+    }
+
+    public StationActuator? UpdateActuator(int stationId, string actuatorId, bool? state, string? mode, int? level, string? operatorName)
+    {
+        lock (StationActuators)
+        {
+            if (!StationActuators.TryGetValue(stationId, out var list) || list == null || list.Count == 0)
+            {
+                list = CreateDefaultActuators(stationId);
+                StationActuators[stationId] = list;
+            }
+
+            var item = list.FirstOrDefault(a => a.Id.Equals(actuatorId, StringComparison.OrdinalIgnoreCase));
+            if (item == null) return null;
+
+            if (state.HasValue) item.State = state.Value;
+            if (!string.IsNullOrWhiteSpace(mode)) item.Mode = mode.ToUpperInvariant();
+            if (level.HasValue && level.Value >= 1 && level.Value <= 3) item.Level = level.Value;
+            item.UpdatedAt = TimeHelper.VnNowStr;
+
+            AddRelayLog(new RelayLogItem
+            {
+                DeviceId = stationId,
+                StationId = stationId,
+                Action = item.State ? $"{item.Id.ToUpperInvariant()}_ON" : $"{item.Id.ToUpperInvariant()}_OFF",
+                Source = item.Mode == "AUTO" ? "AUTO" : "MANUAL",
+                Reason = $"Điều khiển {item.Name} -> {(item.State ? "BẬT" : "TẮT")} (Chế độ {item.Mode}, Cấp {item.Level})",
+                FullName = operatorName ?? "Kỹ thuật viên",
+                CreatedAt = TimeHelper.VnNowStr
+            });
+
+            return item;
+        }
     }
 }
 

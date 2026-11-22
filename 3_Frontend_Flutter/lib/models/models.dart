@@ -882,4 +882,43 @@ class TeamMessageItem {
   }
 }
 
+class StationActuator {
+  final String id;
+  final String name;
+  final String type; // MISTING | FAN | LIGHT | PUMP | SIREN
+  final bool state;
+  final String mode; // AUTO | MANUAL
+  final int level; // 1, 2, 3
+  final String icon;
+  final String description;
+  final String updatedAt;
+
+  StationActuator({
+    required this.id,
+    required this.name,
+    required this.type,
+    required this.state,
+    required this.mode,
+    required this.level,
+    required this.icon,
+    required this.description,
+    required this.updatedAt,
+  });
+
+  factory StationActuator.fromJson(Map<String, dynamic> j) {
+    return StationActuator(
+      id: (j['id'] ?? '').toString(),
+      name: (j['name'] ?? '').toString(),
+      type: (j['type'] ?? 'OTHER').toString(),
+      state: j['state'] == true || j['state'] == 1 || j['state'] == '1',
+      mode: (j['mode'] ?? 'AUTO').toString().toUpperCase(),
+      level: (j['level'] as num?)?.toInt() ?? 1,
+      icon: (j['icon'] ?? '').toString(),
+      description: (j['description'] ?? '').toString(),
+      updatedAt: (j['updated_at'] ?? '').toString(),
+    );
+  }
+}
+
+
 

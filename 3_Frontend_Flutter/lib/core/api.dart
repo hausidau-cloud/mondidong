@@ -678,6 +678,48 @@ class Session extends ChangeNotifier {
     final j = await delete('messages/$messageId');
     return j['ok'] == true;
   }
+
+  /// Lay danh sach 5 thiet bi chap hanh ngoai vi cua tram
+  Future<List<StationActuator>> stationActuators(int stationId) async {
+    final j = await get('control/actuators/$stationId');
+    final list = (j['actuators'] as List?) ?? [];
+    return list.map((e) => StationActuator.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Dieu khien thiet bi chap hanh (Bat/Tat, Che do Auto/Manual, Cap do)
+  Future<StationActuator?> updateActuator({
+    required int stationId,
+    required String actuatorId,
+    bool? state,
+    String? mode,
+    int? level,
+  }) async {
+    final j = await post('control/actuator', {
+      'station_id': stationId,
+      'actuator_id': actuatorId,
+      'state': ?state,
+      'mode': ?mode,
+      'level': ?level,
+    });
+    if (j['ok'] == true && j['actuator'] != null) {
+      return StationActuator.fromJson(j['actuator'] as Map<String, dynamic>);
+    }
+    return null;
+  }
+
+  /// Kich hoat Test nhanh thiet bi chap hanh (Vi du: Test coi hu 5s)
+  Future<bool> testActuator({
+    required int stationId,
+    required String actuatorId,
+    int durationSeconds = 5,
+  }) async {
+    final j = await post('control/actuator/test', {
+      'station_id': stationId,
+      'actuator_id': actuatorId,
+      'duration_seconds': durationSeconds,
+    });
+    return j['ok'] == true;
+  }
 }
 
 
