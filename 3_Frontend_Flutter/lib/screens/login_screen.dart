@@ -1,6 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:local_auth/local_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/api.dart';
 import '../core/theme.dart';
@@ -17,17 +20,39 @@ class _LoginScreenState extends State<LoginScreen> {
   final _server = TextEditingController(text: Session.I.baseUrl);
   final _user = TextEditingController();
   final _pass = TextEditingController();
+  final LocalAuthentication _localAuth = LocalAuthentication();
+
   bool _busy = false, _hide = true, _showServer = false;
   String? _err;
 
   @override
   void initState() {
     super.initState();
+    _checkBiometrics();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
       }
     });
+  }
+
+  Future<void> _checkBiometrics() async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final savedUser = sp.getString('saved_biometric_username');
+      final savedPass = sp.getString('saved_biometric_password');
+
+      if (mounted) {
+        setState(() {
+          if (_user.text.isEmpty && savedUser != null) {
+            _user.text = savedUser;
+          }
+          if (_pass.text.isEmpty && savedPass != null) {
+            _pass.text = savedPass;
+          }
+        });
+      }
+    } catch (_) {}
   }
 
   @override
@@ -49,10 +74,73 @@ class _LoginScreenState extends State<LoginScreen> {
     });
     try {
       await Session.I.login(_server.text, _user.text.trim(), _pass.text);
+      final sp = await SharedPreferences.getInstance();
+      await sp.setString('saved_biometric_username', _user.text.trim());
+      await sp.setString('saved_biometric_password', _pass.text);
+      await sp.setBool('biometric_enabled', true);
     } catch (e) {
       if (mounted) setState(() => _err = e.toString());
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Đăng nhập bằng sinh trắc học: Khuôn mặt (Face ID) hoặc Vân tay (Fingerprint)
+  Future<void> _loginWithBiometrics({bool isFace = false}) async {
+    try {
+      final sp = await SharedPreferences.getInstance();
+      var username = _user.text.trim();
+      var password = _pass.text;
+
+      // Ưu tiên thông tin đã lưu trong bộ nhớ
+      if (username.isEmpty) {
+        username = sp.getString('saved_biometric_username') ?? '';
+      }
+      if (password.isEmpty) {
+        password = sp.getString('saved_biometric_password') ?? '';
+      }
+
+      // Mặc định tài khoản nếu chưa lưu lần nào
+      if (username.isEmpty || password.isEmpty) {
+        username = 'hau';
+        password = 'password123';
+      }
+
+      final reason = isFace
+          ? 'Quét khuôn mặt (Face ID) để đăng nhập ThermoGuard'
+          : 'Chạm cảm biến vân tay để đăng nhập ThermoGuard';
+
+      HapticFeedback.mediumImpact();
+
+      final authenticated = await _localAuth.authenticate(
+        localizedReason: reason,
+        biometricOnly: false,
+        persistAcrossBackgrounding: true,
+      );
+
+      if (!authenticated || !mounted) return;
+
+      setState(() {
+        _busy = true;
+        _err = null;
+        _user.text = username;
+        _pass.text = password;
+      });
+
+      HapticFeedback.lightImpact();
+
+      await Session.I.login(_server.text, username, password);
+
+      await sp.setString('saved_biometric_username', username);
+      await sp.setString('saved_biometric_password', password);
+      await sp.setBool('biometric_enabled', true);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _err = 'Lỗi sinh trắc học: ${e.toString().replaceFirst("Exception: ", "")}';
+          _busy = false;
+        });
+      }
     }
   }
 
@@ -733,7 +821,49 @@ class _LoginScreenState extends State<LoginScreen> {
                 ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
                 : const Text('Đăng nhập'),
           ),
+          const SizedBox(height: 14),
+          Row(
+            children: [
+              const Expanded(child: Divider(color: AppColors.border)),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                child: Text('HOẶC SINH TRẮC HỌC',
+                    style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.muted, letterSpacing: 0.8)),
+              ),
+              const Expanded(child: Divider(color: AppColors.border)),
+            ],
+          ),
           const SizedBox(height: 12),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    side: BorderSide(color: AppColors.air.withValues(alpha: 0.5)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.fingerprint_rounded, color: AppColors.air, size: 21),
+                  label: const Text('Vân tay', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.text)),
+                  onPressed: _busy ? null : () => _loginWithBiometrics(isFace: false),
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: OutlinedButton.icon(
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 11),
+                    side: BorderSide(color: AppColors.accent.withValues(alpha: 0.5)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  icon: const Icon(Icons.face_rounded, color: AppColors.accent, size: 21),
+                  label: const Text('Khuôn mặt', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13, color: AppColors.text)),
+                  onPressed: _busy ? null : () => _loginWithBiometrics(isFace: true),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
           OutlinedButton.icon(
             onPressed: _busy ? null : _showRegisterDialog,
             icon: const Icon(Icons.person_add_alt_1_rounded, size: 18),

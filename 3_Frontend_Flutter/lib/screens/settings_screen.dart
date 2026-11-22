@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:local_auth/local_auth.dart';
 
 import '../core/api.dart';
 import '../core/format.dart';
@@ -152,6 +153,14 @@ class SettingsScreen extends StatelessWidget {
                     title: const Text('Máy chủ API'),
                     subtitle: Text(Session.I.demo ? 'Chế độ Demo (không dùng server/MySQL)' : Session.I.baseUrl,
                         style: const TextStyle(color: AppColors.muted)),
+                  ),
+                  const Divider(),
+                  ListTile(
+                    leading: const Icon(Icons.fingerprint_rounded, color: AppColors.air),
+                    title: const Text('Sinh trắc học (Khuôn mặt & Vân tay)'),
+                    subtitle: const Text('Đăng nhập nhanh 1-chạm không cần gõ mật khẩu', style: TextStyle(color: AppColors.muted, fontSize: 12.5)),
+                    trailing: const Icon(Icons.chevron_right_rounded),
+                    onTap: () => _testBiometrics(context),
                   ),
                   const Divider(),
                   ListTile(
@@ -373,6 +382,30 @@ class SettingsScreen extends StatelessWidget {
         toast(context, '✅ Đã gửi email cảnh báo vi phạm ngưỡng tới $email! Vui lòng kiểm tra Gmail.');
       } else {
         toast(context, 'Gửi email không thành công. Vui lòng kiểm tra mạng.', error: true);
+      }
+    }
+  }
+
+  Future<void> _testBiometrics(BuildContext context) async {
+    try {
+      final localAuth = LocalAuthentication();
+      final canCheck = await localAuth.canCheckBiometrics;
+      final isSupported = await localAuth.isDeviceSupported();
+      if (!canCheck && !isSupported) {
+        if (context.mounted) toast(context, 'Thiết bị không hỗ trợ cảm biến sinh trắc học', error: true);
+        return;
+      }
+      final ok = await localAuth.authenticate(
+        localizedReason: 'Kiểm tra nhận diện khuôn mặt / cảm biến vân tay',
+        biometricOnly: false,
+        persistAcrossBackgrounding: true,
+      );
+      if (ok && context.mounted) {
+        toast(context, '✅ Xác thực sinh trắc học thành công! Cảm biến hoạt động hoàn hảo.');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        toast(context, 'Lỗi cảm biến: $e', error: true);
       }
     }
   }
