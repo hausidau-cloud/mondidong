@@ -296,4 +296,86 @@ public class ControlController : ControllerBase
             duration_seconds = duration
         });
     }
+
+    /// <summary>
+    /// GET /api/control/automations/{stationId}: Danh sách kịch bản tự động hóa thông minh (Smart Routines)
+    /// </summary>
+    [HttpGet("automations/{stationId}")]
+    public IActionResult GetAutomations(int stationId)
+    {
+        var list = _store.GetStationAutomations(stationId);
+        return Ok(new
+        {
+            ok = true,
+            automations = list
+        });
+    }
+
+    /// <summary>
+    /// POST /api/control/automation: Thêm hoặc cập nhật kịch bản tự động hóa
+    /// </summary>
+    [HttpPost("automation")]
+    public IActionResult SaveAutomation([FromBody] AutomationRule? rule)
+    {
+        if (rule == null)
+            return BadRequest(new { ok = false, error = "Dữ liệu không hợp lệ" });
+
+        if (string.IsNullOrWhiteSpace(rule.Name))
+            rule.Name = "Kịch bản tự động";
+
+        var saved = _store.AddOrUpdateAutomation(rule);
+        return Ok(new
+        {
+            ok = true,
+            message = "Đã lưu kịch bản tự động hóa",
+            automation = saved
+        });
+    }
+
+    /// <summary>
+    /// POST /api/control/automation/toggle: Bật / tắt kịch bản
+    /// </summary>
+    [HttpPost("automation/toggle")]
+    public IActionResult ToggleAutomation([FromBody] JsonObject? body)
+    {
+        var ruleId = body?["rule_id"]?.ToString()?.Trim() ?? "";
+        var enabled = body?["enabled"]?.GetValue<bool>() ?? true;
+        var ok = _store.ToggleAutomation(ruleId, enabled);
+        return Ok(new
+        {
+            ok,
+            message = ok ? (enabled ? "Đã kích hoạt kịch bản" : "Đã tạm dừng kịch bản") : "Không tìm thấy kịch bản"
+        });
+    }
+
+    /// <summary>
+    /// DELETE /api/control/automation/{ruleId}: Xóa kịch bản
+    /// </summary>
+    [HttpDelete("automation/{ruleId}")]
+    public IActionResult DeleteAutomation(string ruleId)
+    {
+        var ok = _store.DeleteAutomation(ruleId);
+        return Ok(new
+        {
+            ok,
+            message = ok ? "Đã xóa kịch bản" : "Không tìm thấy kịch bản"
+        });
+    }
+
+    /// <summary>
+    /// POST /api/control/automation/run: Chạy thử kịch bản tức thì
+    /// </summary>
+    [HttpPost("automation/run")]
+    public IActionResult RunAutomation([FromBody] JsonObject? body)
+    {
+        var ruleId = body?["rule_id"]?.ToString()?.Trim() ?? "";
+        var curUser = GetCurrentUser();
+        var operatorName = curUser?.FullName ?? "Kỹ thuật viên";
+        var ok = _store.RunAutomationById(ruleId, $"{operatorName} (CHẠY THỬ)");
+        return Ok(new
+        {
+            ok,
+            message = ok ? "Đang kích hoạt chạy thử kịch bản..." : "Không tìm thấy kịch bản"
+        });
+    }
 }

@@ -25,6 +25,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
   bool _busy = false;
   List<RelaySchedule> _schedules = [];
   List<StationActuator> _actuators = [];
+  List<AutomationRule> _automations = [];
 
   @override
   bool get wantKeepAlive => true;
@@ -34,6 +35,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
     super.initState();
     _loadSchedules();
     _loadActuators();
+    _loadAutomations();
   }
 
   @override
@@ -58,6 +60,87 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
       final list = await Session.I.stationActuators(widget.station.id);
       if (mounted && list.isNotEmpty) setState(() => _actuators = list);
     } catch (_) {}
+  }
+
+  Future<void> _loadAutomations() async {
+    try {
+      final list = await Session.I.stationAutomations(widget.station.id);
+      if (mounted && list.isNotEmpty) setState(() => _automations = list);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleAutomation(AutomationRule rule, bool enabled) async {
+    setState(() => rule.isEnabled = enabled);
+    try {
+      final ok = await Session.I.toggleAutomation(rule.id, enabled);
+      if (ok) {
+        if (mounted) toast(context, enabled ? '⚡ Đã kích hoạt kịch bản "${rule.name}"' : '⏸️ Đã tạm dừng kịch bản "${rule.name}"');
+      } else {
+        setState(() => rule.isEnabled = !enabled);
+      }
+    } catch (e) {
+      setState(() => rule.isEnabled = !enabled);
+      if (mounted) toast(context, e.toString(), error: true);
+    }
+  }
+
+  Future<void> _runAutomation(AutomationRule rule) async {
+    setState(() => _busy = true);
+    try {
+      final ok = await Session.I.runAutomation(rule.id);
+      if (mounted) {
+        if (ok) {
+          toast(context, '🚀 Đang chạy thử kịch bản "${rule.name}"...');
+          await Future.wait([
+            _loadActuators(),
+            _loadAutomations(),
+            widget.onChanged(),
+          ]);
+        } else {
+          toast(context, 'Không thể chạy thử kịch bản', error: true);
+        }
+      }
+    } catch (e) {
+      if (mounted) toast(context, e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _deleteAutomation(AutomationRule rule) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Xóa kịch bản?'),
+        content: Text('Bạn có chắc chắn muốn xóa kịch bản "${rule.name}"?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Hủy')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Xóa'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _busy = true);
+    try {
+      final res = await Session.I.deleteAutomation(rule.id);
+      if (mounted) {
+        if (res) {
+          toast(context, 'Đã xóa kịch bản');
+          _loadAutomations();
+        } else {
+          toast(context, 'Không thể xóa kịch bản', error: true);
+        }
+      }
+    } catch (e) {
+      if (mounted) toast(context, e.toString(), error: true);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
   }
 
   Future<void> _toggleActuator(StationActuator act, bool newState) async {
@@ -237,15 +320,19 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
     final oled = _oledCard(s, admin);
     final sched = _schedulerCard(s);
     final actuators = _actuatorsCard(s, admin);
+    final automations = _automationsCard(s);
 
     return TabBody(onRefresh: () async {
       await Future.wait([
         widget.onChanged(),
         _loadActuators(),
         _loadSchedules(),
+        _loadAutomations(),
       ]);
     }, children: [
       actuators,
+      const SizedBox(height: 16),
+      automations,
       const SizedBox(height: 16),
       if (wide) ...[
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -717,6 +804,327 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _automationsCard(Station s) {
+    return SectionCard(
+      title: 'Kịch bản Tự động hóa Thông minh (Smart Routines)',
+      subtitle: 'Tự động kích hoạt thiết bị khi chạm điều kiện vi khí hậu',
+      trailing: FilledButton.tonalIcon(
+        style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
+        onPressed: _busy ? null : () => _showAddAutomationDialog(s),
+        icon: const Icon(Icons.add_rounded, size: 17),
+        label: const Text('Thêm kịch bản'),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (_automations.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 12),
+              child: Center(
+                child: Text('Đang tải danh sách kịch bản tự động hóa...', style: TextStyle(fontSize: 12.5, color: AppColors.muted)),
+              ),
+            )
+          else
+            ..._automations.map((rule) => _buildAutomationItem(rule, s)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildAutomationItem(AutomationRule rule, Station s) {
+    IconData icon = Icons.bolt_rounded;
+    Color iconColor = AppColors.accent;
+    if (rule.icon == 'ac_unit' || rule.targetId == 'fan') {
+      icon = Icons.ac_unit_rounded;
+      iconColor = const Color(0xFF38BDF8);
+    } else if (rule.icon == 'water_drop' || rule.targetId == 'misting') {
+      icon = Icons.water_drop_rounded;
+      iconColor = const Color(0xFF0EA5E9);
+    } else if (rule.icon == 'shield' || rule.targetId == 'light') {
+      icon = Icons.shield_rounded;
+      iconColor = const Color(0xFFF59E0B);
+    } else if (rule.icon == 'eco' || rule.targetId == 'pump') {
+      icon = Icons.eco_rounded;
+      iconColor = const Color(0xFF10B981);
+    } else if (rule.icon == 'warning' || rule.targetId == 'siren') {
+      icon = Icons.warning_amber_rounded;
+      iconColor = AppColors.danger;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: rule.isEnabled ? AppColors.surface2 : AppColors.surface2.withAlpha(120),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: rule.isEnabled ? iconColor.withAlpha(70) : AppColors.border,
+          width: 1.2,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: iconColor.withAlpha(rule.isEnabled ? 40 : 20),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: rule.isEnabled ? iconColor : AppColors.muted, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      rule.name,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: rule.isEnabled ? AppColors.text : AppColors.text2,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'NẾU: ${rule.conditionText} ➔ THÌ: ${rule.actionText}',
+                      style: TextStyle(
+                        fontSize: 11.5,
+                        fontWeight: FontWeight.w600,
+                        color: rule.isEnabled ? iconColor : AppColors.muted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Switch.adaptive(
+                value: rule.isEnabled,
+                activeTrackColor: iconColor.withAlpha(120),
+                activeThumbColor: iconColor,
+                onChanged: _busy ? null : (val) => _toggleAutomation(rule, val),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          const Divider(height: 1, color: AppColors.border),
+          const SizedBox(height: 6),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Đã kích hoạt: ${rule.triggerCount} lần${rule.lastTriggeredAt != null ? ' · ${rule.lastTriggeredAt}' : ''}',
+                  style: const TextStyle(fontSize: 11, color: AppColors.text3),
+                ),
+              ),
+              OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  visualDensity: VisualDensity.compact,
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  side: BorderSide(color: iconColor.withAlpha(100)),
+                ),
+                onPressed: _busy ? null : () => _runAutomation(rule),
+                icon: Icon(Icons.play_arrow_rounded, size: 15, color: iconColor),
+                label: Text('Chạy thử', style: TextStyle(fontSize: 11, color: iconColor)),
+              ),
+              const SizedBox(width: 4),
+              IconButton(
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+                icon: const Icon(Icons.delete_outline_rounded, size: 18, color: AppColors.text3),
+                tooltip: 'Xóa kịch bản',
+                onPressed: _busy ? null : () => _deleteAutomation(rule),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAddAutomationDialog(Station s) async {
+    final nameCtrl = TextEditingController(text: 'Tự động hạ nhiệt & tạo ẩm');
+    String conditionType = 'TEMP_GT';
+    final threshCtrl = TextEditingController(text: '36.0');
+    String targetId = 'fan';
+    String actionType = 'ACTUATOR_ON';
+    int targetLevel = 3;
+    int durationSec = 60;
+
+    final actuatorsMap = {
+      'fan': 'Quạt thông gió',
+      'misting': 'Phun sương vi khí hậu',
+      'pump': 'Máy bơm tưới',
+      'light': 'Đèn sưởi bức xạ',
+      'siren': 'Còi hú báo động',
+      'relay': s.relayLabel.isNotEmpty ? s.relayLabel : 'Rơ-le điện 220V',
+    };
+
+    await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setMState) => Padding(
+          padding: EdgeInsets.only(
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+            left: 20,
+            right: 20,
+            top: 20,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: AppColors.accent.withAlpha(40), borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.bolt_rounded, color: AppColors.accent, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  const Expanded(child: Text('Tạo Kịch bản Tự động hóa mới', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold))),
+                  IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded)),
+                ]),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'Tên kịch bản',
+                    hintText: 'VD: Hạ nhiệt buổi trưa, Tưới cây tự động...',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text('ĐIỀU KIỆN KÍCH HOẠT (NẾU):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  initialValue: conditionType,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                  items: const [
+                    DropdownMenuItem(value: 'TEMP_GT', child: Text('Nhiệt độ môi trường ≥ (Quá nóng)')),
+                    DropdownMenuItem(value: 'TEMP_LT', child: Text('Nhiệt độ môi trường ≤ (Quá lạnh)')),
+                    DropdownMenuItem(value: 'HUM_GT', child: Text('Độ ẩm không khí ≥ (Quá ẩm)')),
+                    DropdownMenuItem(value: 'HUM_LT', child: Text('Độ ẩm không khí ≤ (Hanh khô)')),
+                    DropdownMenuItem(value: 'DEW_MARGIN_LT', child: Text('Biên đọng sương (T−Td) ≤ (Nguy cơ ngưng tụ)')),
+                  ],
+                  onChanged: (v) => setMState(() => conditionType = v ?? 'TEMP_GT'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: threshCtrl,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                  decoration: InputDecoration(
+                    labelText: 'Ngưỡng giá trị kích hoạt',
+                    suffixText: conditionType.startsWith('HUM') ? '%' : '°C',
+                    border: const OutlineInputBorder(),
+                  ),
+                ),
+                const SizedBox(height: 14),
+                const Text('HÀNH ĐỘNG THỰC THI (THÌ):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ok)),
+                const SizedBox(height: 6),
+                DropdownButtonFormField<String>(
+                  initialValue: targetId,
+                  decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                  items: actuatorsMap.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+                  onChanged: (v) => setMState(() {
+                    targetId = v ?? 'fan';
+                    if (targetId == 'fan') targetLevel = 3;
+                    if (targetId == 'misting') durationSec = 15;
+                    if (targetId == 'siren') durationSec = 5;
+                    if (targetId == 'pump') durationSec = 300;
+                  }),
+                ),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      initialValue: actionType,
+                      decoration: const InputDecoration(labelText: 'Lệnh', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                      items: const [
+                        DropdownMenuItem(value: 'ACTUATOR_ON', child: Text('Bật thiết bị')),
+                        DropdownMenuItem(value: 'ACTUATOR_OFF', child: Text('Tắt thiết bị')),
+                      ],
+                      onChanged: (v) => setMState(() => actionType = v ?? 'ACTUATOR_ON'),
+                    ),
+                  ),
+                  if (targetId == 'fan' && actionType == 'ACTUATOR_ON') ...[
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        initialValue: targetLevel,
+                        decoration: const InputDecoration(labelText: 'Tốc độ', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                        items: const [
+                          DropdownMenuItem(value: 1, child: Text('Cấp 1 - Êm')),
+                          DropdownMenuItem(value: 2, child: Text('Cấp 2 - Vừa')),
+                          DropdownMenuItem(value: 3, child: Text('Cấp 3 - Mạnh')),
+                        ],
+                        onChanged: (v) => setMState(() => targetLevel = v ?? 3),
+                      ),
+                    ),
+                  ],
+                ]),
+                const SizedBox(height: 18),
+                FilledButton.icon(
+                  onPressed: () async {
+                    final val = double.tryParse(threshCtrl.text.replaceAll(',', '.')) ?? 35.0;
+                    final icon = targetId == 'misting'
+                        ? 'water_drop'
+                        : (targetId == 'fan'
+                            ? 'ac_unit'
+                            : (targetId == 'light'
+                                ? 'shield'
+                                : (targetId == 'pump' ? 'eco' : 'bolt')));
+                    final rule = AutomationRule(
+                      id: '',
+                      stationId: s.id,
+                      name: nameCtrl.text.trim().isEmpty ? 'Kịch bản tự động' : nameCtrl.text.trim(),
+                      icon: icon,
+                      isEnabled: true,
+                      conditionType: conditionType,
+                      thresholdValue: val,
+                      actionType: actionType,
+                      targetId: targetId,
+                      targetName: actuatorsMap[targetId] ?? targetId,
+                      targetLevel: targetLevel,
+                      durationSeconds: durationSec,
+                      createdAt: '',
+                    );
+                    Navigator.pop(ctx, true);
+                    setState(() => _busy = true);
+                    try {
+                      final ok = await Session.I.saveAutomation(rule);
+                      if (mounted) {
+                        if (ok) {
+                          toast(context, '🎉 Đã lưu kịch bản tự động hóa mới!');
+                          _loadAutomations();
+                        } else {
+                          toast(context, 'Không thể lưu kịch bản', error: true);
+                        }
+                      }
+                    } catch (e) {
+                      if (mounted) toast(context, e.toString(), error: true);
+                    } finally {
+                      if (mounted) setState(() => _busy = false);
+                    }
+                  },
+                  icon: const Icon(Icons.check_circle_rounded),
+                  label: const Text('Lưu & Kích hoạt Kịch bản'),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }

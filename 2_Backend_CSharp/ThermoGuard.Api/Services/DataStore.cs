@@ -22,6 +22,7 @@ public class DataStore
     public List<RelayScheduleItem> Schedules { get; } = new();
     public List<TeamMessage> TeamMessages { get; } = new();
     public Dictionary<int, List<StationActuator>> StationActuators { get; } = new();
+    public Dictionary<int, List<AutomationRule>> StationAutomations { get; } = new();
     public Dictionary<string, AppUser> ActiveSessions { get; } = new();
     public Dictionary<string, OtpItem> OtpStore { get; } = new();
 
@@ -509,6 +510,13 @@ public class DataStore
             });
 
             dev.OpenAlerts = Alerts.Count(a => a.DeviceId == dev.Id && !a.IsResolved);
+
+            // Tự động đánh giá các kịch bản tự động hóa thông minh (Smart Routines)
+            try
+            {
+                EvaluateAutomationRules(dev.StationId ?? dev.Id, record.AirTemp, record.AirHum, record.DewPoint, record.ProbeTemp);
+            }
+            catch { }
 
             var resp = new
             {
@@ -1232,6 +1240,306 @@ public class DataStore
             });
 
             return item;
+        }
+    }
+
+    public List<AutomationRule> GetStationAutomations(int stationId)
+    {
+        lock (StationAutomations)
+        {
+            if (!StationAutomations.TryGetValue(stationId, out var list) || list == null || list.Count == 0)
+            {
+                list = CreateDefaultAutomations(stationId);
+                StationAutomations[stationId] = list;
+            }
+            return list.ToList();
+        }
+    }
+
+    private static List<AutomationRule> CreateDefaultAutomations(int stationId)
+    {
+        var now = TimeHelper.VnNowStr;
+        return new List<AutomationRule>
+        {
+            new AutomationRule
+            {
+                Id = $"auto_{stationId}_1",
+                StationId = stationId,
+                Name = "Hạ nhiệt khẩn cấp",
+                Icon = "ac_unit",
+                IsEnabled = true,
+                ConditionType = "TEMP_GT",
+                ThresholdValue = 38.0,
+                ActionType = "ACTUATOR_ON",
+                TargetId = "fan",
+                TargetName = "Quạt thông gió",
+                TargetLevel = 3,
+                DurationSeconds = 120,
+                CreatedAt = now
+            },
+            new AutomationRule
+            {
+                Id = $"auto_{stationId}_2",
+                StationId = stationId,
+                Name = "Bổ sung độ ẩm tự động",
+                Icon = "water_drop",
+                IsEnabled = true,
+                ConditionType = "HUM_LT",
+                ThresholdValue = 45.0,
+                ActionType = "ACTUATOR_ON",
+                TargetId = "misting",
+                TargetName = "Phun sương",
+                TargetLevel = 1,
+                DurationSeconds = 20,
+                CreatedAt = now
+            },
+            new AutomationRule
+            {
+                Id = $"auto_{stationId}_3",
+                StationId = stationId,
+                Name = "Sấy khô chống đọng sương",
+                Icon = "shield",
+                IsEnabled = true,
+                ConditionType = "DEW_MARGIN_LT",
+                ThresholdValue = 2.0,
+                ActionType = "ACTUATOR_ON",
+                TargetId = "light",
+                TargetName = "Đèn sưởi bức xạ",
+                TargetLevel = 2,
+                DurationSeconds = 180,
+                CreatedAt = now
+            },
+            new AutomationRule
+            {
+                Id = $"auto_{stationId}_4",
+                StationId = stationId,
+                Name = "Bơm tưới giải nhiệt",
+                Icon = "eco",
+                IsEnabled = false,
+                ConditionType = "TEMP_GT",
+                ThresholdValue = 36.5,
+                ActionType = "ACTUATOR_ON",
+                TargetId = "pump",
+                TargetName = "Máy bơm tưới",
+                TargetLevel = 1,
+                DurationSeconds = 300,
+                CreatedAt = now
+            },
+            new AutomationRule
+            {
+                Id = $"auto_{stationId}_5",
+                StationId = stationId,
+                Name = "Báo động quá nhiệt nguy hiểm",
+                Icon = "warning",
+                IsEnabled = true,
+                ConditionType = "TEMP_GT",
+                ThresholdValue = 42.0,
+                ActionType = "ACTUATOR_ON",
+                TargetId = "siren",
+                TargetName = "Còi hú báo động",
+                TargetLevel = 1,
+                DurationSeconds = 5,
+                CreatedAt = now
+            }
+        };
+    }
+
+    public AutomationRule AddOrUpdateAutomation(AutomationRule rule)
+    {
+        lock (StationAutomations)
+        {
+            if (!StationAutomations.TryGetValue(rule.StationId, out var list) || list == null)
+            {
+                list = CreateDefaultAutomations(rule.StationId);
+                StationAutomations[rule.StationId] = list;
+            }
+
+            var existing = list.FirstOrDefault(r => r.Id == rule.Id);
+            if (existing != null)
+            {
+                existing.Name = rule.Name;
+                existing.Icon = rule.Icon;
+                existing.IsEnabled = rule.IsEnabled;
+                existing.ConditionType = rule.ConditionType;
+                existing.ThresholdValue = rule.ThresholdValue;
+                existing.ActionType = rule.ActionType;
+                existing.TargetId = rule.TargetId;
+                existing.TargetName = rule.TargetName;
+                existing.TargetLevel = rule.TargetLevel;
+                existing.DurationSeconds = rule.DurationSeconds;
+                return existing;
+            }
+            else
+            {
+                if (string.IsNullOrWhiteSpace(rule.Id))
+                    rule.Id = $"rule_{Guid.NewGuid().ToString("N")[..8]}";
+                rule.CreatedAt = TimeHelper.VnNowStr;
+                list.Add(rule);
+                return rule;
+            }
+        }
+    }
+
+    public bool ToggleAutomation(string ruleId, bool isEnabled)
+    {
+        lock (StationAutomations)
+        {
+            foreach (var list in StationAutomations.Values)
+            {
+                var rule = list.FirstOrDefault(r => r.Id == ruleId);
+                if (rule != null)
+                {
+                    rule.IsEnabled = isEnabled;
+                    return true;
+                }
+            }
+            return false;
+        }
+    }
+
+    public bool DeleteAutomation(string ruleId)
+    {
+        lock (StationAutomations)
+        {
+            foreach (var list in StationAutomations.Values)
+            {
+                var removed = list.RemoveAll(r => r.Id == ruleId);
+                if (removed > 0) return true;
+            }
+            return false;
+        }
+    }
+
+    public bool RunAutomationById(string ruleId, string operatorName)
+    {
+        AutomationRule? rule = null;
+        lock (StationAutomations)
+        {
+            foreach (var list in StationAutomations.Values)
+            {
+                rule = list.FirstOrDefault(r => r.Id == ruleId);
+                if (rule != null) break;
+            }
+        }
+
+        if (rule == null) return false;
+        return TriggerAutomationRule(rule, operatorName);
+    }
+
+    public bool TriggerAutomationRule(AutomationRule rule, string operatorName = "Hệ thống Tự động hóa")
+    {
+        lock (StationAutomations)
+        {
+            rule.LastTriggeredAt = TimeHelper.VnNowStr;
+            rule.TriggerCount++;
+        }
+
+        if (rule.TargetId.Equals("relay", StringComparison.OrdinalIgnoreCase))
+        {
+            var isTurnOn = rule.ActionType == "RELAY_ON" || rule.ActionType == "ACTUATOR_ON";
+            var dev = Devices.FirstOrDefault(d => d.StationId == rule.StationId) ?? GetDevice(rule.StationId);
+            if (dev != null)
+            {
+                dev.RelayState = isTurnOn ? 1 : 0;
+                dev.RelayMode = "AUTO";
+                AddRelayLog(new RelayLogItem
+                {
+                    DeviceId = dev.Id,
+                    StationId = dev.StationId,
+                    Action = isTurnOn ? "RELAY_ON" : "RELAY_OFF",
+                    Source = "AUTO",
+                    Reason = $"Kịch bản tự động kích hoạt: {rule.Name}",
+                    FullName = operatorName,
+                    CreatedAt = TimeHelper.VnNowStr
+                });
+            }
+        }
+        else
+        {
+            var isTurnOn = rule.ActionType == "ACTUATOR_ON";
+            UpdateActuator(rule.StationId, rule.TargetId, isTurnOn, "AUTO", rule.TargetLevel ?? 1, operatorName);
+
+            if (isTurnOn && rule.DurationSeconds.HasValue && rule.DurationSeconds.Value > 0)
+            {
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await Task.Delay(rule.DurationSeconds.Value * 1000);
+                        UpdateActuator(rule.StationId, rule.TargetId, false, "AUTO", rule.TargetLevel ?? 1, $"Tự động tắt sau {rule.DurationSeconds.Value}s ({rule.Name})");
+                    }
+                    catch { }
+                });
+            }
+        }
+
+        return true;
+    }
+
+    public void EvaluateAutomationRules(int stationId, double? airTemp, double? airHum, double? dewPoint, double? probeTemp)
+    {
+        if (!airTemp.HasValue && !airHum.HasValue) return;
+        var aTemp = airTemp ?? probeTemp ?? 0.0;
+        var aHum = airHum ?? 0.0;
+        var dPoint = dewPoint ?? aTemp;
+        var dewMargin = aTemp - dPoint;
+
+        List<AutomationRule> toTrigger = new();
+        lock (StationAutomations)
+        {
+            if (!StationAutomations.TryGetValue(stationId, out var list) || list == null || list.Count == 0)
+            {
+                list = CreateDefaultAutomations(stationId);
+                StationAutomations[stationId] = list;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+
+            foreach (var rule in list.Where(r => r.IsEnabled))
+            {
+                // Cooldown: at least duration or 30 seconds
+                if (!string.IsNullOrEmpty(rule.LastTriggeredAt))
+                {
+                    if (DateTimeOffset.TryParse(rule.LastTriggeredAt, out var lastTime))
+                    {
+                        var cooldown = Math.Max(30, rule.DurationSeconds ?? 60);
+                        if ((now - lastTime).TotalSeconds < cooldown)
+                        {
+                            continue;
+                        }
+                    }
+                }
+
+                bool triggered = false;
+                switch (rule.ConditionType.ToUpperInvariant())
+                {
+                    case "TEMP_GT":
+                        triggered = aTemp >= rule.ThresholdValue;
+                        break;
+                    case "TEMP_LT":
+                        triggered = aTemp <= rule.ThresholdValue;
+                        break;
+                    case "HUM_GT":
+                        triggered = aHum >= rule.ThresholdValue;
+                        break;
+                    case "HUM_LT":
+                        triggered = aHum <= rule.ThresholdValue;
+                        break;
+                    case "DEW_MARGIN_LT":
+                        triggered = dewMargin <= rule.ThresholdValue;
+                        break;
+                }
+
+                if (triggered)
+                {
+                    toTrigger.Add(rule);
+                }
+            }
+        }
+
+        foreach (var rule in toTrigger)
+        {
+            TriggerAutomationRule(rule, $"Kịch bản tự động kích hoạt: {rule.Name}");
         }
     }
 }

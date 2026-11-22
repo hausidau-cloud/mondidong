@@ -158,6 +158,54 @@ public class StationActuator
     public string UpdatedAt { get; set; } = "";
 }
 
+public class AutomationRule
+{
+    [JsonPropertyName("id")]
+    public string Id { get; set; } = Guid.NewGuid().ToString("N")[..8];
+
+    [JsonPropertyName("station_id")]
+    public int StationId { get; set; } = 1;
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
+
+    [JsonPropertyName("icon")]
+    public string Icon { get; set; } = "bolt";
+
+    [JsonPropertyName("is_enabled")]
+    public bool IsEnabled { get; set; } = true;
+
+    [JsonPropertyName("condition_type")]
+    public string ConditionType { get; set; } = "TEMP_GT"; // TEMP_GT, TEMP_LT, HUM_GT, HUM_LT, DEW_MARGIN_LT
+
+    [JsonPropertyName("threshold_value")]
+    public double ThresholdValue { get; set; } = 35.0;
+
+    [JsonPropertyName("action_type")]
+    public string ActionType { get; set; } = "ACTUATOR_ON"; // ACTUATOR_ON, ACTUATOR_OFF, RELAY_ON, RELAY_OFF
+
+    [JsonPropertyName("target_id")]
+    public string TargetId { get; set; } = "fan"; // misting | fan | light | pump | siren | relay
+
+    [JsonPropertyName("target_name")]
+    public string TargetName { get; set; } = "Quạt thông gió";
+
+    [JsonPropertyName("target_level")]
+    public int? TargetLevel { get; set; } = 3;
+
+    [JsonPropertyName("duration_seconds")]
+    public int? DurationSeconds { get; set; } = 15;
+
+    [JsonPropertyName("last_triggered_at")]
+    public string? LastTriggeredAt { get; set; }
+
+    [JsonPropertyName("trigger_count")]
+    public int TriggerCount { get; set; } = 0;
+
+    [JsonPropertyName("created_at")]
+    public string CreatedAt { get; set; } = "";
+}
+
 public class StationItem
 {
     [JsonPropertyName("id")]

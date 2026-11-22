@@ -920,5 +920,104 @@ class StationActuator {
   }
 }
 
+class AutomationRule {
+  final String id;
+  final int stationId;
+  String name;
+  String icon;
+  bool isEnabled;
+  String conditionType; // TEMP_GT, TEMP_LT, HUM_GT, HUM_LT, DEW_MARGIN_LT
+  double thresholdValue;
+  String actionType; // ACTUATOR_ON, ACTUATOR_OFF, RELAY_ON, RELAY_OFF
+  String targetId; // misting | fan | light | pump | siren | relay
+  String targetName;
+  int targetLevel;
+  int durationSeconds;
+  String? lastTriggeredAt;
+  int triggerCount;
+  String createdAt;
+
+  AutomationRule({
+    required this.id,
+    required this.stationId,
+    required this.name,
+    this.icon = 'bolt',
+    this.isEnabled = true,
+    this.conditionType = 'TEMP_GT',
+    this.thresholdValue = 35.0,
+    this.actionType = 'ACTUATOR_ON',
+    this.targetId = 'fan',
+    this.targetName = 'Quạt thông gió',
+    this.targetLevel = 3,
+    this.durationSeconds = 15,
+    this.lastTriggeredAt,
+    this.triggerCount = 0,
+    required this.createdAt,
+  });
+
+  factory AutomationRule.fromJson(Map<String, dynamic> j) {
+    return AutomationRule(
+      id: (j['id'] ?? '').toString(),
+      stationId: (j['station_id'] as num?)?.toInt() ?? 1,
+      name: (j['name'] ?? 'Kịch bản tự động').toString(),
+      icon: (j['icon'] ?? 'bolt').toString(),
+      isEnabled: j['is_enabled'] == true,
+      conditionType: (j['condition_type'] ?? 'TEMP_GT').toString(),
+      thresholdValue: (j['threshold_value'] as num?)?.toDouble() ?? 35.0,
+      actionType: (j['action_type'] ?? 'ACTUATOR_ON').toString(),
+      targetId: (j['target_id'] ?? 'fan').toString(),
+      targetName: (j['target_name'] ?? 'Quạt thông gió').toString(),
+      targetLevel: (j['target_level'] as num?)?.toInt() ?? 1,
+      durationSeconds: (j['duration_seconds'] as num?)?.toInt() ?? 15,
+      lastTriggeredAt: j['last_triggered_at']?.toString(),
+      triggerCount: (j['trigger_count'] as num?)?.toInt() ?? 0,
+      createdAt: (j['created_at'] ?? '').toString(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'id': id,
+        'station_id': stationId,
+        'name': name,
+        'icon': icon,
+        'is_enabled': isEnabled,
+        'condition_type': conditionType,
+        'threshold_value': thresholdValue,
+        'action_type': actionType,
+        'target_id': targetId,
+        'target_name': targetName,
+        'target_level': targetLevel,
+        'duration_seconds': durationSeconds,
+      };
+
+  String get conditionText {
+    final val = thresholdValue.toStringAsFixed(1);
+    switch (conditionType) {
+      case 'TEMP_GT':
+        return 'Nhiệt độ ≥ $val°C';
+      case 'TEMP_LT':
+        return 'Nhiệt độ ≤ $val°C';
+      case 'HUM_GT':
+        return 'Độ ẩm ≥ $val%';
+      case 'HUM_LT':
+        return 'Độ ẩm ≤ $val%';
+      case 'DEW_MARGIN_LT':
+        return 'Biên sương (T−Td) ≤ $val°C';
+      default:
+        return '$conditionType $val';
+    }
+  }
+
+  String get actionText {
+    if (targetId == 'relay') {
+      return actionType == 'RELAY_ON' || actionType == 'ACTUATOR_ON' ? 'Bật Rơ-le' : 'Tắt Rơ-le';
+    }
+    final levelStr = targetId == 'fan' ? ' (Cấp $targetLevel)' : (targetId == 'light' ? ' ($targetLevel%)' : '');
+    final durStr = durationSeconds > 0 ? ' trong ${durationSeconds}s' : '';
+    final act = actionType == 'ACTUATOR_ON' ? 'Bật' : 'Tắt';
+    return '$act $targetName$levelStr$durStr';
+  }
+}
+
 
 

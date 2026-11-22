@@ -815,6 +815,42 @@ class Session extends ChangeNotifier {
     return j['ok'] == true;
   }
 
+  /// Lay danh sach kich ban tu dong hoa thong minh (Smart Routines)
+  Future<List<AutomationRule>> stationAutomations(int stationId) async {
+    final j = await get('control/automations/$stationId');
+    final list = (j['automations'] as List?) ?? [];
+    return list.map((e) => AutomationRule.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Luu / cap nhat kich ban tu dong hoa
+  Future<bool> saveAutomation(AutomationRule rule) async {
+    final j = await post('control/automation', rule.toJson());
+    return j['ok'] == true;
+  }
+
+  /// Bat / tat kich ban tu dong hoa
+  Future<bool> toggleAutomation(String ruleId, bool enabled) async {
+    final j = await post('control/automation/toggle', {
+      'rule_id': ruleId,
+      'enabled': enabled,
+    });
+    return j['ok'] == true;
+  }
+
+  /// Xoa kich ban tu dong hoa
+  Future<bool> deleteAutomation(String ruleId) async {
+    final j = await delete('control/automation/$ruleId');
+    return j['ok'] == true;
+  }
+
+  /// Chay thu kich ban tu dong hoa tuc thi
+  Future<bool> runAutomation(String ruleId) async {
+    final j = await post('control/automation/run', {
+      'rule_id': ruleId,
+    });
+    return j['ok'] == true;
+  }
+
   /// Cap nhat email nhan canh bao va ho ten
   Future<bool> updateProfile({String? email, String? fullName}) async {
     final sp = await SharedPreferences.getInstance();
