@@ -37,30 +37,8 @@ public class AlertsController : ControllerBase
             return Unauthorized(new { ok = false, error = "Vui lòng đăng nhập để xem thông báo cảnh báo." });
         }
 
-        var isViewer = curUser.Role == "viewer";
-        List<int>? allowedStationIds = null;
-        HashSet<int>? allowedDeviceIds = null;
-
-        if (isViewer)
-        {
-            allowedStationIds = _store.GetStationIdsForUser(curUser.Id);
-            allowedDeviceIds = _store.Devices
-                .Where(d => allowedStationIds.Contains(d.Id) || (d.StationId.HasValue && allowedStationIds.Contains(d.StationId.Value)))
-                .Select(d => d.Id)
-                .ToHashSet();
-
-            foreach (var sid in allowedStationIds)
-            {
-                allowedDeviceIds.Add(sid);
-            }
-        }
-
+        // Thông báo cảnh báo cho tất cả các trạm tới mọi tài khoản
         var list = _store.Alerts.AsEnumerable();
-
-        if (isViewer && allowedDeviceIds != null)
-        {
-            list = list.Where(a => allowedDeviceIds.Contains(a.DeviceId) || (a.StationId.HasValue && allowedDeviceIds.Contains(a.StationId.Value)));
-        }
 
         if (device_id.HasValue)
         {
@@ -114,10 +92,6 @@ public class AlertsController : ControllerBase
         }).ToList();
 
         var userScopeAlerts = _store.Alerts.AsEnumerable();
-        if (isViewer && allowedDeviceIds != null)
-        {
-            userScopeAlerts = userScopeAlerts.Where(a => allowedDeviceIds.Contains(a.DeviceId) || (a.StationId.HasValue && allowedDeviceIds.Contains(a.StationId.Value)));
-        }
         var scopeAlertsList = userScopeAlerts.ToList();
 
         return Ok(new
@@ -147,18 +121,6 @@ public class AlertsController : ControllerBase
             return Unauthorized(new { ok = false, error = "Vui lòng đăng nhập để thực hiện thao tác" });
         }
 
-        var isViewer = curUser.Role == "viewer";
-        HashSet<int>? allowedDeviceIds = null;
-        if (isViewer)
-        {
-            var allowedStationIds = _store.GetStationIdsForUser(curUser.Id);
-            allowedDeviceIds = _store.Devices
-                .Where(d => allowedStationIds.Contains(d.Id) || (d.StationId.HasValue && allowedStationIds.Contains(d.StationId.Value)))
-                .Select(d => d.Id)
-                .ToHashSet();
-            foreach (var sid in allowedStationIds) allowedDeviceIds.Add(sid);
-        }
-
         var act = action?.ToLowerInvariant() ?? "";
 
         if (act == "resolve" || act == "ack")
@@ -167,10 +129,6 @@ public class AlertsController : ControllerBase
             var alert = _store.Alerts.FirstOrDefault(a => a.Id == id);
             if (alert != null)
             {
-                if (isViewer && allowedDeviceIds != null && !allowedDeviceIds.Contains(alert.DeviceId))
-                {
-                    return Forbid();
-                }
                 _store.ResolveAlert(alert.Id);
             }
             return Ok(new { ok = true });
@@ -178,7 +136,7 @@ public class AlertsController : ControllerBase
 
         if (act == "ack_all")
         {
-            _store.ResolveAllAlerts(isViewer ? allowedDeviceIds : null);
+            _store.ResolveAllAlerts();
             return Ok(new { ok = true });
         }
 

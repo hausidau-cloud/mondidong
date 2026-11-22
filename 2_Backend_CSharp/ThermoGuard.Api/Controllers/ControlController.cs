@@ -64,16 +64,6 @@ public class ControlController : ControllerBase
 
         if (act == "relay")
         {
-            if (curUser != null && curUser.Role == "viewer")
-            {
-                var allowedStationIds = _store.GetStationIdsForUser(curUser.Id);
-                var isAllowed = allowedStationIds.Contains(dev.Id) || (dev.StationId.HasValue && allowedStationIds.Contains(dev.StationId.Value));
-                if (!isAllowed)
-                {
-                    return Forbid();
-                }
-            }
-
             var mode = body?["mode"]?.ToString().ToUpperInvariant() ?? "AUTO";
             if (mode != "AUTO" && mode != "ON" && mode != "OFF") mode = "AUTO";
 

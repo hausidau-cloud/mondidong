@@ -79,18 +79,8 @@ class _HomeShellState extends State<HomeShell> {
       final a = await Session.I.alerts(state: 'open', limit: 20);
       if (!mounted || !Session.I.loggedIn) return;
 
-      final user = Session.I.user;
-      final bool isAdmin = Session.I.isAdmin;
-      final assignedStationIds = user?.stationIds ?? [];
-
-      // Loc danh sach canh bao theo quyen quan ly: admin thay het tat ca tram, KTV chi thay tram duoc phan cong
-      final userRows = isAdmin
-          ? a.rows
-          : a.rows.where((r) {
-              if (r.stationId != null && assignedStationIds.contains(r.stationId)) return true;
-              if (assignedStationIds.contains(r.deviceId)) return true;
-              return false;
-            }).toList();
+      // Thong bao canh bao cho tat ca cac tram doi voi moi tai khoan
+      final userRows = a.rows;
 
       final ids = userRows.map((e) => e.id).toSet();
       if (_seen != null) {
@@ -203,7 +193,7 @@ class _HomeShellState extends State<HomeShell> {
 
       if (mounted) {
         setState(() {
-          _openAlerts = isAdmin ? a.openTotal : userRows.length;
+          _openAlerts = a.openTotal > 0 ? a.openTotal : userRows.length;
           _unreadMessages = unread;
         });
       }

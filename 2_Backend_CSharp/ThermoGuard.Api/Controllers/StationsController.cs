@@ -66,11 +66,6 @@ public class StationsController : ControllerBase
     public IActionResult Get([FromQuery] int? id)
     {
         var curUser = GetCurrentUser();
-        List<int>? allowedStationIds = null;
-        if (curUser != null && curUser.Role == "viewer")
-        {
-            allowedStationIds = _store.GetStationIdsForUser(curUser.Id);
-        }
 
         if (id.HasValue)
         {
@@ -104,20 +99,6 @@ public class StationsController : ControllerBase
                 return NotFound(new { ok = false, error = "Không tìm thấy trạm giám sát" });
             }
 
-            if (allowedStationIds != null)
-            {
-                bool allowed = allowedStationIds.Contains(st.Id) || allowedStationIds.Contains(id.Value);
-                if (dev != null)
-                {
-                    if (allowedStationIds.Contains(dev.Id)) allowed = true;
-                    if (dev.StationId.HasValue && allowedStationIds.Contains(dev.StationId.Value)) allowed = true;
-                }
-                if (!allowed)
-                {
-                    return Forbid();
-                }
-            }
-
             var stDict = BuildStationPublic(st);
             if (dev == null)
             {
@@ -146,10 +127,6 @@ public class StationsController : ControllerBase
         }
 
         var source = _store.Stations.AsEnumerable();
-        if (allowedStationIds != null)
-        {
-            source = source.Where(s => allowedStationIds.Contains(s.Id));
-        }
 
         var list = source.Select(s =>
         {

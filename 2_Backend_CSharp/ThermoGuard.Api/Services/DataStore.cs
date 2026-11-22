@@ -621,30 +621,21 @@ public class DataStore
                         if (!candidateUsers.Any(c => c.Id == memUser.Id)) candidateUsers.Add(memUser);
                     }
 
-                    // Lọc những tài khoản có QUYỀN QUẢN LÝ TRẠM ĐÓ (Admin hoặc KTV được phân công phụ trách)
+                    // GỬI EMAIL THÔNG BÁO CHO TẤT CẢ CÁC TRẠM TỚI TOÀN BỘ TÀI KHOẢN ĐÃ ĐĂNG KÝ EMAIL
                     foreach (var u in candidateUsers)
                     {
-                        var isAdmin = string.Equals(u.Role, "admin", StringComparison.OrdinalIgnoreCase);
-                        var userAssignedStations = GetStationIdsForUser(u.Id);
-                        var isAssignedToStation = userAssignedStations.Any(sid => targetStationIds.Contains(sid));
-
-                        var hasPermission = isAdmin || isAssignedToStation;
-
-                        if (hasPermission)
-                        {
-                            Console.WriteLine($"[Alert Notification] >> Gửi cảnh báo trạm '{stName}' tới tài khoản quản lý: {u.Username} ({u.FullName}) <{u.Email}>");
-                            await emailService.SendAlertEmailAsync(
-                                u.Email!.Trim(),
-                                u.FullName,
-                                stName,
-                                alert.Level,
-                                alert.Type,
-                                alert.Message,
-                                dev?.AirTemp ?? dev?.ProbeTemp,
-                                dev?.AirHum,
-                                alert.CreatedAt
-                            );
-                        }
+                        Console.WriteLine($"[Alert Notification] >> Gửi cảnh báo trạm '{stName}' tới tài khoản: {u.Username} ({u.FullName}) <{u.Email}>");
+                        await emailService.SendAlertEmailAsync(
+                            u.Email!.Trim(),
+                            u.FullName,
+                            stName,
+                            alert.Level,
+                            alert.Type,
+                            alert.Message,
+                            dev?.AirTemp ?? dev?.ProbeTemp,
+                            dev?.AirHum,
+                            alert.CreatedAt
+                        );
                     }
                 }
             }
