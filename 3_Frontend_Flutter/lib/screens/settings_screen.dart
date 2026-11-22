@@ -40,10 +40,108 @@ class SettingsScreen extends StatelessWidget {
                     Expanded(
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(u?.fullName ?? '', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 17)),
-                        Text('@${u?.username ?? ''} · ${Session.I.isAdmin ? 'Quản trị viên' : 'Người xem'}', style: const TextStyle(color: AppColors.muted)),
+                        Text('@${u?.username ?? ''} · ${Session.I.isAdmin ? 'Quản trị viên' : 'Kỹ thuật viên'}', style: const TextStyle(color: AppColors.muted)),
+                        if (u?.email != null && u!.email!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 3),
+                            child: Row(
+                              children: [
+                                const Icon(Icons.email_outlined, size: 13, color: AppColors.accent),
+                                const SizedBox(width: 4),
+                                Text(u.email!, style: const TextStyle(fontSize: 12, color: AppColors.text2)),
+                              ],
+                            ),
+                          ),
                       ]),
                     ),
                   ]),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Card thông báo cảnh báo qua Gmail
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFEA4335).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: const Icon(Icons.mark_email_unread_rounded, color: Color(0xFFEA4335), size: 22),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Cảnh báo vượt ngưỡng qua Gmail', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                                SizedBox(height: 2),
+                                Text('Tự động gửi email khi nhiệt độ / độ ẩm nguy hiểm', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface3,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.alternate_email_rounded, size: 18, color: AppColors.accent),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Gmail nhận cảnh báo:', style: TextStyle(fontSize: 11, color: AppColors.muted)),
+                                  Text(
+                                    u?.email != null && u!.email!.isNotEmpty ? u.email! : 'Chưa cài đặt (nhấn Cài đặt để thêm)',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13,
+                                      color: u?.email != null && u!.email!.isNotEmpty ? AppColors.text : AppColors.warn,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                            TextButton.icon(
+                              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                              icon: const Icon(Icons.edit_outlined, size: 14),
+                              label: Text(u?.email != null && u!.email!.isNotEmpty ? 'Đổi' : 'Cài đặt'),
+                              onPressed: () => _updateEmailDialog(context),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFEA4335)),
+                            foregroundColor: const Color(0xFFEA4335),
+                            padding: const EdgeInsets.symmetric(vertical: 11),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                          icon: const Icon(Icons.send_rounded, size: 16),
+                          label: const Text('📧 Gửi Thử Email Cảnh Báo Ngay', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                          onPressed: () => _sendTestAlertEmail(context),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -181,6 +279,102 @@ class SettingsScreen extends StatelessWidget {
         });
       },
     );
+  }
+
+  Future<void> _updateEmailDialog(BuildContext context) async {
+    final curEmail = Session.I.user?.email ?? '';
+    final ctrl = TextEditingController(text: curEmail);
+    await showDialog<void>(
+      context: context,
+      builder: (c) {
+        String? err;
+        bool busy = false;
+        return StatefulBuilder(builder: (c, set) {
+          Future<void> submit() async {
+            final email = ctrl.text.trim();
+            if (email.isEmpty || !email.contains('@')) {
+              set(() => err = 'Vui lòng nhập địa chỉ Gmail hợp lệ');
+              return;
+            }
+            set(() {
+              busy = true;
+              err = null;
+            });
+            try {
+              final ok = await Session.I.updateProfile(email: email);
+              if (c.mounted) {
+                if (ok) {
+                  Navigator.pop(c);
+                  toast(context, 'Đã cập nhật email nhận cảnh báo: $email');
+                } else {
+                  set(() {
+                    busy = false;
+                    err = 'Không thể lưu email, vui lòng thử lại';
+                  });
+                }
+              }
+            } catch (e) {
+              set(() {
+                busy = false;
+                err = e.toString();
+              });
+            }
+          }
+
+          return AlertDialog(
+            backgroundColor: AppColors.surface,
+            title: const Text('Cài đặt Email nhận cảnh báo'),
+            content: SizedBox(
+              width: 360,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                const Text(
+                  'Hệ thống sẽ tự động gửi email thông báo khẩn cấp tới địa chỉ này khi nhiệt độ hoặc độ ẩm vượt ngưỡng an toàn.',
+                  style: TextStyle(fontSize: 13, color: AppColors.text2),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: ctrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                    labelText: 'Địa chỉ Gmail của bạn',
+                    prefixIcon: Icon(Icons.email_outlined),
+                    hintText: 'vidu@gmail.com',
+                  ),
+                ),
+                if (err != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 10),
+                    child: Text(err!, style: const TextStyle(color: AppColors.danger, fontSize: 12.5)),
+                  ),
+              ]),
+            ),
+            actions: [
+              TextButton(onPressed: busy ? null : () => Navigator.pop(c), child: const Text('Huỷ')),
+              FilledButton(onPressed: busy ? null : submit, child: const Text('Lưu Email')),
+            ],
+          );
+        });
+      },
+    );
+  }
+
+  Future<void> _sendTestAlertEmail(BuildContext context) async {
+    final email = Session.I.user?.email?.trim();
+    if (email == null || email.isEmpty || !email.contains('@')) {
+      toast(context, 'Vui lòng cài đặt địa chỉ Gmail trước khi gửi thử');
+      _updateEmailDialog(context);
+      return;
+    }
+
+    toast(context, 'Đang gửi email cảnh báo thử nghiệm tới $email...');
+    final ok = await Session.I.testAlertEmail(email);
+    if (context.mounted) {
+      if (ok) {
+        toast(context, '✅ Đã gửi email cảnh báo vi phạm ngưỡng tới $email! Vui lòng kiểm tra Gmail.');
+      } else {
+        toast(context, 'Gửi email không thành công. Vui lòng kiểm tra mạng.', error: true);
+      }
+    }
   }
 }
 

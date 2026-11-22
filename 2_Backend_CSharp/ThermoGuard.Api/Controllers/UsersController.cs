@@ -178,4 +178,71 @@ public class UsersController : ControllerBase
 
         return Ok(new { ok = true, message = $"Đã xóa thành công nhân viên '{target.Username}'" });
     }
+
+    /// <summary>
+    /// PUT /api/users/profile: Cập nhật email nhận cảnh báo và họ tên của tài khoản hiện tại
+    /// </summary>
+    [HttpPut("profile")]
+    public IActionResult UpdateProfile([FromBody] System.Text.Json.Nodes.JsonObject? body)
+    {
+        var cur = GetCurrentUser();
+        if (cur == null) return Unauthorized(new { ok = false, error = "Vui lòng đăng nhập" });
+
+        var email = body?["email"]?.ToString().Trim();
+        var fullName = body?["full_name"]?.ToString().Trim();
+
+        var dbUser = _db.Users.Find(cur.Id);
+        if (dbUser != null)
+        {
+            if (!string.IsNullOrWhiteSpace(email)) dbUser.Email = email;
+            if (!string.IsNullOrWhiteSpace(fullName)) dbUser.FullName = fullName;
+            _db.SaveChanges();
+        }
+
+        var storeUser = _store.Users.FirstOrDefault(u => u.Id == cur.Id);
+        if (storeUser != null)
+        {
+            if (!string.IsNullOrWhiteSpace(email)) storeUser.Email = email;
+            if (!string.IsNullOrWhiteSpace(fullName)) storeUser.FullName = fullName;
+        }
+
+        if (!string.IsNullOrWhiteSpace(email)) cur.Email = email;
+        if (!string.IsNullOrWhiteSpace(fullName)) cur.FullName = fullName;
+
+        return Ok(new
+        {
+            ok = true,
+            message = "Cập nhật thông tin nhận thông báo thành công",
+            user = cur
+        });
+    }
+
+    /// <summary>
+    /// POST /api/users/test-alert-email: Gửi email cảnh báo vi phạm ngưỡng thử nghiệm tới Gmail
+    /// </summary>
+    [HttpPost("test-alert-email")]
+    public async Task<IActionResult> TestAlertEmail([FromServices] EmailService emailService, [FromBody] System.Text.Json.Nodes.JsonObject? body)
+    {
+        var cur = GetCurrentUser();
+        var targetEmail = body?["email"]?.ToString()?.Trim() ?? cur?.Email;
+
+        if (string.IsNullOrWhiteSpace(targetEmail) || !targetEmail.Contains("@"))
+        {
+            return BadRequest(new { ok = false, error = "Vui lòng cung cấp địa chỉ Gmail hợp lệ để nhận cảnh báo" });
+        }
+
+        var (ok, msg) = await emailService.SendAlertEmailAsync(
+            targetEmail,
+            cur?.FullName ?? "Quản trị viên",
+            "Trạm Giám Sát Phòng Lab (PICO-01)",
+            "DANGER",
+            "HOT",
+            "Nhiệt độ phòng vượt ngưỡng an toàn: 41.5°C (Ngưỡng tối đa cho phép: 40.0°C)!",
+            41.5,
+            78.0,
+            TimeHelper.VnNowStr
+        );
+
+        return Ok(new { ok, message = msg });
+    }
 }

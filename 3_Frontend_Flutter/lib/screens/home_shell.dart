@@ -28,6 +28,7 @@ class _HomeShellState extends State<HomeShell> {
   int _latestMsgId = 0;
   int? _lastNotifiedMsgId;
   Set<int>? _seen;
+  final Set<int> _emailedAlertIds = {};
   Timer? _timer;
 
   @override
@@ -109,6 +110,20 @@ class _HomeShellState extends State<HomeShell> {
             ]),
             action: SnackBarAction(label: 'XEM', onPressed: () => _setTab(2)),
           ));
+
+          // TỰ ĐỘNG GỬI EMAIL CẢNH BÁO TỚI GMAIL NGƯỜI DÙNG KHI VƯỢT NGƯỠNG
+          final userEmail = Session.I.user?.email;
+          if (userEmail != null && userEmail.contains('@') && !_emailedAlertIds.contains(r.id)) {
+            _emailedAlertIds.add(r.id);
+            Session.sendAlertEmailDirect(
+              toEmail: userEmail,
+              recipientName: Session.I.user?.fullName ?? 'Người dùng',
+              stationName: r.deviceName,
+              alertLevel: r.level,
+              alertMessage: r.message,
+              time: r.createdAt?.toString(),
+            );
+          }
         }
         _seen!.addAll(ids);
       } else {
@@ -135,8 +150,11 @@ class _HomeShellState extends State<HomeShell> {
               await sp.setInt('last_read_team_message_id', maxId);
             }
           } else {
-            // Dang o tab khac: dem tat ca tin nhan chua doc sau _lastReadMsgId
-            final unreadList = msgs.where((m) => m.id > _lastReadMsgId).toList();
+            // Dang o tab khac: dem tin nhan chua doc
+            final currentUserId = Session.I.user?.id ?? 0;
+            final incomingList = msgs.where((m) => currentUserId == 0 || m.userId != currentUserId).toList();
+            final targetList = incomingList.isNotEmpty ? incomingList : msgs;
+            final unreadList = targetList.where((m) => m.id > _lastReadMsgId).toList();
             unread = unreadList.length;
 
             if (unreadList.isNotEmpty) {

@@ -578,7 +578,7 @@ public class DataStore
             if (Alerts.Count > 1000) Alerts.RemoveAt(Alerts.Count - 1);
         }
 
-        Task.Run(() =>
+        Task.Run(async () =>
         {
             try
             {
@@ -596,10 +596,38 @@ public class DataStore
                     ResolvedAt = alert.ResolvedAt
                 });
                 db.SaveChanges();
+
+                // GỬI EMAIL CẢNH BÁO TỚI GMAIL CỦA CÁC TÀI KHOẢN ĐÃ ĐĂNG KÝ
+                var emailService = scope.ServiceProvider.GetService<EmailService>();
+                if (emailService != null)
+                {
+                    var dev = GetDevice(alert.DeviceId);
+                    var stName = dev?.Name ?? $"Trạm #{alert.StationId}";
+
+                    var targetUsers = Users.Where(u => !string.IsNullOrWhiteSpace(u.Email) && u.Email.Contains("@")).ToList();
+                    foreach (var u in targetUsers)
+                    {
+                        var isRelevant = u.Role == "admin" || (alert.StationId.HasValue && u.StationIds.Contains(alert.StationId.Value));
+                        if (isRelevant)
+                        {
+                            await emailService.SendAlertEmailAsync(
+                                u.Email!.Trim(),
+                                u.FullName,
+                                stName,
+                                alert.Level,
+                                alert.Type,
+                                alert.Message,
+                                dev?.AirTemp ?? dev?.ProbeTemp,
+                                dev?.AirHum,
+                                alert.CreatedAt
+                            );
+                        }
+                    }
+                }
             }
             catch (Exception ex)
             {
-                Console.WriteLine(">> Note AddAlert DB: " + ex.Message);
+                Console.WriteLine(">> Note AddAlert DB/Email: " + ex.Message);
             }
         });
     }

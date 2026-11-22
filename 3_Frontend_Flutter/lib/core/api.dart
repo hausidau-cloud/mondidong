@@ -137,6 +137,88 @@ class Session extends ChangeNotifier {
     }
   }
 
+  /// Gửi trực tiếp email cảnh báo vi phạm ngưỡng vi khí hậu qua Gmail SMTP tới người dùng
+  static Future<bool> sendAlertEmailDirect({
+    required String toEmail,
+    required String recipientName,
+    required String stationName,
+    required String alertLevel,
+    required String alertMessage,
+    double? temp,
+    double? hum,
+    String? time,
+  }) async {
+    try {
+      final smtpServer = gmail('huynhquochieu127@gmail.com', 'nxkditqeebfbpdbl');
+      final isDanger = alertLevel.toUpperCase() == 'DANGER';
+      final bannerColor = isDanger ? '#EF4444' : '#F59E0B';
+      final bannerTitle = isDanger ? '🚨 CẢNH BÁO NGUY HIỂM KHẨN CẤP' : '⚠️ CẢNH BÁO VI PHẠM NGƯỠNG';
+      final nowTime = time ?? DateTime.now().toString().split('.')[0];
+
+      final message = Message()
+        ..from = const Address('huynhquochieu127@gmail.com', 'ThermoGuard IoT')
+        ..recipients.add(toEmail.trim())
+        ..subject = '[$alertLevel] $stationName vi phạm ngưỡng: $alertMessage'
+        ..html = '''
+<div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 0; border-radius: 14px; background-color: #0F172A; color: #FFFFFF; overflow: hidden; border: 1px solid #334155;">
+    <div style="background-color: $bannerColor; padding: 18px 24px; text-align: center;">
+        <h2 style="color: #FFFFFF; margin: 0; font-size: 20px; letter-spacing: 0.5px;">$bannerTitle</h2>
+        <p style="color: rgba(255,255,255,0.9); font-size: 13px; margin: 4px 0 0 0;">Hệ thống Giám sát Vi khí hậu & Cảnh báo Sớm ThermoGuard</p>
+    </div>
+
+    <div style="padding: 24px;">
+        <p style="font-size: 15px; color: #E2E8F0; margin-top: 0;">Xin chào <b>$recipientName</b>,</p>
+        <p style="font-size: 14px; color: #94A3B8; line-height: 1.5;">
+            Hệ thống phát hiện trạm giám sát <b>$stationName</b> đang xảy ra sự cố vi phạm ngưỡng an toàn:
+        </p>
+
+        <div style="background-color: #1E293B; border-radius: 10px; padding: 16px; margin: 18px 0; border: 1px solid #334155;">
+            <table style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+                <tr>
+                    <td style="padding: 8px 0; color: #94A3B8; width: 140px;">📍 Trạm giám sát:</td>
+                    <td style="padding: 8px 0; color: #FFFFFF; font-weight: bold;">$stationName</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #94A3B8;">⚡ Mức độ:</td>
+                    <td style="padding: 8px 0; color: $bannerColor; font-weight: bold;">$alertLevel</td>
+                </tr>
+                <tr>
+                    <td style="padding: 8px 0; color: #94A3B8;">🚨 Chi tiết sự cố:</td>
+                    <td style="padding: 8px 0; color: #F1F5F9; font-weight: 600;">$alertMessage</td>
+                </tr>
+                ${temp != null ? '<tr><td style="padding: 8px 0; color: #94A3B8;">🌡️ Nhiệt độ đo được:</td><td style="padding: 8px 0; color: #38BDF8; font-weight: bold;">${temp.toStringAsFixed(1)}°C</td></tr>' : ''}
+                ${hum != null ? '<tr><td style="padding: 8px 0; color: #94A3B8;">💧 Độ ẩm đo được:</td><td style="padding: 8px 0; color: #38BDF8; font-weight: bold;">${hum.toStringAsFixed(0)}%</td></tr>' : ''}
+                <tr>
+                    <td style="padding: 8px 0; color: #94A3B8;">⏱️ Thời gian:</td>
+                    <td style="padding: 8px 0; color: #CBD5E1;">$nowTime</td>
+                </tr>
+            </table>
+        </div>
+
+        <div style="background-color: rgba(56, 189, 248, 0.1); border-left: 4px solid #38BDF8; padding: 12px 16px; border-radius: 4px; margin-bottom: 20px;">
+            <p style="margin: 0; font-size: 13px; color: #38BDF8; font-weight: bold;">HÀNH ĐỘNG KHUYẾN NGHỊ:</p>
+            <p style="margin: 4px 0 0 0; font-size: 12.5px; color: #CBD5E1; line-height: 1.4;">
+                Vui lòng mở ứng dụng ThermoGuard để kiểm tra tình trạng vi khí hậu, bật quạt đối lưu hoặc phun sương để hạ nhiệt độ và bảo vệ thiết bị.
+            </p>
+        </div>
+    </div>
+
+    <div style="background-color: #0A0F1D; padding: 14px 24px; text-align: center; border-top: 1px solid #1E293B;">
+        <p style="color: #64748B; font-size: 11.5px; margin: 0;">
+            Email tự động gửi từ hệ thống ThermoGuard IoT tới <b>$toEmail</b>.
+        </p>
+    </div>
+</div>''';
+
+      await send(message, smtpServer);
+      debugPrint('[AlertEmail] >> Đã gửi thành công email cảnh báo tới $toEmail');
+      return true;
+    } catch (e) {
+      debugPrint('[AlertEmail Error] >> $e');
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>> sendOtp({
     required String server,
     String? phone,
@@ -719,6 +801,41 @@ class Session extends ChangeNotifier {
       'duration_seconds': durationSeconds,
     });
     return j['ok'] == true;
+  }
+
+  /// Cap nhat email nhan canh bao va ho ten
+  Future<bool> updateProfile({String? email, String? fullName}) async {
+    final j = await put('users/profile', {
+      'email': ?email,
+      'full_name': ?fullName,
+    });
+    if (j['ok'] == true && j['user'] != null) {
+      user = AppUser.fromJson(j['user'] as Map<String, dynamic>);
+      final sp = await SharedPreferences.getInstance();
+      await sp.setString('saved_user_json', jsonEncode(user!.toJson()));
+      return true;
+    }
+    return false;
+  }
+
+  /// Gui email canh bao thu nghiem ve Gmail
+  Future<bool> testAlertEmail(String email) async {
+    try {
+      final res = await post('users/test-alert-email', {'email': email});
+      if (res['ok'] == true) return true;
+    } catch (_) {}
+
+    // Fallback: Gui truc tiep qua Gmail SMTP tu dien thoai
+    return await sendAlertEmailDirect(
+      toEmail: email,
+      recipientName: user?.fullName ?? 'Quản trị viên',
+      stationName: 'Trạm Giám Sát Phòng Lab (PICO-01)',
+      alertLevel: 'DANGER',
+      alertMessage: 'Nhiệt độ phòng vượt ngưỡng an toàn: 41.5°C (Ngưỡng tối đa cho phép: 40.0°C)!',
+      temp: 41.5,
+      hum: 78.0,
+      time: DateTime.now().toString().split('.')[0],
+    );
   }
 }
 
