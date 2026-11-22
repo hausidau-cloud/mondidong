@@ -1073,6 +1073,7 @@ public class DataStore
                     Category = msg.Category,
                     Content = msg.Content,
                     AttachedTelemetry = msg.AttachedTelemetry,
+                    ImageUrl = msg.ImageUrl,
                     CreatedAt = msg.CreatedAt
                 });
                 db.SaveChanges();

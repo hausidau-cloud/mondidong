@@ -851,6 +851,7 @@ class TeamMessageItem {
   final String category; // CHAT | INCIDENT | MAINTENANCE | RESOLVED
   final String content;
   final String? attachedTelemetry;
+  final String? imageUrl;
   final String createdAt;
 
   TeamMessageItem({
@@ -863,6 +864,7 @@ class TeamMessageItem {
     required this.category,
     required this.content,
     this.attachedTelemetry,
+    this.imageUrl,
     required this.createdAt,
   });
 
@@ -877,6 +879,7 @@ class TeamMessageItem {
       category: (j['category'] ?? 'CHAT').toString(),
       content: (j['content'] ?? '').toString(),
       attachedTelemetry: j['attached_telemetry']?.toString(),
+      imageUrl: j['image_url']?.toString(),
       createdAt: (j['created_at'] ?? '').toString(),
     );
   }

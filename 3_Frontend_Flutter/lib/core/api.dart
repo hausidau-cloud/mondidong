@@ -766,12 +766,14 @@ class Session extends ChangeNotifier {
     int? stationId,
     String category = 'CHAT',
     String? attachedTelemetry,
+    String? imageUrl,
   }) async {
     final j = await post('messages', {
       'content': content,
       if (stationId != null && stationId > 0) 'station_id': stationId,
       'category': category,
       if (attachedTelemetry != null && attachedTelemetry.isNotEmpty) 'attached_telemetry': attachedTelemetry,
+      if (imageUrl != null && imageUrl.isNotEmpty) 'image_url': imageUrl,
     });
     return TeamMessageItem.fromJson(j['data'] as Map<String, dynamic>);
   }

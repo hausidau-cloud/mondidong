@@ -82,6 +82,7 @@ public class MessagesController : ControllerBase
         }
 
         var telemetry = body?["attached_telemetry"]?.ToString()?.Trim();
+        var imageUrl = body?["image_url"]?.ToString()?.Trim();
 
         var newMsg = new TeamMessage
         {
@@ -93,6 +94,7 @@ public class MessagesController : ControllerBase
             Category = category,
             Content = content,
             AttachedTelemetry = string.IsNullOrWhiteSpace(telemetry) ? null : telemetry,
+            ImageUrl = string.IsNullOrWhiteSpace(imageUrl) ? null : imageUrl,
         };
 
         var created = _store.AddTeamMessage(newMsg);

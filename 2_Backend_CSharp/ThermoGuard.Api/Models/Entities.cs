@@ -123,6 +123,9 @@ public class TeamMessage
     [JsonPropertyName("attached_telemetry")]
     public string? AttachedTelemetry { get; set; }
 
+    [JsonPropertyName("image_url")]
+    public string? ImageUrl { get; set; }
+
     [JsonPropertyName("created_at")]
     public string CreatedAt { get; set; } = "";
 }

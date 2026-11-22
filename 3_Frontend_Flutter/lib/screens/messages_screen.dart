@@ -1,6 +1,8 @@
 import 'dart:async';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/api.dart';
@@ -37,6 +39,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
   int? _selectedStationId;
   String _selectedCategory = 'CHAT'; // CHAT | INCIDENT | MAINTENANCE | RESOLVED
   String? _attachedTelemetry;
+  String? _attachedImageBase64;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void initState() {
@@ -135,17 +139,18 @@ class _MessagesScreenState extends State<MessagesScreen> {
 
   Future<void> _sendMessage() async {
     final text = _textCtrl.text.trim();
-    if (text.isEmpty || _sending) return;
+    if ((text.isEmpty && _attachedImageBase64 == null) || _sending) return;
 
     setState(() => _sending = true);
     HapticFeedback.lightImpact();
 
     try {
       final newMsg = await Session.I.sendTeamMessage(
-        content: text,
+        content: text.isEmpty ? '📷 [Hình ảnh hiện trường]' : text,
         stationId: _selectedStationId,
         category: _selectedCategory,
         attachedTelemetry: _attachedTelemetry,
+        imageUrl: _attachedImageBase64,
       );
 
       _textCtrl.clear();
@@ -153,6 +158,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
       setState(() {
         _messages.add(newMsg);
         _attachedTelemetry = null;
+        _attachedImageBase64 = null;
         _sending = false;
       });
       _notifySeen(newMsg.id);
@@ -162,6 +168,154 @@ class _MessagesScreenState extends State<MessagesScreen> {
       setState(() => _sending = false);
       toast(context, 'Lỗi gửi tin nhắn: $e', error: true);
     }
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final XFile? file = await _picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 70,
+      );
+      if (file == null) return;
+      final bytes = await file.readAsBytes();
+      final base64String = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      setState(() {
+        _attachedImageBase64 = base64String;
+      });
+      HapticFeedback.mediumImpact();
+      if (mounted) {
+        toast(context, 'Đã đính kèm ảnh hiện trường');
+      }
+    } catch (e) {
+      if (mounted) {
+        toast(context, 'Không thể chọn ảnh: $e', error: true);
+      }
+    }
+  }
+
+  void _showImageSourcePicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text(
+                  'Đính kèm ảnh hiện trường sự cố',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: AppColors.surface2,
+                  child: Icon(Icons.camera_alt_rounded, color: AppColors.primary),
+                ),
+                title: const Text('Chụp từ Camera', style: TextStyle(fontSize: 14)),
+                subtitle: const Text('Chụp ảnh trực tiếp thiết bị/cảm biến tại trạm', style: TextStyle(fontSize: 11.5, color: AppColors.text3)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: AppColors.surface2,
+                  child: Icon(Icons.photo_library_rounded, color: Color(0xFF38BDF8)),
+                ),
+                title: const Text('Chọn từ Thư viện ảnh', style: TextStyle(fontSize: 14)),
+                subtitle: const Text('Chọn ảnh sự cố có sẵn trong máy', style: TextStyle(fontSize: 11.5, color: AppColors.text3)),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _pickImage(ImageSource.gallery);
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildImageWidget(String imgUrl, {double maxHeight = 220, double? maxWidth}) {
+    Widget image;
+    if (imgUrl.startsWith('data:image')) {
+      final base64Content = imgUrl.split(',').last;
+      final bytes = base64Decode(base64Content);
+      image = Image.memory(
+        bytes,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const Icon(Icons.broken_image, color: AppColors.text3),
+      );
+    } else {
+      image = Image.network(
+        imgUrl,
+        fit: BoxFit.cover,
+        errorBuilder: (_, _, _) => const Icon(Icons.broken_image, color: AppColors.text3),
+      );
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(10),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxHeight: maxHeight,
+          maxWidth: maxWidth ?? double.infinity,
+        ),
+        child: image,
+      ),
+    );
+  }
+
+  void _viewFullScreenImage(String imgUrl) {
+    showDialog(
+      context: context,
+      barrierColor: Colors.black87,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.all(12),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            InteractiveViewer(
+              panEnabled: true,
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: _buildImageWidget(imgUrl, maxHeight: MediaQuery.sizeOf(context).height * 0.8),
+            ),
+            Positioned(
+              top: 0,
+              right: 0,
+              child: CircleAvatar(
+                backgroundColor: Colors.black54,
+                child: IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _deleteMessage(int id) async {
@@ -567,6 +721,37 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             ),
                           ),
 
+                        // Ảnh đính kèm (nếu có)
+                        if (msg.imageUrl != null && msg.imageUrl!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 5),
+                            child: GestureDetector(
+                              onTap: () => _viewFullScreenImage(msg.imageUrl!),
+                              child: Stack(
+                                alignment: Alignment.bottomRight,
+                                children: [
+                                  _buildImageWidget(msg.imageUrl!, maxHeight: 180),
+                                  Container(
+                                    margin: const EdgeInsets.all(4),
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: Colors.black.withValues(alpha: 0.65),
+                                      borderRadius: BorderRadius.circular(4),
+                                    ),
+                                    child: const Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(Icons.zoom_in_rounded, size: 11, color: Colors.white),
+                                        SizedBox(width: 3),
+                                        Text('Xem ảnh', style: TextStyle(fontSize: 9.5, color: Colors.white, fontWeight: FontWeight.bold)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+
                         // Nội dung tin nhắn + Giờ gọn gàng (Wrap inline)
                         Wrap(
                           alignment: isMe ? WrapAlignment.end : WrapAlignment.start,
@@ -683,6 +868,48 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 ),
               ),
 
+            // Ảnh đính kèm chờ gửi
+            if (_attachedImageBase64 != null)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6, left: 6, right: 6),
+                child: Row(
+                  children: [
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: SizedBox(
+                            width: 52,
+                            height: 52,
+                            child: _buildImageWidget(_attachedImageBase64!, maxHeight: 52, maxWidth: 52),
+                          ),
+                        ),
+                        Positioned(
+                          top: -6,
+                          right: -6,
+                          child: GestureDetector(
+                            onTap: () => setState(() => _attachedImageBase64 = null),
+                            child: const CircleAvatar(
+                              radius: 10,
+                              backgroundColor: AppColors.danger,
+                              child: Icon(Icons.close, size: 12, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(width: 10),
+                    const Expanded(
+                      child: Text(
+                        'Đã đính kèm ảnh hiện trường (sẵn sàng gửi)',
+                        style: TextStyle(fontSize: 11.5, color: AppColors.text2, fontStyle: FontStyle.italic),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
             // Khung chat Messenger
             Row(
               children: [
@@ -715,6 +942,15 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     tooltip: 'Đính kèm số liệu trạm',
                     onPressed: _attachStationTelemetry,
                   ),
+                IconButton(
+                  icon: Icon(
+                    Icons.camera_alt_rounded,
+                    color: _attachedImageBase64 != null ? AppColors.primary : AppColors.text3,
+                    size: 22,
+                  ),
+                  tooltip: 'Chụp hoặc chọn ảnh hiện trường',
+                  onPressed: _showImageSourcePicker,
+                ),
                 Expanded(
                   child: Container(
                     decoration: BoxDecoration(
