@@ -10,6 +10,7 @@ import '../models/models.dart';
 import '../widgets/charts.dart';
 import '../widgets/common.dart';
 import '../widgets/qr_dialogs.dart';
+import 'comparison_screen.dart';
 import 'station/station_screen.dart';
 
 class HubScreen extends StatefulWidget {
@@ -303,6 +304,11 @@ class _HubScreenState extends State<HubScreen> {
                 const Text('Tổng quan hệ thống'),
               ]),
               actions: [
+                IconButton(
+                  tooltip: 'So sánh Đối chiếu Đa trạm',
+                  icon: const Icon(Icons.compare_arrows_rounded, color: Color(0xFF38BDF8)),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ComparisonScreen())),
+                ),
                 if (!Session.I.isAdmin)
                   IconButton(
                     tooltip: 'Quét mã QR / Nhập mã vào trạm',

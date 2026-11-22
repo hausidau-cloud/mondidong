@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/report_dialog.dart';
+import '../comparison_screen.dart';
 import '../messages_screen.dart';
 import 'ai_chat_sheet.dart';
 import 'ai_tab.dart';
@@ -111,9 +112,19 @@ class _StationScreenState extends State<StationScreen> {
                   },
                 ),
                 IconButton(
-                  tooltip: 'Báo cáo Kiểm định Đồ án',
+                  tooltip: 'Báo cáo Kiểm định Đồ án (PDF / CSV)',
                   icon: const Icon(Icons.assessment_outlined),
                   onPressed: () => showStationReportDialog(context, s),
+                ),
+                IconButton(
+                  tooltip: 'So sánh Đối chiếu Đa trạm',
+                  icon: const Icon(Icons.compare_arrows_rounded),
+                  onPressed: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ComparisonScreen(initialStationId1: s.id),
+                    ),
+                  ),
                 ),
                 IconButton(tooltip: 'Làm mới', onPressed: refresh, icon: const Icon(Icons.refresh_rounded)),
                 const SizedBox(width: 6),

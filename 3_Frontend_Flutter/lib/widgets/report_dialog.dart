@@ -68,6 +68,23 @@ class _StationReportModalState extends State<_StationReportModal> {
     }
   }
 
+  Future<void> _openPdfReport() async {
+    final url = Session.I.htmlReportUrl(widget.station.id);
+    final uri = Uri.parse(url);
+    try {
+      final ok = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      if (!ok && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Không thể mở liên kết báo cáo PDF')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Lỗi mở PDF: $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(
@@ -265,25 +282,47 @@ class _StationReportModalState extends State<_StationReportModal> {
           decoration: const BoxDecoration(
             border: Border(top: BorderSide(color: AppColors.border)),
           ),
-          child: Row(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Expanded(
-                child: ElevatedButton.icon(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF10B981),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 13),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF0284C7),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.picture_as_pdf_rounded, size: 18),
+                      label: const Text('In / Lưu PDF A4', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                      onPressed: _openPdfReport,
+                    ),
                   ),
-                  icon: const Icon(Icons.file_download_rounded, size: 18),
-                  label: const Text('Tải File CSV Excel', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13.5)),
-                  onPressed: _downloadCsv,
-                ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF10B981),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      icon: const Icon(Icons.file_download_rounded, size: 18),
+                      label: const Text('Tải File CSV', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                      onPressed: _downloadCsv,
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Đóng', style: TextStyle(color: AppColors.text2)),
+              const SizedBox(height: 6),
+              SizedBox(
+                width: double.infinity,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('Đóng', style: TextStyle(color: AppColors.text2)),
+                ),
               ),
             ],
           ),

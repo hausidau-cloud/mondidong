@@ -666,6 +666,15 @@ class Session extends ChangeNotifier {
   /// Duong dan tai file CSV du lieu do
   String csvReportUrl(int stationId) => '$baseUrl/api/reports/station/$stationId/csv';
 
+  /// Duong dan xem & in bao cao ky thuat chuan A4 / Luu file PDF
+  String htmlReportUrl(int stationId) => '$baseUrl/api/reports/station/$stationId/html';
+
+  /// So sanh doi chieu 2 tram IoT
+  Future<Map<String, dynamic>> compareStations(int s1, int s2) async {
+    final j = await get('reports/compare?s1=$s1&s2=$s2');
+    return j;
+  }
+
   /// Luu khoa Google Gemini API Key
   Future<void> setGeminiKey(String? key) async {
     final p = await SharedPreferences.getInstance();
