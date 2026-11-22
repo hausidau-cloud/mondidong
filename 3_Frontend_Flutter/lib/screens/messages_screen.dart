@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../core/api.dart';
 import '../core/format.dart';
@@ -9,7 +10,8 @@ import '../models/models.dart';
 
 class MessagesScreen extends StatefulWidget {
   final int? initialStationId;
-  const MessagesScreen({super.key, this.initialStationId});
+  final ValueChanged<int>? onLatestMessageSeen;
+  const MessagesScreen({super.key, this.initialStationId, this.onLatestMessageSeen});
 
   @override
   State<MessagesScreen> createState() => _MessagesScreenState();
@@ -46,6 +48,17 @@ class _MessagesScreenState extends State<MessagesScreen> {
     super.dispose();
   }
 
+  Future<void> _notifySeen(int id) async {
+    widget.onLatestMessageSeen?.call(id);
+    try {
+      final sp = await SharedPreferences.getInstance();
+      final cur = sp.getInt('last_read_team_message_id') ?? 0;
+      if (id > cur) {
+        await sp.setInt('last_read_team_message_id', id);
+      }
+    } catch (_) {}
+  }
+
   Future<void> _loadInitial() async {
     setState(() => _loading = true);
     try {
@@ -58,6 +71,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
         _loading = false;
         _error = null;
       });
+      if (msgs.isNotEmpty) {
+        final maxId = msgs.map((m) => m.id).reduce((a, b) => a > b ? a : b);
+        _notifySeen(maxId);
+      }
       _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
@@ -77,6 +94,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
         setState(() {
           _messages = msgs;
         });
+        if (msgs.isNotEmpty) {
+          final maxId = msgs.map((m) => m.id).reduce((a, b) => a > b ? a : b);
+          _notifySeen(maxId);
+        }
         _scrollToBottom();
       }
     } catch (_) {}
@@ -116,6 +137,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
         _attachedTelemetry = null;
         _sending = false;
       });
+      _notifySeen(newMsg.id);
       _scrollToBottom();
     } catch (e) {
       if (!mounted) return;
