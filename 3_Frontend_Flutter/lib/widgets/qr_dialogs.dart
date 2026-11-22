@@ -249,9 +249,9 @@ class _JoinStationDialogState extends State<JoinStationDialog> with SingleTicker
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       backgroundColor: AppColors.surface,
-      titlePadding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      actionsPadding: const EdgeInsets.fromLTRB(20, 10, 20, 18),
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+      actionsPadding: const EdgeInsets.fromLTRB(20, 6, 20, 14),
       title: Row(
         children: [
           Container(
@@ -268,44 +268,45 @@ class _JoinStationDialogState extends State<JoinStationDialog> with SingleTicker
           ),
         ],
       ),
-      content: SizedBox(
-        width: 360,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TabBar(
-              controller: _tabController,
-              tabAlignment: TabAlignment.fill,
-              isScrollable: false,
-              labelColor: AppColors.air,
-              unselectedLabelColor: AppColors.muted,
-              indicatorColor: AppColors.air,
-              tabs: const [
-                Tab(icon: Icon(Icons.camera_alt_rounded, size: 18), text: 'Quét camera'),
-                Tab(icon: Icon(Icons.keyboard_rounded, size: 18), text: 'Nhập mã tay'),
-              ],
-            ),
-            const SizedBox(height: 14),
-            if (_err != null)
-              Container(
-                margin: const EdgeInsets.only(bottom: 12),
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: AppColors.danger.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 18),
-                    const SizedBox(width: 8),
-                    Expanded(child: Text(_err!, style: const TextStyle(color: AppColors.danger, fontSize: 12.5))),
-                  ],
-                ),
+      content: SingleChildScrollView(
+        child: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TabBar(
+                controller: _tabController,
+                tabAlignment: TabAlignment.fill,
+                isScrollable: false,
+                labelColor: AppColors.air,
+                unselectedLabelColor: AppColors.muted,
+                indicatorColor: AppColors.air,
+                tabs: const [
+                  Tab(icon: Icon(Icons.camera_alt_rounded, size: 18), text: 'Quét camera'),
+                  Tab(icon: Icon(Icons.keyboard_rounded, size: 18), text: 'Nhập mã tay'),
+                ],
               ),
-            SizedBox(
-              height: 280,
-              child: TabBarView(
+              const SizedBox(height: 10),
+              if (_err != null)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.danger.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: AppColors.danger, size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(child: Text(_err!, style: const TextStyle(color: AppColors.danger, fontSize: 12))),
+                    ],
+                  ),
+                ),
+              SizedBox(
+                height: 260,
+                child: TabBarView(
                 controller: _tabController,
                 children: [
                   // Tab 1: Camera Scanner
@@ -467,12 +468,13 @@ class _JoinStationDialogState extends State<JoinStationDialog> with SingleTicker
           ],
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: _busy ? null : () => Navigator.pop(context),
-          child: const Text('Hủy bỏ'),
-        ),
-      ],
+    ),
+    actions: [
+      TextButton(
+        onPressed: _busy ? null : () => Navigator.pop(context),
+        child: const Text('Hủy bỏ'),
+      ),
+    ],
     );
   }
 }

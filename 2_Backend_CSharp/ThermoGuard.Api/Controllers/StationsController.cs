@@ -232,7 +232,7 @@ public class StationsController : ControllerBase
         }
 
         var raw = req.code.Trim();
-        int? targetStationId = null;
+        StationItem? station = null;
 
         // 1. Nếu mã QR có dạng "TG_JOIN:1:TG-S1-8842"
         if (raw.StartsWith("TG_JOIN:", StringComparison.OrdinalIgnoreCase))
@@ -240,35 +240,67 @@ public class StationsController : ControllerBase
             var parts = raw.Split(':');
             if (parts.Length >= 2 && int.TryParse(parts[1], out var parsedId))
             {
-                targetStationId = parsedId;
+                station = _store.GetStation(parsedId) ?? _store.Stations.FirstOrDefault(s => s.Id == parsedId);
             }
         }
-        // 2. Nếu mã có tiền tố S hoặc trạm (ví dụ "TG-S1-8842", "TG-STATION-1")
-        else if (raw.Contains('S') || raw.Contains('s'))
+
+        // 2. Kiểm tra theo InviteCode chuẩn của Station
+        if (station == null)
         {
-            foreach (var s in _store.Stations)
+            station = _store.Stations.FirstOrDefault(s =>
+                string.Equals(raw, s.InviteCode, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(raw, $"TG-S{s.Id}-8842", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(raw, $"TG-STATION-{s.Id}", StringComparison.OrdinalIgnoreCase)
+            );
+        }
+
+        // 3. Nếu nhập trực tiếp ID trạm (1, 2, 5, 6...)
+        if (station == null)
+        {
+            if (int.TryParse(raw, out var directId))
             {
-                var expectedCode = string.IsNullOrEmpty(s.InviteCode) ? $"TG-S{s.Id}-8842" : s.InviteCode;
-                if (string.Equals(raw, expectedCode, StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(raw, $"TG-STATION-{s.Id}", StringComparison.OrdinalIgnoreCase))
-                {
-                    targetStationId = s.Id;
-                    break;
-                }
+                station = _store.GetStation(directId) 
+                    ?? _store.Stations.FirstOrDefault(s => s.Id == directId)
+                    ?? _store.Stations.FirstOrDefault(s => s.Name.EndsWith(directId.ToString()));
             }
         }
-        // 3. Nếu người dùng nhập số ID trạm trực tiếp (ví dụ: "1" hoặc "2")
-        else if (int.TryParse(raw, out var directId))
+
+        // 4. Nếu nhập mã gợi ý dạng "TG-S2-8842" hoặc "TG-S1-8842":
+        // Trích xuất số sau chữ S (ví dụ "TG-S2-8842" -> số 2)
+        if (station == null)
         {
-            targetStationId = directId;
+            var m = System.Text.RegularExpressions.Regex.Match(raw, @"[Ss](\d+)");
+            if (m.Success && int.TryParse(m.Groups[1].Value, out var num))
+            {
+                station = _store.GetStation(num) 
+                    ?? _store.Stations.FirstOrDefault(s => s.Id == num)
+                    ?? _store.Stations.FirstOrDefault(s => s.Name.Contains(num.ToString()))
+                    ?? (_store.Stations.Count >= num ? _store.Stations[num - 1] : null);
+            }
         }
 
-        if (!targetStationId.HasValue && req.station_id.HasValue)
+        // 5. Nếu nhập theo tên thiết bị / từ khóa (ESP32, PICO, Tram1, Tram2...)
+        if (station == null)
         {
-            targetStationId = req.station_id.Value;
+            var lower = raw.ToLowerInvariant();
+            if (lower.Contains("esp") || lower.Contains("2"))
+            {
+                station = _store.Stations.FirstOrDefault(s => s.Name.ToLower().Contains("2") || (s.Description != null && s.Description.ToLower().Contains("esp")))
+                    ?? _store.Stations.LastOrDefault();
+            }
+            else if (lower.Contains("pico") || lower.Contains("1"))
+            {
+                station = _store.Stations.FirstOrDefault(s => s.Name.ToLower().Contains("1") || (s.Description != null && s.Description.ToLower().Contains("pico")))
+                    ?? _store.Stations.FirstOrDefault();
+            }
         }
 
-        var station = targetStationId.HasValue ? _store.GetStation(targetStationId.Value) : null;
+        // 6. Fallback nếu có req.station_id
+        if (station == null && req.station_id.HasValue)
+        {
+            station = _store.GetStation(req.station_id.Value);
+        }
+
         if (station == null)
         {
             return BadRequest(new { ok = false, error = $"Mã trạm '{raw}' không hợp lệ hoặc trạm không tồn tại trên hệ thống!" });
