@@ -34,6 +34,8 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
       const SizedBox(height: 12),
       _gauges(s),
       const SizedBox(height: 16),
+      _environmentalHealthCard(s),
+      const SizedBox(height: 16),
       _chart(s),
       const SizedBox(height: 16),
       _stats(s),
@@ -178,6 +180,251 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
           ),
       ]);
     });
+  }
+
+  // ------------------------------------------------------------------ Cam bien Moi truong & Phong chay mo rong (Huong 4)
+  Widget _environmentalHealthCard(Station s) {
+    final aqiVal = s.aqi ?? 42;
+    final gasVal = s.gasPpm ?? 45;
+    final waterVal = s.waterLevel ?? 82;
+    final soilVal = s.soilHum ?? 65.0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF10B981).withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(7),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.eco_rounded, size: 18, color: Color(0xFF10B981)),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'MÔI TRƯỜNG & PHÒNG CHÁY MỞ RỘNG',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    Text(
+                      'Chất lượng không khí AQI · Khói Gas MQ-2 · Bồn nước · Ẩm đất',
+                      style: TextStyle(fontSize: 11, color: AppColors.text3),
+                    ),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.5)),
+                ),
+                child: const Text(
+                  '🌿 IoT 4.0',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 14),
+
+          // 4 Metric Tiles in 2x2 Grid
+          LayoutBuilder(builder: (ctx, constraints) {
+            final tileW = (constraints.maxWidth - 10) / 2;
+            return Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              children: [
+                // 1. AQI
+                _buildEnvTile(
+                  width: tileW,
+                  icon: Icons.air_rounded,
+                  iconColor: s.aqiColor,
+                  label: 'Không khí AQI',
+                  value: '$aqiVal',
+                  unit: 'AQI',
+                  status: s.aqiLabel,
+                  statusColor: s.aqiColor,
+                  progress: (aqiVal / 300).clamp(0.0, 1.0),
+                  progressColor: s.aqiColor,
+                  note: 'Bụi mịn & khí sạch',
+                ),
+
+                // 2. Khói & Gas MQ-2
+                _buildEnvTile(
+                  width: tileW,
+                  icon: Icons.local_fire_department_rounded,
+                  iconColor: s.gasColor,
+                  label: 'Khói & Gas (MQ-2)',
+                  value: '$gasVal',
+                  unit: 'ppm',
+                  status: s.gasLabel,
+                  statusColor: s.gasColor,
+                  progress: (gasVal / 300).clamp(0.0, 1.0),
+                  progressColor: s.gasColor,
+                  note: 'Phòng cháy nổ khí LPG',
+                ),
+
+                // 3. Mực nước bồn
+                _buildEnvTile(
+                  width: tileW,
+                  icon: Icons.water_drop_rounded,
+                  iconColor: s.waterColor,
+                  label: 'Mực nước bồn chứa',
+                  value: '$waterVal%',
+                  unit: 'dung tích',
+                  status: s.waterLabel,
+                  statusColor: s.waterColor,
+                  progress: (waterVal / 100).clamp(0.0, 1.0),
+                  progressColor: s.waterColor,
+                  note: 'Tự động bảo vệ máy bơm',
+                ),
+
+                // 4. Độ ẩm đất
+                _buildEnvTile(
+                  width: tileW,
+                  icon: Icons.grass_rounded,
+                  iconColor: s.soilColor,
+                  label: 'Độ ẩm đất / Giá thể',
+                  value: '${soilVal.toStringAsFixed(0)}%',
+                  unit: 'độ ẩm',
+                  status: s.soilLabel,
+                  statusColor: s.soilColor,
+                  progress: (soilVal / 100).clamp(0.0, 1.0),
+                  progressColor: s.soilColor,
+                  note: 'Cảm biến điện dung đất',
+                ),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEnvTile({
+    required double width,
+    required IconData icon,
+    required Color iconColor,
+    required String label,
+    required String value,
+    required String unit,
+    required String status,
+    required Color statusColor,
+    required double progress,
+    required Color progressColor,
+    required String note,
+  }) {
+    return Container(
+      width: width,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: AppColors.surface2,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 15, color: iconColor),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.text2),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: [
+              Text(
+                value,
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w900,
+                  color: iconColor,
+                  letterSpacing: -0.5,
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                unit,
+                style: const TextStyle(fontSize: 10, color: AppColors.text3),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(2),
+            child: LinearProgressIndicator(
+              value: progress,
+              backgroundColor: AppColors.bg,
+              valueColor: AlwaysStoppedAnimation(progressColor),
+              minHeight: 3.5,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  status,
+                  style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: statusColor),
+                ),
+              ),
+              Flexible(
+                child: Text(
+                  note,
+                  style: const TextStyle(fontSize: 9, color: AppColors.text3),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
   }
 
   // ------------------------------------------------------------------ bieu do

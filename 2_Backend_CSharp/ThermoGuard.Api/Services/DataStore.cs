@@ -368,6 +368,10 @@ public class DataStore
             dev.DewPoint = dew;
             dev.LightRaw = lightRaw ?? 0;
             dev.LightPct = lightPct ?? 0;
+            if (req.Aqi.HasValue) dev.Aqi = req.Aqi.Value;
+            if (req.GasPpm.HasValue) dev.GasPpm = req.GasPpm.Value;
+            if (req.SoilHum.HasValue) dev.SoilHum = req.SoilHum.Value;
+            if (req.WaterLevel.HasValue) dev.WaterLevel = req.WaterLevel.Value;
             dev.Rssi = rssi;
             if (!string.IsNullOrEmpty(fw)) dev.Firmware = fw;
             if (!string.IsNullOrEmpty(locFromPayload))
@@ -514,7 +518,7 @@ public class DataStore
             // Tự động đánh giá các kịch bản tự động hóa thông minh (Smart Routines)
             try
             {
-                EvaluateAutomationRules(dev.StationId ?? dev.Id, record.AirTemp, record.AirHum, record.DewPoint, record.ProbeTemp, record.LightPct);
+                EvaluateAutomationRules(dev.StationId ?? dev.Id, record.AirTemp, record.AirHum, record.DewPoint, record.ProbeTemp, record.LightPct, dev.Aqi, dev.GasPpm, dev.SoilHum, dev.WaterLevel);
             }
             catch { }
 
@@ -1503,9 +1507,9 @@ public class DataStore
         return true;
     }
 
-    public void EvaluateAutomationRules(int stationId, double? airTemp, double? airHum, double? dewPoint, double? probeTemp, int? lightPct = null)
+    public void EvaluateAutomationRules(int stationId, double? airTemp, double? airHum, double? dewPoint, double? probeTemp, int? lightPct = null, int? aqi = null, int? gasPpm = null, double? soilHum = null, int? waterLevel = null)
     {
-        if (!airTemp.HasValue && !airHum.HasValue && !lightPct.HasValue) return;
+        if (!airTemp.HasValue && !airHum.HasValue && !lightPct.HasValue && !aqi.HasValue && !gasPpm.HasValue && !soilHum.HasValue && !waterLevel.HasValue) return;
         var aTemp = airTemp ?? probeTemp ?? 0.0;
         var aHum = airHum ?? 0.0;
         var dPoint = dewPoint ?? aTemp;
@@ -1560,6 +1564,18 @@ public class DataStore
                         break;
                     case "DEW_MARGIN_LT":
                         triggered = dewMargin <= rule.ThresholdValue;
+                        break;
+                    case "GAS_GT":
+                        triggered = (gasPpm ?? 45) >= rule.ThresholdValue;
+                        break;
+                    case "AQI_GT":
+                        triggered = (aqi ?? 42) >= rule.ThresholdValue;
+                        break;
+                    case "WATER_LT":
+                        triggered = (waterLevel ?? 80) <= rule.ThresholdValue;
+                        break;
+                    case "SOIL_LT":
+                        triggered = (soilHum ?? 65.0) <= rule.ThresholdValue;
                         break;
                 }
 

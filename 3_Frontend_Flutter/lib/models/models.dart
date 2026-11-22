@@ -1,3 +1,5 @@
+import 'package:flutter/material.dart';
+
 // Cac model du lieu tra ve tu API PHP/MySQL
 
 double? toDbl(dynamic v) {
@@ -161,6 +163,10 @@ class Station {
   final int? deviceId;
   final String? deviceCode;
   final String? deviceName;
+  final int? aqi;
+  final int? gasPpm;
+  final double? soilHum;
+  final int? waterLevel;
 
   Station({
     required this.id,
@@ -215,6 +221,10 @@ class Station {
     this.deviceId,
     this.deviceCode,
     this.deviceName,
+    this.aqi,
+    this.gasPpm,
+    this.soilHum,
+    this.waterLevel,
   });
 
   factory Station.fromJson(Map<String, dynamic> j) => Station(
@@ -270,10 +280,82 @@ class Station {
         deviceId: j['device_id'] != null ? toInt(j['device_id']) : null,
         deviceCode: j['device_code']?.toString(),
         deviceName: j['device_name']?.toString(),
+        aqi: j['aqi'] != null ? toInt(j['aqi']) : null,
+        gasPpm: j['gas_ppm'] != null ? toInt(j['gas_ppm']) : null,
+        soilHum: toDbl(j['soil_hum']),
+        waterLevel: j['water_level'] != null ? toInt(j['water_level']) : null,
       );
 
   /// Bien an toan suong: T - Td
   double? get dewGap => (airTemp != null && dewPoint != null) ? airTemp! - dewPoint! : null;
+
+  /// Nhan chat luong khong khi AQI chuan EPA
+  String get aqiLabel {
+    final v = aqi ?? 42;
+    if (v <= 50) return 'Tốt';
+    if (v <= 100) return 'Trung bình';
+    if (v <= 150) return 'Kém';
+    if (v <= 200) return 'Xấu';
+    if (v <= 300) return 'Rất xấu';
+    return 'Nguy hại';
+  }
+
+  /// Mau sac chat luong khong khi AQI
+  Color get aqiColor {
+    final v = aqi ?? 42;
+    if (v <= 50) return const Color(0xFF10B981);
+    if (v <= 100) return const Color(0xFFEAB308);
+    if (v <= 150) return const Color(0xFFF97316);
+    if (v <= 200) return const Color(0xFFEF4444);
+    if (v <= 300) return const Color(0xFF8B5CF6);
+    return const Color(0xFF7F1D1D);
+  }
+
+  /// Trang thai cam bien khoi / khi gas MQ-2
+  String get gasLabel {
+    final v = gasPpm ?? 45;
+    if (v < 80) return 'An toàn';
+    if (v < 150) return 'Khí nhẹ';
+    if (v < 300) return 'Cảnh báo';
+    return 'Nguy hiểm cháy nổ';
+  }
+
+  Color get gasColor {
+    final v = gasPpm ?? 45;
+    if (v < 80) return const Color(0xFF10B981);
+    if (v < 150) return const Color(0xFFEAB308);
+    return const Color(0xFFEF4444);
+  }
+
+  /// Trang thai muc nuoc bon chua
+  String get waterLabel {
+    final v = waterLevel ?? 82;
+    if (v >= 70) return 'Đầy đủ';
+    if (v >= 35) return 'Mức trung bình';
+    if (v >= 15) return 'Sắp cạn';
+    return 'Cạn nước (Ngắt bơm)';
+  }
+
+  Color get waterColor {
+    final v = waterLevel ?? 82;
+    if (v >= 35) return const Color(0xFF38BDF8);
+    if (v >= 15) return const Color(0xFFF97316);
+    return const Color(0xFFEF4444);
+  }
+
+  /// Trang thai do am dat / gia the
+  String get soilLabel {
+    final v = soilHum ?? 65.0;
+    if (v >= 60) return 'Tối ưu cho cây';
+    if (v >= 40) return 'Độ ẩm vừa';
+    return 'Đất khô cần tưới';
+  }
+
+  Color get soilColor {
+    final v = soilHum ?? 65.0;
+    if (v >= 40) return const Color(0xFF10B981);
+    return const Color(0xFFF59E0B);
+  }
 
   /// Kiem tra thiet bi co phai la ESP32 (chi dung 1 cam bien DHT11 + LED) hay khong
   bool get isEsp32 =>

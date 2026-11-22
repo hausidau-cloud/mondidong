@@ -732,6 +732,23 @@ class StationCard extends StatelessWidget {
                   ),
                   const SizedBox(width: 6),
                   StatusPill(s.code.isEmpty ? 'UNASSIGNED' : s.status, dense: true),
+                  const SizedBox(width: 5),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2.5),
+                    decoration: BoxDecoration(
+                      color: s.aqiColor.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: s.aqiColor.withValues(alpha: 0.4), width: 0.8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.air_rounded, size: 11, color: s.aqiColor),
+                        const SizedBox(width: 3),
+                        Text('AQI ${s.aqi ?? 42}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: s.aqiColor)),
+                      ],
+                    ),
+                  ),
                   if (Session.I.isAdmin && onShowQr != null) ...[
                     const SizedBox(width: 4),
                     IconButton(

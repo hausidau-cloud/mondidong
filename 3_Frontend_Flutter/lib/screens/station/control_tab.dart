@@ -844,6 +844,18 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
     } else if (rule.icon == 'water_drop' || rule.targetId == 'misting') {
       icon = Icons.water_drop_rounded;
       iconColor = const Color(0xFF0EA5E9);
+    } else if (rule.icon == 'fire' || rule.conditionType == 'GAS_GT') {
+      icon = Icons.local_fire_department_rounded;
+      iconColor = AppColors.danger;
+    } else if (rule.icon == 'air' || rule.conditionType == 'AQI_GT') {
+      icon = Icons.air_rounded;
+      iconColor = const Color(0xFF8B5CF6);
+    } else if (rule.conditionType == 'WATER_LT') {
+      icon = Icons.water_drop_rounded;
+      iconColor = const Color(0xFF38BDF8);
+    } else if (rule.conditionType == 'SOIL_LT') {
+      icon = Icons.grass_rounded;
+      iconColor = const Color(0xFF10B981);
     } else if (rule.icon == 'shield' || (rule.targetId == 'light' && rule.conditionType == 'DEW_MARGIN_LT')) {
       icon = Icons.shield_rounded;
       iconColor = const Color(0xFFF59E0B);
@@ -1032,6 +1044,50 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
         'actionType': 'ACTUATOR_ON',
         'durationSec': 180,
       },
+      'GAS_GT': {
+        'label': '🔥 Khói / Khí Gas MQ-2 cao (≥)',
+        'unit': 'ppm',
+        'defaultThresh': '100.0',
+        'defaultName': 'Bật còi hú & quạt khi có khói gas',
+        'helper': 'Nồng độ khói / gas rò rỉ (ppm)',
+        'targetId': 'siren',
+        'targetLevel': 1,
+        'actionType': 'ACTUATOR_ON',
+        'durationSec': 15,
+      },
+      'AQI_GT': {
+        'label': '🌬️ Không khí ô nhiễm AQI (≥)',
+        'unit': 'AQI',
+        'defaultThresh': '120.0',
+        'defaultName': 'Bật quạt đối lưu lọc bụi AQI',
+        'helper': 'Chỉ số chất lượng không khí (>100 là kém)',
+        'targetId': 'fan',
+        'targetLevel': 3,
+        'actionType': 'ACTUATOR_ON',
+        'durationSec': 180,
+      },
+      'WATER_LT': {
+        'label': '🚰 Bồn nước sắp cạn (≤)',
+        'unit': '%',
+        'defaultThresh': '20.0',
+        'defaultName': 'Tự ngắt máy bơm bảo vệ cháy bơm',
+        'helper': 'Mực nước bồn chứa còn lại (%)',
+        'targetId': 'pump',
+        'targetLevel': 1,
+        'actionType': 'ACTUATOR_OFF',
+        'durationSec': 0,
+      },
+      'SOIL_LT': {
+        'label': '🌱 Đất trồng khô hạn (≤)',
+        'unit': '%',
+        'defaultThresh': '40.0',
+        'defaultName': 'Tự động bơm tưới ẩm đất',
+        'helper': 'Độ ẩm đất / chất nền trồng trọt (%)',
+        'targetId': 'pump',
+        'targetLevel': 1,
+        'actionType': 'ACTUATOR_ON',
+        'durationSec': 180,
+      },
     };
 
     final initCfg = conditionConfigs['TEMP_GT']!;
@@ -1203,13 +1259,17 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
                       final val = double.tryParse(threshCtrl.text.replaceAll(',', '.')) ?? 35.0;
                       final icon = conditionType.startsWith('LIGHT')
                           ? 'lightbulb'
-                          : (targetId == 'misting'
-                              ? 'water_drop'
-                              : (targetId == 'fan'
-                                  ? 'ac_unit'
-                                  : (targetId == 'light'
-                                      ? 'shield'
-                                      : (targetId == 'pump' ? 'eco' : 'bolt'))));
+                          : (conditionType == 'GAS_GT' || targetId == 'siren'
+                              ? 'fire'
+                              : (conditionType == 'AQI_GT'
+                                  ? 'air'
+                                  : (targetId == 'misting'
+                                      ? 'water_drop'
+                                      : (targetId == 'fan'
+                                          ? 'ac_unit'
+                                          : (targetId == 'light'
+                                              ? 'shield'
+                                              : (targetId == 'pump' ? 'eco' : 'bolt'))))));
                       final rule = AutomationRule(
                         id: '',
                         stationId: s.id,

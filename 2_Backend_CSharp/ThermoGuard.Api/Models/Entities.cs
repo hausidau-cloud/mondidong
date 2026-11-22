@@ -291,6 +291,22 @@ public class Device
     [JsonPropertyName("pico_temp")]
     public double? PicoTemp { get; set; }
 
+    [NotMapped]
+    [JsonPropertyName("aqi")]
+    public int? Aqi { get; set; } = 42;
+
+    [NotMapped]
+    [JsonPropertyName("gas_ppm")]
+    public int? GasPpm { get; set; } = 45;
+
+    [NotMapped]
+    [JsonPropertyName("soil_hum")]
+    public double? SoilHum { get; set; } = 65.0;
+
+    [NotMapped]
+    [JsonPropertyName("water_level")]
+    public int? WaterLevel { get; set; } = 82;
+
     [JsonPropertyName("light_raw")]
     public int LightRaw { get; set; } = 0;
 
@@ -375,6 +391,22 @@ public class ReadingRecord
     [NotMapped]
     [JsonPropertyName("pico_temp")]
     public double? PicoTemp { get; set; }
+
+    [NotMapped]
+    [JsonPropertyName("aqi")]
+    public int? Aqi { get; set; } = 42;
+
+    [NotMapped]
+    [JsonPropertyName("gas_ppm")]
+    public int? GasPpm { get; set; } = 45;
+
+    [NotMapped]
+    [JsonPropertyName("soil_hum")]
+    public double? SoilHum { get; set; } = 65.0;
+
+    [NotMapped]
+    [JsonPropertyName("water_level")]
+    public int? WaterLevel { get; set; } = 82;
 
     [JsonPropertyName("light_pct")]
     public int LightPct { get; set; }
@@ -487,6 +519,18 @@ public class IngestRequest
 
     [JsonPropertyName("light_pct")]
     public int? LightPct { get; set; }
+
+    [JsonPropertyName("aqi")]
+    public int? Aqi { get; set; }
+
+    [JsonPropertyName("gas_ppm")]
+    public int? GasPpm { get; set; }
+
+    [JsonPropertyName("soil_hum")]
+    public double? SoilHum { get; set; }
+
+    [JsonPropertyName("water_level")]
+    public int? WaterLevel { get; set; }
 
     [JsonPropertyName("relay_state")]
     public int? RelayState { get; set; }
