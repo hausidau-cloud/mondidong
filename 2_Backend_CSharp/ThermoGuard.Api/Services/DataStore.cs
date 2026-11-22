@@ -514,7 +514,7 @@ public class DataStore
             // Tự động đánh giá các kịch bản tự động hóa thông minh (Smart Routines)
             try
             {
-                EvaluateAutomationRules(dev.StationId ?? dev.Id, record.AirTemp, record.AirHum, record.DewPoint, record.ProbeTemp);
+                EvaluateAutomationRules(dev.StationId ?? dev.Id, record.AirTemp, record.AirHum, record.DewPoint, record.ProbeTemp, record.LightPct);
             }
             catch { }
 
@@ -1340,6 +1340,22 @@ public class DataStore
                 TargetLevel = 1,
                 DurationSeconds = 5,
                 CreatedAt = now
+            },
+            new AutomationRule
+            {
+                Id = $"auto_{stationId}_6",
+                StationId = stationId,
+                Name = "Tự động bật đèn khi trời tối",
+                Icon = "lightbulb",
+                IsEnabled = true,
+                ConditionType = "LIGHT_LT",
+                ThresholdValue = 20.0,
+                ActionType = "ACTUATOR_ON",
+                TargetId = "light",
+                TargetName = "Đèn quang hợp & sưởi",
+                TargetLevel = 2,
+                DurationSeconds = 0,
+                CreatedAt = now
             }
         };
     }
@@ -1476,9 +1492,9 @@ public class DataStore
         return true;
     }
 
-    public void EvaluateAutomationRules(int stationId, double? airTemp, double? airHum, double? dewPoint, double? probeTemp)
+    public void EvaluateAutomationRules(int stationId, double? airTemp, double? airHum, double? dewPoint, double? probeTemp, int? lightPct = null)
     {
-        if (!airTemp.HasValue && !airHum.HasValue) return;
+        if (!airTemp.HasValue && !airHum.HasValue && !lightPct.HasValue) return;
         var aTemp = airTemp ?? probeTemp ?? 0.0;
         var aHum = airHum ?? 0.0;
         var dPoint = dewPoint ?? aTemp;
@@ -1524,6 +1540,12 @@ public class DataStore
                         break;
                     case "HUM_LT":
                         triggered = aHum <= rule.ThresholdValue;
+                        break;
+                    case "LIGHT_LT":
+                        triggered = (lightPct ?? 100) <= rule.ThresholdValue;
+                        break;
+                    case "LIGHT_GT":
+                        triggered = (lightPct ?? 0) >= rule.ThresholdValue;
                         break;
                     case "DEW_MARGIN_LT":
                         triggered = dewMargin <= rule.ThresholdValue;

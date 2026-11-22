@@ -991,7 +991,7 @@ class AutomationRule {
       };
 
   String get conditionText {
-    final val = thresholdValue.toStringAsFixed(1);
+    final val = (thresholdValue % 1 == 0) ? thresholdValue.toInt().toString() : thresholdValue.toStringAsFixed(1);
     switch (conditionType) {
       case 'TEMP_GT':
         return 'Nhiệt độ ≥ $val°C';
@@ -1001,6 +1001,10 @@ class AutomationRule {
         return 'Độ ẩm ≥ $val%';
       case 'HUM_LT':
         return 'Độ ẩm ≤ $val%';
+      case 'LIGHT_LT':
+        return 'Quang trở LDR ≤ $val% (Trời tối)';
+      case 'LIGHT_GT':
+        return 'Quang trở LDR ≥ $val% (Nắng gắt)';
       case 'DEW_MARGIN_LT':
         return 'Biên sương (T−Td) ≤ $val°C';
       default:

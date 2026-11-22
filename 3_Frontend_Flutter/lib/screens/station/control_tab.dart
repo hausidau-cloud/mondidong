@@ -844,9 +844,12 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
     } else if (rule.icon == 'water_drop' || rule.targetId == 'misting') {
       icon = Icons.water_drop_rounded;
       iconColor = const Color(0xFF0EA5E9);
-    } else if (rule.icon == 'shield' || rule.targetId == 'light') {
+    } else if (rule.icon == 'shield' || (rule.targetId == 'light' && rule.conditionType == 'DEW_MARGIN_LT')) {
       icon = Icons.shield_rounded;
       iconColor = const Color(0xFFF59E0B);
+    } else if (rule.icon == 'lightbulb' || rule.conditionType.startsWith('LIGHT') || rule.targetId == 'light') {
+      icon = Icons.lightbulb_rounded;
+      iconColor = const Color(0xFFFACC15);
     } else if (rule.icon == 'eco' || rule.targetId == 'pump') {
       icon = Icons.eco_rounded;
       iconColor = const Color(0xFF10B981);
@@ -951,19 +954,100 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
   }
 
   Future<void> _showAddAutomationDialog(Station s) async {
-    final nameCtrl = TextEditingController(text: 'Tự động hạ nhiệt & tạo ẩm');
+    final conditionConfigs = {
+      'TEMP_GT': {
+        'label': '🔥 Nhiệt độ quá nóng (≥)',
+        'unit': '°C',
+        'defaultThresh': '36.0',
+        'defaultName': 'Hạ nhiệt khi trời quá nóng',
+        'helper': 'Nhiệt độ không khí đo từ cảm biến (°C)',
+        'targetId': 'fan',
+        'targetLevel': 3,
+        'actionType': 'ACTUATOR_ON',
+        'durationSec': 120,
+      },
+      'TEMP_LT': {
+        'label': '❄️ Nhiệt độ quá lạnh (≤)',
+        'unit': '°C',
+        'defaultThresh': '18.0',
+        'defaultName': 'Sưởi ấm khi trời lạnh',
+        'helper': 'Nhiệt độ môi trường hạ thấp (°C)',
+        'targetId': 'light',
+        'targetLevel': 1,
+        'actionType': 'ACTUATOR_ON',
+        'durationSec': 300,
+      },
+      'HUM_LT': {
+        'label': '🌵 Độ ẩm hanh khô (≤)',
+        'unit': '%',
+        'defaultThresh': '45.0',
+        'defaultName': 'Phun sương tạo ẩm khi hanh khô',
+        'helper': 'Độ ẩm không khí xuống thấp (%)',
+        'targetId': 'misting',
+        'targetLevel': 1,
+        'actionType': 'ACTUATOR_ON',
+        'durationSec': 20,
+      },
+      'HUM_GT': {
+        'label': '💧 Độ ẩm quá cao (≥)',
+        'unit': '%',
+        'defaultThresh': '85.0',
+        'defaultName': 'Quạt thông gió đẩy ẩm',
+        'helper': 'Độ ẩm không khí tăng cao (%)',
+        'targetId': 'fan',
+        'targetLevel': 2,
+        'actionType': 'ACTUATOR_ON',
+        'durationSec': 120,
+      },
+      'LIGHT_LT': {
+        'label': '🌙 Trời tối / Thiếu sáng (≤)',
+        'unit': '%',
+        'defaultThresh': '20.0',
+        'defaultName': 'Tự động bật đèn khi trời tối',
+        'helper': 'Quang trở LDR: 0% = Tối om, 100% = Sáng rực',
+        'targetId': 'light',
+        'targetLevel': 2,
+        'actionType': 'ACTUATOR_ON',
+        'durationSec': 0,
+      },
+      'LIGHT_GT': {
+        'label': '☀️ Nắng gắt / Sáng chói (≥)',
+        'unit': '%',
+        'defaultThresh': '80.0',
+        'defaultName': 'Bật quạt khi nắng gắt',
+        'helper': 'Cường độ quang trở đo được (%)',
+        'targetId': 'fan',
+        'targetLevel': 2,
+        'actionType': 'ACTUATOR_ON',
+        'durationSec': 120,
+      },
+      'DEW_MARGIN_LT': {
+        'label': '🛡️ Nguy cơ đọng sương (T−Td ≤)',
+        'unit': '°C',
+        'defaultThresh': '2.0',
+        'defaultName': 'Sấy khô chống đọng sương vi mạch',
+        'helper': 'Biên an toàn sương: ≤ 2°C có nguy cơ đọng ẩm',
+        'targetId': 'light',
+        'targetLevel': 2,
+        'actionType': 'ACTUATOR_ON',
+        'durationSec': 180,
+      },
+    };
+
+    final initCfg = conditionConfigs['TEMP_GT']!;
+    final nameCtrl = TextEditingController(text: initCfg['defaultName'] as String);
     String conditionType = 'TEMP_GT';
-    final threshCtrl = TextEditingController(text: '36.0');
-    String targetId = 'fan';
-    String actionType = 'ACTUATOR_ON';
-    int targetLevel = 3;
-    int durationSec = 60;
+    final threshCtrl = TextEditingController(text: initCfg['defaultThresh'] as String);
+    String targetId = initCfg['targetId'] as String;
+    String actionType = initCfg['actionType'] as String;
+    int targetLevel = initCfg['targetLevel'] as int;
+    int durationSec = initCfg['durationSec'] as int;
 
     final actuatorsMap = {
       'fan': 'Quạt thông gió',
       'misting': 'Phun sương vi khí hậu',
       'pump': 'Máy bơm tưới',
-      'light': 'Đèn sưởi bức xạ',
+      'light': 'Đèn sưởi & quang hợp',
       'siren': 'Còi hú báo động',
       'relay': s.relayLabel.isNotEmpty ? s.relayLabel : 'Rơ-le điện 220V',
     };
@@ -974,157 +1058,199 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
       backgroundColor: AppColors.surface,
       shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setMState) => Padding(
-          padding: EdgeInsets.only(
-            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
-            left: 20,
-            right: 20,
-            top: 20,
-          ),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Row(children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: AppColors.accent.withAlpha(40), borderRadius: BorderRadius.circular(10)),
-                    child: const Icon(Icons.bolt_rounded, color: AppColors.accent, size: 22),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(child: Text('Tạo Kịch bản Tự động hóa mới', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold))),
-                  IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded)),
-                ]),
-                const SizedBox(height: 16),
-                TextField(
-                  controller: nameCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Tên kịch bản',
-                    hintText: 'VD: Hạ nhiệt buổi trưa, Tưới cây tự động...',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text('ĐIỀU KIỆN KÍCH HOẠT (NẾU):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent)),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  initialValue: conditionType,
-                  decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                  items: const [
-                    DropdownMenuItem(value: 'TEMP_GT', child: Text('Nhiệt độ môi trường ≥ (Quá nóng)')),
-                    DropdownMenuItem(value: 'TEMP_LT', child: Text('Nhiệt độ môi trường ≤ (Quá lạnh)')),
-                    DropdownMenuItem(value: 'HUM_GT', child: Text('Độ ẩm không khí ≥ (Quá ẩm)')),
-                    DropdownMenuItem(value: 'HUM_LT', child: Text('Độ ẩm không khí ≤ (Hanh khô)')),
-                    DropdownMenuItem(value: 'DEW_MARGIN_LT', child: Text('Biên đọng sương (T−Td) ≤ (Nguy cơ ngưng tụ)')),
-                  ],
-                  onChanged: (v) => setMState(() => conditionType = v ?? 'TEMP_GT'),
-                ),
-                const SizedBox(height: 10),
-                TextField(
-                  controller: threshCtrl,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    labelText: 'Ngưỡng giá trị kích hoạt',
-                    suffixText: conditionType.startsWith('HUM') ? '%' : '°C',
-                    border: const OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 14),
-                const Text('HÀNH ĐỘNG THỰC THI (THÌ):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ok)),
-                const SizedBox(height: 6),
-                DropdownButtonFormField<String>(
-                  initialValue: targetId,
-                  decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                  items: actuatorsMap.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
-                  onChanged: (v) => setMState(() {
-                    targetId = v ?? 'fan';
-                    if (targetId == 'fan') targetLevel = 3;
-                    if (targetId == 'misting') durationSec = 15;
-                    if (targetId == 'siren') durationSec = 5;
-                    if (targetId == 'pump') durationSec = 300;
-                  }),
-                ),
-                const SizedBox(height: 10),
-                Row(children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      initialValue: actionType,
-                      decoration: const InputDecoration(labelText: 'Lệnh', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-                      items: const [
-                        DropdownMenuItem(value: 'ACTUATOR_ON', child: Text('Bật thiết bị')),
-                        DropdownMenuItem(value: 'ACTUATOR_OFF', child: Text('Tắt thiết bị')),
-                      ],
-                      onChanged: (v) => setMState(() => actionType = v ?? 'ACTUATOR_ON'),
+        builder: (ctx, setMState) {
+          final curCfg = conditionConfigs[conditionType] ?? initCfg;
+          final curUnit = curCfg['unit'] as String;
+          final curHelper = curCfg['helper'] as String;
+
+          void applyPreset(String newCond) {
+            final cfg = conditionConfigs[newCond];
+            if (cfg != null) {
+              setMState(() {
+                conditionType = newCond;
+                threshCtrl.text = cfg['defaultThresh'] as String;
+                nameCtrl.text = cfg['defaultName'] as String;
+                targetId = cfg['targetId'] as String;
+                targetLevel = cfg['targetLevel'] as int;
+                actionType = cfg['actionType'] as String;
+                durationSec = cfg['durationSec'] as int;
+              });
+            }
+          }
+
+          return Container(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(ctx).size.height * 0.88,
+            ),
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+              left: 20,
+              right: 20,
+              top: 20,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(color: AppColors.accent.withAlpha(40), borderRadius: BorderRadius.circular(10)),
+                      child: const Icon(Icons.bolt_rounded, color: AppColors.accent, size: 22),
+                    ),
+                    const SizedBox(width: 12),
+                    const Expanded(child: Text('Tạo Kịch bản Tự động hóa mới', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold))),
+                    IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close_rounded)),
+                  ]),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(
+                      labelText: 'Tên kịch bản',
+                      hintText: 'VD: Hạ nhiệt buổi trưa, Tưới cây tự động...',
+                      border: OutlineInputBorder(),
                     ),
                   ),
-                  if (targetId == 'fan' && actionType == 'ACTUATOR_ON') ...[
-                    const SizedBox(width: 10),
+                  const SizedBox(height: 14),
+                  const Text('ĐIỀU KIỆN KÍCH HOẠT (NẾU):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.accent)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey('cond-$conditionType'),
+                    isExpanded: true,
+                    initialValue: conditionType,
+                    decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                    items: conditionConfigs.entries.map((e) => DropdownMenuItem(
+                      value: e.key,
+                      child: Text(
+                        e.value['label'] as String,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                    )).toList(),
+                    onChanged: (v) {
+                      if (v != null) applyPreset(v);
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: threshCtrl,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    decoration: InputDecoration(
+                      labelText: 'Ngưỡng giá trị kích hoạt ($curUnit)',
+                      suffixText: curUnit,
+                      helperText: curHelper,
+                      helperMaxLines: 2,
+                      border: const OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  const Text('HÀNH ĐỘNG THỰC THI (THÌ):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.ok)),
+                  const SizedBox(height: 6),
+                  DropdownButtonFormField<String>(
+                    key: ValueKey('target-$conditionType-$targetId'),
+                    isExpanded: true,
+                    initialValue: targetId,
+                    decoration: const InputDecoration(border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                    items: actuatorsMap.entries.map((e) => DropdownMenuItem(
+                      value: e.key,
+                      child: Text(e.value, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
+                    )).toList(),
+                    onChanged: (v) => setMState(() {
+                      targetId = v ?? 'fan';
+                      if (targetId == 'fan') targetLevel = 3;
+                      if (targetId == 'misting') durationSec = 15;
+                      if (targetId == 'siren') durationSec = 5;
+                      if (targetId == 'pump') durationSec = 300;
+                    }),
+                  ),
+                  const SizedBox(height: 10),
+                  Row(children: [
                     Expanded(
-                      child: DropdownButtonFormField<int>(
-                        initialValue: targetLevel,
-                        decoration: const InputDecoration(labelText: 'Tốc độ', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                      child: DropdownButtonFormField<String>(
+                        key: ValueKey('act-$conditionType-$actionType'),
+                        isExpanded: true,
+                        initialValue: actionType,
+                        decoration: const InputDecoration(labelText: 'Lệnh', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                         items: const [
-                          DropdownMenuItem(value: 1, child: Text('Cấp 1 - Êm')),
-                          DropdownMenuItem(value: 2, child: Text('Cấp 2 - Vừa')),
-                          DropdownMenuItem(value: 3, child: Text('Cấp 3 - Mạnh')),
+                          DropdownMenuItem(value: 'ACTUATOR_ON', child: Text('Bật thiết bị')),
+                          DropdownMenuItem(value: 'ACTUATOR_OFF', child: Text('Tắt thiết bị')),
                         ],
-                        onChanged: (v) => setMState(() => targetLevel = v ?? 3),
+                        onChanged: (v) => setMState(() => actionType = v ?? 'ACTUATOR_ON'),
                       ),
                     ),
-                  ],
-                ]),
-                const SizedBox(height: 18),
-                FilledButton.icon(
-                  onPressed: () async {
-                    final val = double.tryParse(threshCtrl.text.replaceAll(',', '.')) ?? 35.0;
-                    final icon = targetId == 'misting'
-                        ? 'water_drop'
-                        : (targetId == 'fan'
-                            ? 'ac_unit'
-                            : (targetId == 'light'
-                                ? 'shield'
-                                : (targetId == 'pump' ? 'eco' : 'bolt')));
-                    final rule = AutomationRule(
-                      id: '',
-                      stationId: s.id,
-                      name: nameCtrl.text.trim().isEmpty ? 'Kịch bản tự động' : nameCtrl.text.trim(),
-                      icon: icon,
-                      isEnabled: true,
-                      conditionType: conditionType,
-                      thresholdValue: val,
-                      actionType: actionType,
-                      targetId: targetId,
-                      targetName: actuatorsMap[targetId] ?? targetId,
-                      targetLevel: targetLevel,
-                      durationSeconds: durationSec,
-                      createdAt: '',
-                    );
-                    Navigator.pop(ctx, true);
-                    setState(() => _busy = true);
-                    try {
-                      final ok = await Session.I.saveAutomation(rule);
-                      if (mounted) {
-                        if (ok) {
-                          toast(context, '🎉 Đã lưu kịch bản tự động hóa mới!');
-                          _loadAutomations();
-                        } else {
-                          toast(context, 'Không thể lưu kịch bản', error: true);
+                    if (targetId == 'fan' && actionType == 'ACTUATOR_ON') ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: DropdownButtonFormField<int>(
+                          key: ValueKey('fan-lvl-$targetLevel'),
+                          isExpanded: true,
+                          initialValue: targetLevel,
+                          decoration: const InputDecoration(labelText: 'Tốc độ', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                          items: const [
+                            DropdownMenuItem(value: 1, child: Text('Cấp 1 - Êm')),
+                            DropdownMenuItem(value: 2, child: Text('Cấp 2 - Vừa')),
+                            DropdownMenuItem(value: 3, child: Text('Cấp 3 - Mạnh')),
+                          ],
+                          onChanged: (v) => setMState(() => targetLevel = v ?? 3),
+                        ),
+                      ),
+                    ],
+                  ]),
+                  const SizedBox(height: 18),
+                  FilledButton.icon(
+                    onPressed: () async {
+                      final val = double.tryParse(threshCtrl.text.replaceAll(',', '.')) ?? 35.0;
+                      final icon = conditionType.startsWith('LIGHT')
+                          ? 'lightbulb'
+                          : (targetId == 'misting'
+                              ? 'water_drop'
+                              : (targetId == 'fan'
+                                  ? 'ac_unit'
+                                  : (targetId == 'light'
+                                      ? 'shield'
+                                      : (targetId == 'pump' ? 'eco' : 'bolt'))));
+                      final rule = AutomationRule(
+                        id: '',
+                        stationId: s.id,
+                        name: nameCtrl.text.trim().isEmpty ? 'Kịch bản tự động' : nameCtrl.text.trim(),
+                        icon: icon,
+                        isEnabled: true,
+                        conditionType: conditionType,
+                        thresholdValue: val,
+                        actionType: actionType,
+                        targetId: targetId,
+                        targetName: actuatorsMap[targetId] ?? targetId,
+                        targetLevel: targetLevel,
+                        durationSeconds: durationSec,
+                        createdAt: '',
+                      );
+                      Navigator.pop(ctx, true);
+                      setState(() => _busy = true);
+                      try {
+                        final ok = await Session.I.saveAutomation(rule);
+                        if (mounted) {
+                          if (ok) {
+                            toast(context, '🎉 Đã lưu kịch bản tự động hóa mới!');
+                            _loadAutomations();
+                          } else {
+                            toast(context, 'Không thể lưu kịch bản', error: true);
+                          }
                         }
+                      } catch (e) {
+                        if (mounted) toast(context, e.toString(), error: true);
+                      } finally {
+                        if (mounted) setState(() => _busy = false);
                       }
-                    } catch (e) {
-                      if (mounted) toast(context, e.toString(), error: true);
-                    } finally {
-                      if (mounted) setState(() => _busy = false);
-                    }
-                  },
-                  icon: const Icon(Icons.check_circle_rounded),
-                  label: const Text('Lưu & Kích hoạt Kịch bản'),
-                ),
-              ],
+                    },
+                    icon: const Icon(Icons.check_circle_rounded),
+                    label: const Text('Lưu & Kích hoạt Kịch bản'),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ),
+          );
+        },
       ),
     );
   }
