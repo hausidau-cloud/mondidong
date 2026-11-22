@@ -94,7 +94,7 @@ class _ConfigTabState extends State<ConfigTab> with AutomaticKeepAliveClientMixi
 
     Widget field(String k, String label, String unit, {String? hint, bool integer = false}) => TextFormField(
           controller: _c[k],
-          enabled: admin && !_busy,
+          enabled: !_busy,
           keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
           onChanged: (_) => _dirty = true,
           validator: (v) {
@@ -125,16 +125,14 @@ class _ConfigTabState extends State<ConfigTab> with AutomaticKeepAliveClientMixi
           SectionCard(
             title: 'Ngưỡng cảnh báo',
             subtitle: s.isEsp32 ? 'ESP32 NodeMCU · Cảm biến DHT11 & LED' : p.label,
-            trailing: admin
-                ? FilledButton.icon(
-                    style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
-                    onPressed: _busy ? null : _save,
-                    icon: _busy
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                        : const Icon(Icons.save_rounded, size: 18),
-                    label: const Text('Lưu'),
-                  )
-                : const Chip(label: Text('Chỉ xem')),
+            trailing: FilledButton.icon(
+              style: FilledButton.styleFrom(minimumSize: const Size(0, 40)),
+              onPressed: _busy ? null : _save,
+              icon: _busy
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.save_rounded, size: 18),
+              label: const Text('Lưu'),
+            ),
             child: grid([
               if (s.isEsp32) ...[
                 field('air_temp_max', 'Nhiệt độ không khí tối đa', '°C', hint: 'DHT11 · Vượt ngưỡng → Bật đèn LED cảnh báo'),

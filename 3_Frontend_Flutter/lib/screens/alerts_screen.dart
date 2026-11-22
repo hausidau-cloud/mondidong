@@ -42,24 +42,8 @@ class _AlertsScreenState extends State<AlertsScreen> {
     try {
       final d = await Session.I.alerts(state: _state, level: _level, limit: 100);
       if (mounted) {
-        final user = Session.I.user;
-        final bool isAdmin = Session.I.isAdmin;
-        final assignedStationIds = user?.stationIds ?? [];
-        final filteredRows = isAdmin
-            ? d.rows
-            : d.rows.where((r) => assignedStationIds.contains(r.stationId ?? r.deviceId)).toList();
-
         setState(() {
-          _data = AlertPage(
-            rows: filteredRows,
-            total: isAdmin ? d.total : filteredRows.length,
-            page: d.page,
-            pages: d.pages,
-            openTotal: isAdmin ? d.openTotal : filteredRows.where((r) => !r.resolved).length,
-            openDanger: isAdmin ? d.openDanger : filteredRows.where((r) => !r.resolved && r.level == 'DANGER').length,
-            unack: isAdmin ? d.unack : filteredRows.where((r) => !r.resolved).length,
-            last24h: isAdmin ? d.last24h : filteredRows.length,
-          );
+          _data = d;
           _error = null;
         });
       }
@@ -197,7 +181,6 @@ class AlertTile extends StatelessWidget {
     final danger = a.level == 'DANGER';
     final c = a.resolved ? AppColors.off : (danger ? AppColors.danger : AppColors.warn);
     final icon = a.type == 'OFFLINE' ? Icons.wifi_off_rounded : (danger ? Icons.emergency_rounded : Icons.warning_amber_rounded);
-    final admin = Session.I.isAdmin;
 
     Future<void> act(Future<void> Function() f, String ok) async {
       try {
@@ -254,13 +237,12 @@ class AlertTile extends StatelessWidget {
                           icon: const Icon(Icons.visibility_outlined, size: 16),
                           label: const Text('Đã xem'),
                         ),
-                      if (admin)
-                        OutlinedButton.icon(
-                          style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
-                          onPressed: () => act(() => Session.I.resolveAlert(a.id), 'Đã đóng cảnh báo'),
-                          icon: const Icon(Icons.task_alt_rounded, size: 16),
-                          label: const Text('Đóng'),
-                        ),
+                      OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+                        onPressed: () => act(() => Session.I.resolveAlert(a.id), 'Đã đóng cảnh báo'),
+                        icon: const Icon(Icons.task_alt_rounded, size: 16),
+                        label: const Text('Đóng'),
+                      ),
                     ]),
                   ),
               ]),

@@ -632,7 +632,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
                 value: isOn,
                 activeTrackColor: color.withValues(alpha: 0.5),
                 activeThumbColor: color,
-                onChanged: admin && !_busy ? (val) => _toggleActuator(act, val) : null,
+                onChanged: !_busy ? (val) => _toggleActuator(act, val) : null,
               ),
             ],
           ),
@@ -657,13 +657,13 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
                 visualDensity: VisualDensity.compact,
                 label: const Text('Tự động (Auto)', style: TextStyle(fontSize: 11)),
                 selected: isAuto,
-                onSelected: admin && !_busy ? (val) => _setActuatorMode(act, 'AUTO') : null,
+                onSelected: !_busy ? (val) => _setActuatorMode(act, 'AUTO') : null,
               ),
               ChoiceChip(
                 visualDensity: VisualDensity.compact,
                 label: const Text('Thủ công (Manual)', style: TextStyle(fontSize: 11)),
                 selected: !isAuto,
-                onSelected: admin && !_busy ? (val) => _setActuatorMode(act, 'MANUAL') : null,
+                onSelected: !_busy ? (val) => _setActuatorMode(act, 'MANUAL') : null,
               ),
 
               if (act.id == 'fan') ...[
@@ -673,7 +673,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
                       visualDensity: VisualDensity.compact,
                       label: Text(lv == 1 ? '1-Êm' : (lv == 2 ? '2-Vừa' : '3-Mạnh'), style: const TextStyle(fontSize: 10.5)),
                       selected: act.level == lv,
-                      onSelected: admin && !_busy ? (val) => _setActuatorLevel(act, lv) : null,
+                      onSelected: !_busy ? (val) => _setActuatorLevel(act, lv) : null,
                     )),
               ],
 
@@ -683,7 +683,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
                       visualDensity: VisualDensity.compact,
                       label: Text(lv == 1 ? '50% Sấy ấm' : '100% Cường độ cao', style: const TextStyle(fontSize: 10.5)),
                       selected: act.level == lv,
-                      onSelected: admin && !_busy ? (val) => _setActuatorLevel(act, lv) : null,
+                      onSelected: !_busy ? (val) => _setActuatorLevel(act, lv) : null,
                     )),
               ],
 
@@ -692,7 +692,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
                   visualDensity: VisualDensity.compact,
                   avatar: const Icon(Icons.flash_on_rounded, size: 13, color: Color(0xFF38BDF8)),
                   label: const Text('Phun thử 15s', style: TextStyle(fontSize: 11, color: Color(0xFF38BDF8))),
-                  onPressed: admin && !_busy ? () => _testActuator('misting', 'Phun sương', 15) : null,
+                  onPressed: !_busy ? () => _testActuator('misting', 'Phun sương', 15) : null,
                 ),
               ],
 
@@ -701,7 +701,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
                   visualDensity: VisualDensity.compact,
                   avatar: const Icon(Icons.timer_outlined, size: 13, color: Color(0xFF60A5FA)),
                   label: const Text('Tưới nhanh 5p', style: TextStyle(fontSize: 11, color: Color(0xFF60A5FA))),
-                  onPressed: admin && !_busy ? () => _testActuator('pump', 'Bơm tưới', 300) : null,
+                  onPressed: !_busy ? () => _testActuator('pump', 'Bơm tưới', 300) : null,
                 ),
               ],
 
@@ -711,7 +711,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
                   backgroundColor: const Color(0xFF3A1320),
                   avatar: const Icon(Icons.volume_up_rounded, size: 13, color: AppColors.danger),
                   label: const Text('🔔 Test Còi 5 Giây', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.danger)),
-                  onPressed: admin && !_busy ? () => _testActuator('siren', 'Còi hú báo động', 5) : null,
+                  onPressed: !_busy ? () => _testActuator('siren', 'Còi hú báo động', 5) : null,
                 ),
               ],
             ],
