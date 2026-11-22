@@ -190,7 +190,16 @@ class _MessagesScreenState extends State<MessagesScreen> {
       }
     } catch (e) {
       if (mounted) {
-        toast(context, 'Không thể chọn ảnh: $e', error: true);
+        final err = e.toString();
+        if (err.contains('channel-error') || err.contains('MissingPluginException')) {
+          toast(
+            context,
+            'Cần Dừng ứng dụng (nút vuông đỏ ⏹) và Bấm Chạy lại (▶) để nạp thư viện Camera vào máy!',
+            error: true,
+          );
+        } else {
+          toast(context, 'Không thể chọn ảnh: $e', error: true);
+        }
       }
     }
   }
