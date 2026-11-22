@@ -27,7 +27,6 @@ class _HomeShellState extends State<HomeShell> {
   int _lastReadMsgId = 0;
   int _latestMsgId = 0;
   int? _lastNotifiedMsgId;
-  bool _readIdLoaded = false;
   Set<int>? _seen;
   Timer? _timer;
 
@@ -52,7 +51,6 @@ class _HomeShellState extends State<HomeShell> {
       final saved = sp.getInt('last_read_team_message_id');
       if (saved != null) {
         _lastReadMsgId = saved;
-        _readIdLoaded = true;
       }
     } catch (_) {}
   }
@@ -122,30 +120,23 @@ class _HomeShellState extends State<HomeShell> {
       try {
         final msgs = await Session.I.teamMessages(limit: 50);
         if (msgs.isNotEmpty) {
-          final currentUserId = Session.I.user?.id ?? 0;
           final maxId = msgs.map((m) => m.id).reduce((x, y) => x > y ? x : y);
           _latestMsgId = maxId;
 
-          // Neu lan dau chay app chua co lich su doc, set _lastReadMsgId la tin nhan moi nhat
-          if (!_readIdLoaded) {
-            _lastReadMsgId = maxId;
-            _lastNotifiedMsgId = maxId;
-            _readIdLoaded = true;
-            final sp = await SharedPreferences.getInstance();
-            await sp.setInt('last_read_team_message_id', maxId);
-          }
+          // Luon lay gia tri thuc te da doc tu SharedPreferences
+          final sp = await SharedPreferences.getInstance();
+          _lastReadMsgId = sp.getInt('last_read_team_message_id') ?? 0;
 
           if (_tab == 3) {
-            // Dang o tab Tin nhan
+            // Dang o tab Tin nhan -> coi nhu da doc
             unread = 0;
             if (maxId > _lastReadMsgId) {
               _lastReadMsgId = maxId;
-              final sp = await SharedPreferences.getInstance();
               await sp.setInt('last_read_team_message_id', maxId);
             }
           } else {
-            // Dang o tab khac: dem tin nhan tu nguoi khac gui den sau _lastReadMsgId
-            final unreadList = msgs.where((m) => m.id > _lastReadMsgId && m.userId != currentUserId).toList();
+            // Dang o tab khac: dem tat ca tin nhan chua doc sau _lastReadMsgId
+            final unreadList = msgs.where((m) => m.id > _lastReadMsgId).toList();
             unread = unreadList.length;
 
             if (unreadList.isNotEmpty) {
@@ -200,17 +191,16 @@ class _HomeShellState extends State<HomeShell> {
       const MapScreen(),
       AlertsScreen(onChanged: _poll),
       MessagesScreen(
+        isActive: _tab == 3,
         onLatestMessageSeen: (latestId) {
-          if (latestId > _lastReadMsgId) {
-            _lastReadMsgId = latestId;
-            _latestMsgId = latestId;
-            if (mounted && _unreadMessages > 0) {
-              setState(() => _unreadMessages = 0);
-            }
-            SharedPreferences.getInstance().then((sp) {
-              sp.setInt('last_read_team_message_id', latestId);
-            });
+          _lastReadMsgId = latestId;
+          _latestMsgId = latestId;
+          if (mounted && _unreadMessages > 0 && _tab == 3) {
+            setState(() => _unreadMessages = 0);
           }
+          SharedPreferences.getInstance().then((sp) {
+            sp.setInt('last_read_team_message_id', latestId);
+          });
         },
       ),
       const SettingsScreen(),
