@@ -83,10 +83,14 @@ class _HomeShellState extends State<HomeShell> {
       final bool isAdmin = Session.I.isAdmin;
       final assignedStationIds = user?.stationIds ?? [];
 
-      // Loc danh sach canh bao theo quyen: admin thay het, viewer chi thay tram duoc phan cong
+      // Loc danh sach canh bao theo quyen quan ly: admin thay het tat ca tram, KTV chi thay tram duoc phan cong
       final userRows = isAdmin
           ? a.rows
-          : a.rows.where((r) => assignedStationIds.contains(r.stationId ?? r.deviceId)).toList();
+          : a.rows.where((r) {
+              if (r.stationId != null && assignedStationIds.contains(r.stationId)) return true;
+              if (assignedStationIds.contains(r.deviceId)) return true;
+              return false;
+            }).toList();
 
       final ids = userRows.map((e) => e.id).toSet();
       if (_seen != null) {

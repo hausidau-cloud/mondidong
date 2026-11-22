@@ -604,19 +604,35 @@ public class DataStore
                     var dev = GetDevice(alert.DeviceId);
                     var stName = dev?.Name ?? $"Trạm #{alert.StationId}";
 
-                    var targetUsers = Users.Where(u => !string.IsNullOrWhiteSpace(u.Email) && u.Email.Contains("@")).ToList();
-                    if (targetUsers.Count == 0)
+                    // Tập hợp ID của trạm / thiết bị xảy ra sự cố
+                    var targetStationIds = new HashSet<int>();
+                    if (alert.StationId.HasValue) targetStationIds.Add(alert.StationId.Value);
+                    targetStationIds.Add(alert.DeviceId);
+                    if (dev != null)
                     {
-                        targetUsers = db.Users.AsNoTracking().Where(u => !string.IsNullOrWhiteSpace(u.Email) && u.Email.Contains("@")).ToList();
+                        targetStationIds.Add(dev.Id);
+                        if (dev.StationId.HasValue) targetStationIds.Add(dev.StationId.Value);
                     }
-                    foreach (var u in targetUsers)
+
+                    // Lấy tất cả tài khoản có Email hợp lệ từ cả DB và bộ nhớ RAM
+                    var candidateUsers = db.Users.AsNoTracking().Where(u => !string.IsNullOrWhiteSpace(u.Email) && u.Email.Contains("@")).ToList();
+                    foreach (var memUser in Users.Where(u => !string.IsNullOrWhiteSpace(u.Email) && u.Email.Contains("@")))
                     {
-                        var isRelevant = u.Role == "admin" 
-                            || !alert.StationId.HasValue 
-                            || u.StationIds.Count == 0 
-                            || u.StationIds.Contains(alert.StationId.Value);
-                        if (isRelevant)
+                        if (!candidateUsers.Any(c => c.Id == memUser.Id)) candidateUsers.Add(memUser);
+                    }
+
+                    // Lọc những tài khoản có QUYỀN QUẢN LÝ TRẠM ĐÓ (Admin hoặc KTV được phân công phụ trách)
+                    foreach (var u in candidateUsers)
+                    {
+                        var isAdmin = string.Equals(u.Role, "admin", StringComparison.OrdinalIgnoreCase);
+                        var userAssignedStations = GetStationIdsForUser(u.Id);
+                        var isAssignedToStation = userAssignedStations.Any(sid => targetStationIds.Contains(sid));
+
+                        var hasPermission = isAdmin || isAssignedToStation;
+
+                        if (hasPermission)
                         {
+                            Console.WriteLine($"[Alert Notification] >> Gửi cảnh báo trạm '{stName}' tới tài khoản quản lý: {u.Username} ({u.FullName}) <{u.Email}>");
                             await emailService.SendAlertEmailAsync(
                                 u.Email!.Trim(),
                                 u.FullName,
