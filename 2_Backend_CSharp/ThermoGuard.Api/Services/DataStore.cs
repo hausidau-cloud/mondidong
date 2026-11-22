@@ -20,6 +20,7 @@ public class DataStore
     public List<RelayLogItem> RelayLogs { get; } = new();
     public List<StationAssignment> Assignments { get; } = new();
     public List<RelayScheduleItem> Schedules { get; } = new();
+    public List<TeamMessage> TeamMessages { get; } = new();
     public Dictionary<string, AppUser> ActiveSessions { get; } = new();
     public Dictionary<string, OtpItem> OtpStore { get; } = new();
 
@@ -62,6 +63,24 @@ public class DataStore
                         Description TEXT,
                         RelayLabel VARCHAR(255) DEFAULT 'Bóng đèn 220V / Rơ-le',
                         CreatedAt VARCHAR(50)
+                    );
+                ");
+            }
+            catch { }
+            try
+            {
+                db.Database.ExecuteSqlRaw(@"
+                    CREATE TABLE IF NOT EXISTS TeamMessages (
+                        Id INT AUTO_INCREMENT PRIMARY KEY,
+                        UserId INT NOT NULL,
+                        SenderName VARCHAR(100) NOT NULL,
+                        SenderRole VARCHAR(50) NOT NULL,
+                        StationId INT NULL,
+                        StationName VARCHAR(100) NULL,
+                        Category VARCHAR(50) NOT NULL DEFAULT 'CHAT',
+                        Content TEXT NOT NULL,
+                        AttachedTelemetry VARCHAR(255) NULL,
+                        CreatedAt VARCHAR(50) NOT NULL
                     );
                 ");
             }
@@ -135,6 +154,12 @@ public class DataStore
             if (db.StationAssignments.Any())
             {
                 Assignments.AddRange(db.StationAssignments.AsNoTracking().ToList());
+            }
+            if (db.TeamMessages.Any())
+            {
+                var history = db.TeamMessages.AsNoTracking().OrderByDescending(m => m.Id).Take(500).ToList();
+                history.Reverse();
+                TeamMessages.AddRange(history);
             }
         }
         catch (Exception ex)
@@ -970,6 +995,87 @@ public class DataStore
             }
             return false;
         }
+    }
+
+    public TeamMessage AddTeamMessage(TeamMessage msg)
+    {
+        lock (_lock)
+        {
+            msg.Id = TeamMessages.Count > 0 ? TeamMessages.Max(m => m.Id) + 1 : 1;
+            msg.CreatedAt = TimeHelper.VnNowStr;
+            TeamMessages.Add(msg);
+        }
+
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                db.TeamMessages.Add(new TeamMessage
+                {
+                    UserId = msg.UserId,
+                    SenderName = msg.SenderName,
+                    SenderRole = msg.SenderRole,
+                    StationId = msg.StationId,
+                    StationName = msg.StationName,
+                    Category = msg.Category,
+                    Content = msg.Content,
+                    AttachedTelemetry = msg.AttachedTelemetry,
+                    CreatedAt = msg.CreatedAt
+                });
+                db.SaveChanges();
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(">> Loi luu tin nhan vao DB: " + ex.Message);
+            }
+        });
+
+        return msg;
+    }
+
+    public List<TeamMessage> GetTeamMessages(int? stationId = null, int limit = 50)
+    {
+        lock (_lock)
+        {
+            var query = TeamMessages.AsEnumerable();
+            if (stationId.HasValue && stationId.Value > 0)
+            {
+                query = query.Where(m => m.StationId == stationId.Value);
+            }
+            return query.OrderByDescending(m => m.Id).Take(limit).Reverse().ToList();
+        }
+    }
+
+    public bool DeleteTeamMessage(int id, int currentUserId, bool isAdmin)
+    {
+        TeamMessage? target = null;
+        lock (_lock)
+        {
+            target = TeamMessages.FirstOrDefault(m => m.Id == id);
+            if (target == null) return false;
+            if (!isAdmin && target.UserId != currentUserId) return false;
+            TeamMessages.Remove(target);
+        }
+
+        Task.Run(() =>
+        {
+            try
+            {
+                using var scope = _scopeFactory.CreateScope();
+                var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+                var dbMsg = db.TeamMessages.FirstOrDefault(m => m.Id == id);
+                if (dbMsg != null)
+                {
+                    db.TeamMessages.Remove(dbMsg);
+                    db.SaveChanges();
+                }
+            }
+            catch { }
+        });
+
+        return true;
     }
 }
 

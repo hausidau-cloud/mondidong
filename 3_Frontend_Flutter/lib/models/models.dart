@@ -841,4 +841,45 @@ class RelaySchedule {
   }
 }
 
+class TeamMessageItem {
+  final int id;
+  final int userId;
+  final String senderName;
+  final String senderRole;
+  final int? stationId;
+  final String? stationName;
+  final String category; // CHAT | INCIDENT | MAINTENANCE | RESOLVED
+  final String content;
+  final String? attachedTelemetry;
+  final String createdAt;
+
+  TeamMessageItem({
+    required this.id,
+    required this.userId,
+    required this.senderName,
+    required this.senderRole,
+    this.stationId,
+    this.stationName,
+    required this.category,
+    required this.content,
+    this.attachedTelemetry,
+    required this.createdAt,
+  });
+
+  factory TeamMessageItem.fromJson(Map<String, dynamic> j) {
+    return TeamMessageItem(
+      id: (j['id'] as num?)?.toInt() ?? 0,
+      userId: (j['user_id'] as num?)?.toInt() ?? 0,
+      senderName: (j['sender_name'] ?? 'Ẩn danh').toString(),
+      senderRole: (j['sender_role'] ?? 'viewer').toString(),
+      stationId: (j['station_id'] as num?)?.toInt(),
+      stationName: j['station_name']?.toString(),
+      category: (j['category'] ?? 'CHAT').toString(),
+      content: (j['content'] ?? '').toString(),
+      attachedTelemetry: j['attached_telemetry']?.toString(),
+      createdAt: (j['created_at'] ?? '').toString(),
+    );
+  }
+}
+
 

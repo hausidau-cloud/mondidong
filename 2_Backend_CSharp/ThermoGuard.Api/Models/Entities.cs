@@ -94,6 +94,39 @@ public class RelayScheduleItem
     public int SecondsRemaining => (int)Math.Max(0, (TriggerAt - DateTime.UtcNow).TotalSeconds);
 }
 
+public class TeamMessage
+{
+    [JsonPropertyName("id")]
+    public int Id { get; set; }
+
+    [JsonPropertyName("user_id")]
+    public int UserId { get; set; }
+
+    [JsonPropertyName("sender_name")]
+    public string SenderName { get; set; } = "";
+
+    [JsonPropertyName("sender_role")]
+    public string SenderRole { get; set; } = "viewer"; // admin | viewer
+
+    [JsonPropertyName("station_id")]
+    public int? StationId { get; set; }
+
+    [JsonPropertyName("station_name")]
+    public string? StationName { get; set; }
+
+    [JsonPropertyName("category")]
+    public string Category { get; set; } = "CHAT"; // CHAT | INCIDENT | MAINTENANCE | RESOLVED
+
+    [JsonPropertyName("content")]
+    public string Content { get; set; } = "";
+
+    [JsonPropertyName("attached_telemetry")]
+    public string? AttachedTelemetry { get; set; }
+
+    [JsonPropertyName("created_at")]
+    public string CreatedAt { get; set; } = "";
+}
+
 
 public class StationItem
 {

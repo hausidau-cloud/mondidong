@@ -16,6 +16,7 @@ public class AppDbContext : DbContext
     public DbSet<AlertItem> Alerts { get; set; } = null!;
     public DbSet<RelayLogItem> RelayLogs { get; set; } = null!;
     public DbSet<StationAssignment> StationAssignments { get; set; } = null!;
+    public DbSet<TeamMessage> TeamMessages { get; set; } = null!;
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -29,6 +30,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<AlertItem>().HasKey(a => a.Id);
         modelBuilder.Entity<RelayLogItem>().HasKey(l => l.Id);
         modelBuilder.Entity<StationAssignment>().HasKey(s => s.Id);
+        modelBuilder.Entity<TeamMessage>().HasKey(m => m.Id);
 
         // Seed initial admin user
         modelBuilder.Entity<AppUser>().HasData(

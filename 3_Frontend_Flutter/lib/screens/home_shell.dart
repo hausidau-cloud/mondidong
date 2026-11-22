@@ -9,6 +9,7 @@ import '../widgets/common.dart';
 import 'alerts_screen.dart';
 import 'hub_screen.dart';
 import 'map_screen.dart';
+import 'messages_screen.dart';
 import 'settings_screen.dart';
 
 class HomeShell extends StatefulWidget {
@@ -94,6 +95,7 @@ class _HomeShellState extends State<HomeShell> {
       const HubScreen(),
       const MapScreen(),
       AlertsScreen(onChanged: _poll),
+      const MessagesScreen(),
       const SettingsScreen(),
     ];
     Widget badgeIcon(IconData i) => Badge(
@@ -118,6 +120,7 @@ class _HomeShellState extends State<HomeShell> {
               const NavigationRailDestination(icon: Icon(Icons.space_dashboard_outlined), selectedIcon: Icon(Icons.space_dashboard_rounded), label: Text('Tổng quan')),
               const NavigationRailDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map_rounded), label: Text('Bản đồ GIS')),
               NavigationRailDestination(icon: badgeIcon(Icons.notifications_none_rounded), selectedIcon: badgeIcon(Icons.notifications_rounded), label: const Text('Cảnh báo')),
+              const NavigationRailDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: Text('Tin nhắn')),
               const NavigationRailDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: Text('Tài khoản')),
             ],
           ),
@@ -136,6 +139,7 @@ class _HomeShellState extends State<HomeShell> {
           const NavigationDestination(icon: Icon(Icons.space_dashboard_outlined), selectedIcon: Icon(Icons.space_dashboard_rounded), label: 'Tổng quan'),
           const NavigationDestination(icon: Icon(Icons.map_outlined), selectedIcon: Icon(Icons.map_rounded), label: 'Bản đồ GIS'),
           NavigationDestination(icon: badgeIcon(Icons.notifications_none_rounded), selectedIcon: badgeIcon(Icons.notifications_rounded), label: 'Cảnh báo'),
+          const NavigationDestination(icon: Icon(Icons.forum_outlined), selectedIcon: Icon(Icons.forum_rounded), label: 'Tin nhắn'),
           const NavigationDestination(icon: Icon(Icons.person_outline_rounded), selectedIcon: Icon(Icons.person_rounded), label: 'Tài khoản'),
         ],
       ),

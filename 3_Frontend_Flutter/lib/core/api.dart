@@ -644,6 +644,40 @@ class Session extends ChangeNotifier {
     final j = await delete('control/schedule/$scheduleId');
     return j['ok'] == true;
   }
+
+  /// Lay danh sach tin nhan trao doi noi bo & bao cao su co
+  Future<List<TeamMessageItem>> teamMessages({int? stationId, int limit = 50}) async {
+    final query = <String, String>{
+      if (stationId != null && stationId > 0) 'station_id': stationId.toString(),
+      'limit': limit.toString(),
+    };
+    final uri = Uri(path: 'messages', queryParameters: query.isEmpty ? null : query);
+    final j = await get(uri.toString());
+    final list = (j['messages'] as List?) ?? [];
+    return list.map((e) => TeamMessageItem.fromJson(e as Map<String, dynamic>)).toList();
+  }
+
+  /// Gui tin nhan trao doi hoac bao cao su co
+  Future<TeamMessageItem> sendTeamMessage({
+    required String content,
+    int? stationId,
+    String category = 'CHAT',
+    String? attachedTelemetry,
+  }) async {
+    final j = await post('messages', {
+      'content': content,
+      if (stationId != null && stationId > 0) 'station_id': stationId,
+      'category': category,
+      if (attachedTelemetry != null && attachedTelemetry.isNotEmpty) 'attached_telemetry': attachedTelemetry,
+    });
+    return TeamMessageItem.fromJson(j['data'] as Map<String, dynamic>);
+  }
+
+  /// Xoa tin nhan
+  Future<bool> deleteTeamMessage(int messageId) async {
+    final j = await delete('messages/$messageId');
+    return j['ok'] == true;
+  }
 }
 
 

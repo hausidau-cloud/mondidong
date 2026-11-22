@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/report_dialog.dart';
+import '../messages_screen.dart';
 import 'ai_chat_sheet.dart';
 import 'ai_tab.dart';
 import 'config_tab.dart';
@@ -96,6 +97,18 @@ class _StationScreenState extends State<StationScreen> {
                   tooltip: 'Chat với AI',
                   icon: const Icon(Icons.smart_toy_outlined),
                   onPressed: () => showAiChatModal(context, s),
+                ),
+                IconButton(
+                  tooltip: 'Kênh trao đổi trạm',
+                  icon: const Icon(Icons.forum_outlined),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => MessagesScreen(initialStationId: s.id),
+                      ),
+                    );
+                  },
                 ),
                 IconButton(
                   tooltip: 'Báo cáo Kiểm định Đồ án',
