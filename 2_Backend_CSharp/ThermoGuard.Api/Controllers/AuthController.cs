@@ -96,6 +96,8 @@ public class AuthController : ControllerBase
                 id = cur.Id,
                 username = cur.Username,
                 full_name = cur.FullName,
+                email = cur.Email,
+                phone = cur.Phone,
                 role = cur.Role,
                 station_ids = _store.GetStationIdsForUser(cur.Id)
             }
@@ -140,6 +142,8 @@ public class AuthController : ControllerBase
                     id = cur.Id,
                     username = cur.Username,
                     full_name = cur.FullName,
+                    email = cur.Email,
+                    phone = cur.Phone,
                     role = cur.Role,
                     station_ids = _store.GetStationIdsForUser(cur.Id)
                 } : null
@@ -432,6 +436,8 @@ public class AuthController : ControllerBase
                 id = user.Id,
                 username = user.Username,
                 full_name = user.FullName,
+                email = user.Email,
+                phone = user.Phone,
                 role = user.Role,
                 station_ids = _store.GetStationIdsForUser(user.Id)
             }

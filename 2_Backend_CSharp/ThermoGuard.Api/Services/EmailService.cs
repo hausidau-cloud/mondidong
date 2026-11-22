@@ -58,11 +58,11 @@ public class EmailService
                 EnableSsl = true,
                 UseDefaultCredentials = false,
                 Credentials = new NetworkCredential(senderEmail, senderPassword),
-                Timeout = 4000
+                Timeout = 15000
             };
 
             var sendTask = client.SendMailAsync(mail);
-            var timeoutTask = Task.Delay(4000);
+            var timeoutTask = Task.Delay(15000);
             var completed = await Task.WhenAny(sendTask, timeoutTask);
             if (completed == timeoutTask)
             {
@@ -179,11 +179,11 @@ public class EmailService
                 EnableSsl = true,
                 UseDefaultCredentials = false,
                 Credentials = new NetworkCredential(senderEmail, senderPassword),
-                Timeout = 5000
+                Timeout = 15000
             };
 
             var sendTask = client.SendMailAsync(mail);
-            var timeoutTask = Task.Delay(5000);
+            var timeoutTask = Task.Delay(15000);
             var completed = await Task.WhenAny(sendTask, timeoutTask);
             if (completed == timeoutTask)
             {

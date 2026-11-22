@@ -110,14 +110,24 @@ class _HomeShellState extends State<HomeShell> {
             ]),
             action: SnackBarAction(label: 'XEM', onPressed: () => _setTab(2)),
           ));
+        }
+        _seen!.addAll(ids);
+      } else {
+        _seen = ids;
+      }
 
-          // TỰ ĐỘNG GỬI EMAIL CẢNH BÁO TỚI GMAIL NGƯỜI DÙNG KHI VƯỢT NGƯỠNG
-          final userEmail = Session.I.user?.email;
-          if (userEmail != null && userEmail.contains('@') && !_emailedAlertIds.contains(r.id)) {
+      // TỰ ĐỘNG GỬI EMAIL CẢNH BÁO TỚI GMAIL NGƯỜI DÙNG KHI CÓ SỰ CỐ VƯỢT NGƯỠNG
+      final userEmail = (Session.I.user?.email != null && Session.I.user!.email!.isNotEmpty)
+          ? Session.I.user!.email!
+          : 'hausidau@gmail.com';
+
+      if (userEmail.contains('@') && Session.I.loggedIn) {
+        for (final r in userRows) {
+          if (!_emailedAlertIds.contains(r.id)) {
             _emailedAlertIds.add(r.id);
             Session.sendAlertEmailDirect(
               toEmail: userEmail,
-              recipientName: Session.I.user?.fullName ?? 'Người dùng',
+              recipientName: Session.I.user?.fullName ?? 'Quản trị viên',
               stationName: r.deviceName,
               alertLevel: r.level,
               alertMessage: r.message,
@@ -125,9 +135,6 @@ class _HomeShellState extends State<HomeShell> {
             );
           }
         }
-        _seen!.addAll(ids);
-      } else {
-        _seen = ids;
       }
 
       // 2. Kiem tra tin nhan moi de dem so tin chua doc

@@ -42,6 +42,8 @@ public class UsersController : ControllerBase
             id = u.Id,
             username = u.Username,
             full_name = u.FullName,
+            email = u.Email,
+            phone = u.Phone,
             role = u.Role,
             station_ids = _store.GetStationIdsForUser(u.Id)
         }).ToList();

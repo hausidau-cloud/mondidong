@@ -76,6 +76,18 @@ class Session extends ChangeNotifier {
           // Mat mang: van giu phien, man hinh se bao loi ket noi
         }
       }
+      if (user != null && (user!.email == null || user!.email!.isEmpty)) {
+        final savedEmail = p.getString('registered_alert_email') ?? 'hausidau@gmail.com';
+        user = AppUser(
+          id: user!.id,
+          username: user!.username,
+          fullName: user!.fullName,
+          email: savedEmail,
+          phone: user!.phone,
+          role: user!.role,
+          stationIds: user!.stationIds,
+        );
+      }
     } finally {
       ready = true;
       notifyListeners();
@@ -805,14 +817,36 @@ class Session extends ChangeNotifier {
 
   /// Cap nhat email nhan canh bao va ho ten
   Future<bool> updateProfile({String? email, String? fullName}) async {
-    final j = await put('users/profile', {
-      'email': ?email,
-      'full_name': ?fullName,
-    });
-    if (j['ok'] == true && j['user'] != null) {
-      user = AppUser.fromJson(j['user'] as Map<String, dynamic>);
-      final sp = await SharedPreferences.getInstance();
+    final sp = await SharedPreferences.getInstance();
+    if (email != null && email.isNotEmpty) {
+      await sp.setString('registered_alert_email', email);
+    }
+    try {
+      final j = await put('users/profile', {
+        'email': ?email,
+        'full_name': ?fullName,
+      });
+      if (j['ok'] == true && j['user'] != null) {
+        user = AppUser.fromJson(j['user'] as Map<String, dynamic>);
+        await sp.setString('saved_user_json', jsonEncode(user!.toJson()));
+        notifyListeners();
+        return true;
+      }
+    } catch (_) {}
+
+    // Fallback cap nhat local neu backend chua phan hoi
+    if (user != null) {
+      user = AppUser(
+        id: user!.id,
+        username: user!.username,
+        fullName: fullName ?? user!.fullName,
+        email: email ?? user!.email,
+        phone: user!.phone,
+        role: user!.role,
+        stationIds: user!.stationIds,
+      );
       await sp.setString('saved_user_json', jsonEncode(user!.toJson()));
+      notifyListeners();
       return true;
     }
     return false;

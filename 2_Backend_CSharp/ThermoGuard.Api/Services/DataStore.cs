@@ -605,9 +605,16 @@ public class DataStore
                     var stName = dev?.Name ?? $"Trạm #{alert.StationId}";
 
                     var targetUsers = Users.Where(u => !string.IsNullOrWhiteSpace(u.Email) && u.Email.Contains("@")).ToList();
+                    if (targetUsers.Count == 0)
+                    {
+                        targetUsers = db.Users.AsNoTracking().Where(u => !string.IsNullOrWhiteSpace(u.Email) && u.Email.Contains("@")).ToList();
+                    }
                     foreach (var u in targetUsers)
                     {
-                        var isRelevant = u.Role == "admin" || (alert.StationId.HasValue && u.StationIds.Contains(alert.StationId.Value));
+                        var isRelevant = u.Role == "admin" 
+                            || !alert.StationId.HasValue 
+                            || u.StationIds.Count == 0 
+                            || u.StationIds.Contains(alert.StationId.Value);
                         if (isRelevant)
                         {
                             await emailService.SendAlertEmailAsync(
