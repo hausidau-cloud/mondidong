@@ -241,18 +241,41 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(
-                  color: const Color(0xFF10B981).withValues(alpha: 0.2),
+                  color: const Color(0xFFF59E0B).withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: const Color(0xFF10B981).withValues(alpha: 0.5)),
+                  border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.5)),
                 ),
                 child: const Text(
-                  '🌿 IoT 4.0',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF10B981)),
+                  '🛠️ ĐANG PHÁT TRIỂN',
+                  style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Color(0xFFF59E0B)),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 10),
+
+          // Banner thong bao dang phat trien phan cung
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6.5),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF59E0B).withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.3)),
+            ),
+            child: const Row(
+              children: [
+                Icon(Icons.science_outlined, size: 14, color: Color(0xFFF59E0B)),
+                SizedBox(width: 7),
+                Expanded(
+                  child: Text(
+                    'Lộ trình mở rộng phần cứng Giai đoạn 2: Đang nghiên cứu & chạy mô phỏng chuẩn bị tích hợp cảm biến thực tế.',
+                    style: TextStyle(fontSize: 10.5, color: Color(0xFFF59E0B), height: 1.3),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
 
           // 4 Metric Tiles in 2x2 Grid
           LayoutBuilder(builder: (ctx, constraints) {
