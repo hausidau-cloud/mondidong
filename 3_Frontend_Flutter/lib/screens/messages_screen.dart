@@ -36,7 +36,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
   String? _error;
   Timer? _pollTimer;
 
-  int? _selectedStationId;
+  int _selectedStationId = 0; // 0: Kenh Chung | >0: Tram cu the | -1: Tat ca kenh
+  int? _targetStationIdForSend; // Dung khi dang xem Tat ca kenh ma muon gui vao tram cu the
   String _selectedCategory = 'CHAT'; // CHAT | INCIDENT | MAINTENANCE | RESOLVED
   String? _attachedTelemetry;
   String? _attachedImageBase64;
@@ -45,7 +46,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
   @override
   void initState() {
     super.initState();
-    _selectedStationId = widget.initialStationId;
+    _selectedStationId = widget.initialStationId ?? 0;
     _loadInitial();
     _pollTimer = Timer.periodic(const Duration(seconds: 4), (_) => _pollMessages());
   }
@@ -85,7 +86,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
     setState(() => _loading = true);
     try {
       final stList = await Session.I.stations();
-      final msgs = await Session.I.teamMessages(stationId: _selectedStationId);
+      final queryStId = _selectedStationId == -1 ? null : _selectedStationId;
+      final msgs = await Session.I.teamMessages(stationId: queryStId);
       if (!mounted) return;
       setState(() {
         _stations = stList;
@@ -110,7 +112,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
   Future<void> _pollMessages() async {
     if (_sending) return;
     try {
-      final msgs = await Session.I.teamMessages(stationId: _selectedStationId);
+      final queryStId = _selectedStationId == -1 ? null : _selectedStationId;
+      final msgs = await Session.I.teamMessages(stationId: queryStId);
       if (!mounted) return;
       if (msgs.length != _messages.length || (msgs.isNotEmpty && _messages.isNotEmpty && msgs.last.id != _messages.last.id)) {
         setState(() {
@@ -144,10 +147,14 @@ class _MessagesScreenState extends State<MessagesScreen> {
     setState(() => _sending = true);
     HapticFeedback.lightImpact();
 
+    final int? sendStationId = _selectedStationId > 0
+        ? _selectedStationId
+        : (_selectedStationId == -1 ? _targetStationIdForSend : null);
+
     try {
       final newMsg = await Session.I.sendTeamMessage(
         content: text.isEmpty ? '📷 [Hình ảnh hiện trường]' : text,
-        stationId: _selectedStationId,
+        stationId: sendStationId,
         category: _selectedCategory,
         attachedTelemetry: _attachedTelemetry,
         imageUrl: _attachedImageBase64,
@@ -360,8 +367,11 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 
   String _getStationTitle() {
-    if (_selectedStationId == null || _selectedStationId == 0) {
-      return 'Kênh thông báo toàn hệ thống';
+    if (_selectedStationId == 0) {
+      return 'Kênh trao đổi chung toàn hệ thống';
+    }
+    if (_selectedStationId == -1) {
+      return 'Dòng sự kiện: Tất cả các kênh';
     }
     final match = _stations.where((s) => s.id == _selectedStationId).toList();
     if (match.isNotEmpty) {
@@ -370,30 +380,67 @@ class _MessagesScreenState extends State<MessagesScreen> {
     return 'Kênh riêng: Trạm #$_selectedStationId';
   }
 
-  void _attachStationTelemetry() {
-    if (_selectedStationId == null || _selectedStationId == 0) {
-      toast(context, 'Vui lòng chọn trạm trước để đính kèm thông số');
-      return;
-    }
-
-    final match = _stations.where((s) => s.id == _selectedStationId).toList();
-    if (match.isEmpty) {
-      toast(context, 'Chưa tải được thông số trạm đã chọn');
-      return;
-    }
-    final st = match.first;
-
+  void _applyTelemetry(Station st) {
     final tStr = st.airTemp != null ? '${st.airTemp!.toStringAsFixed(1)}°C' : '--°C';
     final hStr = st.airHum != null ? '${st.airHum!.toStringAsFixed(0)}%' : '--%';
     final relayStr = st.relayOn ? 'Rơ-le: BẬT' : 'Rơ-le: TẮT';
     final dewStr = st.dewPoint != null ? 'Điểm sương: ${st.dewPoint!.toStringAsFixed(1)}°C' : '';
 
     setState(() {
-      _attachedTelemetry = '$tStr | $hStr | $relayStr ${dewStr.isNotEmpty ? " | $dewStr" : ""}';
+      _attachedTelemetry = '$tStr | $hStr | $relayStr${dewStr.isNotEmpty ? " | $dewStr" : ""} (${st.name})';
     });
 
     HapticFeedback.mediumImpact();
     toast(context, 'Đã đính kèm thông số hiện thời của ${st.name}');
+  }
+
+  void _attachStationTelemetry() {
+    if (_selectedStationId > 0) {
+      final match = _stations.where((s) => s.id == _selectedStationId).toList();
+      if (match.isNotEmpty) {
+        _applyTelemetry(match.first);
+        return;
+      }
+    }
+
+    if (_stations.isEmpty) {
+      toast(context, 'Chưa tải được danh sách trạm để đính kèm');
+      return;
+    }
+
+    if (_stations.length == 1) {
+      _applyTelemetry(_stations.first);
+      return;
+    }
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(16))),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Padding(
+                padding: EdgeInsets.only(bottom: 8),
+                child: Text('Chọn trạm để đính kèm thông số', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              ),
+              ..._stations.map((s) => ListTile(
+                    leading: const Icon(Icons.sensors_rounded, color: AppColors.primary),
+                    title: Text(s.name, style: const TextStyle(fontWeight: FontWeight.w600)),
+                    subtitle: Text('Nhiệt độ: ${s.airTemp?.toStringAsFixed(1) ?? "--"}°C | Ẩm: ${s.airHum?.toStringAsFixed(0) ?? "--"}%'),
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _applyTelemetry(s);
+                    },
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Color _categoryColor(String cat) {
@@ -529,14 +576,20 @@ class _MessagesScreenState extends State<MessagesScreen> {
         scrollDirection: Axis.horizontal,
         child: Row(
           children: [
+            // 1. Kênh Chung
             ChoiceChip(
-              label: const Text('Tất cả kênh', style: TextStyle(fontSize: 12)),
-              selected: _selectedStationId == null || _selectedStationId == 0,
+              avatar: Icon(
+                Icons.forum_outlined,
+                size: 13,
+                color: _selectedStationId == 0 ? Colors.white : const Color(0xFF38BDF8),
+              ),
+              label: const Text('Kênh Chung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              selected: _selectedStationId == 0,
               visualDensity: VisualDensity.compact,
               onSelected: (val) {
                 if (val) {
                   setState(() {
-                    _selectedStationId = null;
+                    _selectedStationId = 0;
                     _attachedTelemetry = null;
                   });
                   _loadInitial();
@@ -544,6 +597,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
               },
             ),
             const SizedBox(width: 6),
+
+            // 2. Từng trạm cụ thể
             ..._stations.map((s) {
               final isSel = _selectedStationId == s.id;
               return Padding(
@@ -555,18 +610,41 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     size: 13,
                     color: isSel ? Colors.white : AppColors.primary,
                   ),
-                  label: Text(s.name, style: const TextStyle(fontSize: 12)),
+                  label: Text(s.name, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   selected: isSel,
                   onSelected: (val) {
-                    setState(() {
-                      _selectedStationId = val ? s.id : null;
-                      _attachedTelemetry = null;
-                    });
-                    _loadInitial();
+                    if (val) {
+                      setState(() {
+                        _selectedStationId = s.id;
+                        _attachedTelemetry = null;
+                      });
+                      _loadInitial();
+                    }
                   },
                 ),
               );
             }),
+
+            // 3. Tất cả kênh
+            ChoiceChip(
+              avatar: Icon(
+                Icons.all_inclusive_rounded,
+                size: 13,
+                color: _selectedStationId == -1 ? Colors.white : AppColors.text3,
+              ),
+              label: const Text('Tất cả kênh', style: TextStyle(fontSize: 12)),
+              selected: _selectedStationId == -1,
+              visualDensity: VisualDensity.compact,
+              onSelected: (val) {
+                if (val) {
+                  setState(() {
+                    _selectedStationId = -1;
+                    _attachedTelemetry = null;
+                  });
+                  _loadInitial();
+                }
+              },
+            ),
           ],
         ),
       ),
@@ -599,7 +677,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
     final canDelete = isMe || isAdmin;
     final isSpecialCategory = msg.category != 'CHAT';
     final hasTelemetry = msg.attachedTelemetry != null && msg.attachedTelemetry!.isNotEmpty;
-    final hasStation = msg.stationName != null && msg.stationName!.isNotEmpty;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
@@ -684,18 +761,68 @@ class _MessagesScreenState extends State<MessagesScreen> {
                             ),
                           ),
 
-                        // Tên trạm nếu có
-                        if (hasStation)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 2),
+                        // Tên trạm / Kênh xuất xứ của tin nhắn
+                        if (msg.stationId != null && msg.stationId! > 0)
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 3.5),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: isMe ? Colors.white.withValues(alpha: 0.22) : const Color(0xFFF59E0B).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: isMe ? Colors.white38 : const Color(0xFFF59E0B).withValues(alpha: 0.45),
+                                width: 0.8,
+                              ),
+                            ),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.place_outlined, size: 11, color: isMe ? Colors.white70 : AppColors.text2),
-                                const SizedBox(width: 3),
+                                Icon(
+                                  Icons.sensors_rounded,
+                                  size: 10.5,
+                                  color: isMe ? Colors.white : const Color(0xFFF59E0B),
+                                ),
+                                const SizedBox(width: 3.5),
                                 Text(
-                                  msg.stationName!,
-                                  style: TextStyle(fontSize: 10.5, color: isMe ? Colors.white70 : AppColors.text2, fontWeight: FontWeight.w500),
+                                  msg.stationName ?? 'Trạm #${msg.stationId}',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: isMe ? Colors.white : const Color(0xFFF59E0B),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        else if (_selectedStationId == -1)
+                          // Khi đang ở chế độ xem tất cả kênh, phân biệt tin nhắn thuộc Kênh Chung
+                          Container(
+                            margin: const EdgeInsets.only(bottom: 3.5),
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: isMe ? Colors.white.withValues(alpha: 0.2) : const Color(0xFF38BDF8).withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                              border: Border.all(
+                                color: isMe ? Colors.white38 : const Color(0xFF38BDF8).withValues(alpha: 0.4),
+                                width: 0.8,
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(
+                                  Icons.forum_outlined,
+                                  size: 10.5,
+                                  color: isMe ? Colors.white : const Color(0xFF38BDF8),
+                                ),
+                                const SizedBox(width: 3.5),
+                                Text(
+                                  'Kênh Chung',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w700,
+                                    color: isMe ? Colors.white : const Color(0xFF38BDF8),
+                                  ),
                                 ),
                               ],
                             ),
@@ -801,7 +928,6 @@ class _MessagesScreenState extends State<MessagesScreen> {
   }
 
   Widget _buildInputBar() {
-    final hasStation = _selectedStationId != null && _selectedStationId! > 0;
     return Container(
       padding: const EdgeInsets.fromLTRB(8, 6, 8, 10),
       decoration: const BoxDecoration(
@@ -919,6 +1045,105 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 ),
               ),
 
+            // Chỉ định rõ ràng kênh gửi tin nhắn (Kênh Chung vs Trạm)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6, left: 4, right: 4),
+              child: Row(
+                children: [
+                  if (_selectedStationId == 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFF38BDF8).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFF38BDF8).withValues(alpha: 0.35)),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.forum_outlined, size: 11.5, color: Color(0xFF38BDF8)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Đang gửi vào: Kênh Chung (Toàn hệ thống)',
+                            style: TextStyle(fontSize: 10.5, color: Color(0xFF38BDF8), fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    )
+                  else if (_selectedStationId > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF59E0B).withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFF59E0B).withValues(alpha: 0.35)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.sensors_rounded, size: 11.5, color: Color(0xFFF59E0B)),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Đang gửi vào: ${_stations.where((s) => s.id == _selectedStationId).isNotEmpty ? _stations.firstWhere((s) => s.id == _selectedStationId).name : "Trạm #$_selectedStationId"}',
+                            style: const TextStyle(fontSize: 10.5, color: Color(0xFFF59E0B), fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    // Đang xem Tất cả kênh (-1): Cho phép chọn kênh gửi đến
+                    PopupMenuButton<int?>(
+                      tooltip: 'Bấm để đổi kênh gửi đến',
+                      onSelected: (val) => setState(() => _targetStationIdForSend = val),
+                      itemBuilder: (ctx) => [
+                        const PopupMenuItem(
+                          value: null,
+                          child: Row(
+                            children: [
+                              Icon(Icons.forum_outlined, size: 14, color: Color(0xFF38BDF8)),
+                              SizedBox(width: 6),
+                              Text('Gửi vào Kênh Chung', style: TextStyle(fontSize: 12.5)),
+                            ],
+                          ),
+                        ),
+                        ..._stations.map(
+                          (s) => PopupMenuItem(
+                            value: s.id,
+                            child: Row(
+                              children: [
+                                const Icon(Icons.sensors_rounded, size: 14, color: Color(0xFFF59E0B)),
+                                SizedBox(width: 6),
+                                Text('Gửi vào ${s.name}', style: TextStyle(fontSize: 12.5)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+                        decoration: BoxDecoration(
+                          color: AppColors.surface2,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: AppColors.border),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.send_rounded, size: 11, color: AppColors.text2),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Gửi tới: ${_targetStationIdForSend == null ? "Kênh Chung" : (_stations.where((s) => s.id == _targetStationIdForSend).isNotEmpty ? _stations.firstWhere((s) => s.id == _targetStationIdForSend).name : "Trạm #$_targetStationIdForSend")}',
+                              style: const TextStyle(fontSize: 10.5, color: AppColors.text, fontWeight: FontWeight.w600),
+                            ),
+                            const Icon(Icons.arrow_drop_down, size: 14, color: AppColors.text3),
+                          ],
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
             // Khung chat Messenger
             Row(
               children: [
@@ -941,7 +1166,7 @@ class _MessagesScreenState extends State<MessagesScreen> {
                     PopupMenuItem(value: 'RESOLVED', child: Text('✅ Đã khắc phục')),
                   ],
                 ),
-                if (hasStation)
+                if (_stations.isNotEmpty)
                   IconButton(
                     icon: Icon(
                       Icons.analytics_outlined,
@@ -975,7 +1200,13 @@ class _MessagesScreenState extends State<MessagesScreen> {
                       decoration: InputDecoration(
                         hintText: _selectedCategory == 'INCIDENT'
                             ? 'Mô tả sự cố vi khí hậu...'
-                            : (_selectedCategory == 'MAINTENANCE' ? 'Nội dung bảo trì...' : 'Nhắn tin...'),
+                            : (_selectedCategory == 'MAINTENANCE'
+                                ? 'Nội dung bảo trì...'
+                                : (_selectedStationId == 0
+                                    ? 'Nhắn tin vào Kênh Chung...'
+                                    : (_selectedStationId > 0
+                                        ? 'Nhắn tin về ${_stations.where((s) => s.id == _selectedStationId).isNotEmpty ? _stations.firstWhere((s) => s.id == _selectedStationId).name : "trạm"}...'
+                                        : 'Nhắn tin...'))),
                         hintStyle: const TextStyle(fontSize: 12.5, color: AppColors.text3),
                         border: InputBorder.none,
                         isDense: true,

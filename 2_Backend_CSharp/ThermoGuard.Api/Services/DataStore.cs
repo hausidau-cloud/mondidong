@@ -1092,9 +1092,19 @@ public class DataStore
         lock (_lock)
         {
             var query = TeamMessages.AsEnumerable();
-            if (stationId.HasValue && stationId.Value > 0)
+            if (stationId.HasValue)
             {
-                query = query.Where(m => m.StationId == stationId.Value);
+                if (stationId.Value == 0)
+                {
+                    // Kenh Chung (toan he thong, khong gan voi tram cu the)
+                    query = query.Where(m => m.StationId == null || m.StationId == 0);
+                }
+                else if (stationId.Value > 0)
+                {
+                    // Kenh rieng cua tram cu the
+                    query = query.Where(m => m.StationId == stationId.Value);
+                }
+                // Neu stationId < 0 (vi du -1) thi tra ve tat ca cac kenh
             }
             return query.OrderByDescending(m => m.Id).Take(limit).Reverse().ToList();
         }

@@ -751,7 +751,7 @@ class Session extends ChangeNotifier {
   /// Lay danh sach tin nhan trao doi noi bo & bao cao su co
   Future<List<TeamMessageItem>> teamMessages({int? stationId, int limit = 50}) async {
     final query = <String, String>{
-      if (stationId != null && stationId > 0) 'station_id': stationId.toString(),
+      if (stationId != null) 'station_id': stationId.toString(),
       'limit': limit.toString(),
     };
     final uri = Uri(path: 'messages', queryParameters: query.isEmpty ? null : query);
