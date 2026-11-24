@@ -27,6 +27,7 @@ class _AiChatSheet extends StatefulWidget {
 }
 
 class _AiChatSheetState extends State<_AiChatSheet> {
+  late Station _station;
   final List<AiChatMessage> _messages = [];
   final TextEditingController _controller = TextEditingController();
   final ScrollController _scrollController = ScrollController();
@@ -39,7 +40,8 @@ class _AiChatSheetState extends State<_AiChatSheet> {
     'Tình trạng tổng quan trạm hiện tại?',
     'Cách hạ nhiệt độ trạm nhanh nhất?',
     'Làm sao để tránh đọng sương bo mạch?',
-    'Khắc phục khi ESP32 mất Wi-Fi',
+    'Khắc phục khi vi điều khiển mất Wi-Fi',
+    'Kiểm tra đấu nối cảm biến DHT11',
   ];
 
   static final _defaultKey = [
@@ -48,24 +50,46 @@ class _AiChatSheetState extends State<_AiChatSheet> {
     'I0uKUFWIOiXJeHZ6RkN8BSMQ',
   ].join();
 
+  AiChatMessage _buildGreetingMessage(Station s) {
+    String dataDesc;
+    if (s.airTemp != null && s.airHum != null) {
+      final t = s.airTemp!.toStringAsFixed(1);
+      final h = s.airHum!.toStringAsFixed(0);
+      final dew = s.dewPoint != null ? '${s.dewPoint!.toStringAsFixed(1)}°C' : '--';
+      final relay = s.relayOn ? 'BẬT' : 'TẮT';
+      dataDesc = 'Nhiệt độ: **$t°C**, Độ ẩm: **$h%**, Điểm sương: **$dew**, Rơ-le: **$relay**';
+    } else {
+      dataDesc = 'Trạm hiện **đang ngoại tuyến / chưa có dữ liệu đo đạc thực tế**';
+    }
+
+    return AiChatMessage(
+      role: 'assistant',
+      content: '👋 Xin chào! Tôi là **Trợ lý Kỹ thuật AI ThermoGuard**.\n\nTôi đang kết nối trực tiếp với **${s.name}** ($dataDesc).\n\nBạn gặp sự cố gì hoặc cần hỗ trợ kỹ thuật chuyên sâu nào cho trạm này?',
+      suggestions: _defaultSuggestions,
+    );
+  }
+
   @override
   void initState() {
     super.initState();
+    _station = widget.station;
     if (Session.I.geminiKey == null || Session.I.geminiKey!.isEmpty) {
       final envKey = dotenv.env['GEMINI_API_KEY'];
       Session.I.geminiKey = (envKey != null && envKey.trim().isNotEmpty) ? envKey.trim() : _defaultKey;
     }
-    final s = widget.station;
-    final tempStr = s.airTemp != null ? '${s.airTemp!.toStringAsFixed(1)}°C' : 'chưa xác định';
-    final humStr = s.airHum != null ? '${s.airHum!.toStringAsFixed(0)}%' : 'chưa xác định';
 
-    _messages.add(
-      AiChatMessage(
-        role: 'assistant',
-        content: '👋 Xin chào! Tôi là **Trợ lý Kỹ thuật AI ThermoGuard**.\n\nTôi đang kết nối trực tiếp với **${s.name}** (Nhiệt độ: `$tempStr`, Độ ẩm: `$humStr`).\n\nBạn gặp vấn đề gì hoặc cần hỗ trợ kỹ thuật nào cho trạm này?',
-        suggestions: _defaultSuggestions,
-      ),
-    );
+    _messages.add(_buildGreetingMessage(_station));
+
+    // Đồng bộ ngay dữ liệu đo đạc mới nhất thời gian thực từ Backend
+    Session.I.station(widget.station.id).then((fresh) {
+      if (!mounted) return;
+      setState(() {
+        _station = fresh;
+        if (_messages.length == 1 && _messages.first.role == 'assistant') {
+          _messages[0] = _buildGreetingMessage(fresh);
+        }
+      });
+    }).catchError((_) {});
   }
 
   @override
@@ -261,7 +285,24 @@ class _AiChatSheetState extends State<_AiChatSheet> {
         try {
           final geminiUri = Uri.parse(
               'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${gKey.trim()}');
-          final sys = 'Bạn là Trợ lý AI Tự hành (AI Agent) hệ thống IoT ThermoGuard đang hỗ trợ trạm ${widget.station.name} (${widget.station.airTemp?.toStringAsFixed(1) ?? '32'}°C, ${widget.station.airHum?.toStringAsFixed(0) ?? '60'}%). YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂM (tối đa 2 đến 3 câu ngắn, dưới 70 từ, không chào hỏi lan man).';
+          
+          final s = _station;
+          final realData = (s.airTemp != null && s.airHum != null)
+              ? 'DỮ LIỆU ĐO THỰC TẾ: Nhiệt độ ${s.airTemp!.toStringAsFixed(1)}°C (Ngưỡng max ${s.airTempMax}°C), Độ ẩm ${s.airHum!.toStringAsFixed(0)}% (Ngưỡng max ${s.airHumMax}%), Điểm sương ${s.dewPoint?.toStringAsFixed(1) ?? '--'}°C (Biên sương +${((s.airTemp! - (s.dewPoint ?? (s.airTemp! - 5)))).toStringAsFixed(1)}°C), Rơ-le ${s.relayOn ? "BẬT" : "TẮT"} (Chế độ: ${s.relayMode}), Wi-Fi ${s.rssi ?? -55} dBm.'
+              : 'TRẠNG THÁI: Trạm hiện chưa có dữ liệu đo đạc thực tế từ cảm biến hoặc đang ngoại tuyến. Hãy hướng dẫn kiểm tra nguồn cấp 5V, chân GPIO 4 cảm biến DHT11 và Wi-Fi 2.4GHz.';
+
+          final sys = '''Bạn là Trợ lý Kỹ thuật AI Cấp cao & Chuyên gia IoT của Hệ thống Giám sát Vi khí hậu ThermoGuard 2.5.
+Đang hỗ trợ trạm: ${s.name} (Vị trí: ${s.location ?? "Phòng Lab"}).
+$realData
+
+KIẾN THỨC CHUYÊN SÂU:
+- Điểm đọng sương Td tính bằng công thức Magnus-Tetens. Nếu hiệu số (T - Td) <= 2.0°C là cực kỳ nguy hiểm, hơi nước ngưng tụ làm chập chân linh kiện bo mạch, cần BẬT ngay quạt thông gió hoặc bóng đèn sưởi nhiệt.
+- Phần cứng: ESP32 / Raspberry Pi Pico W, cảm biến DHT11 (GPIO 4), DS18B20 (GPIO 15), Rơ-le 5V cách ly quang (GPIO 23).
+- Bảo mật: HMAC-SHA256 Anti-Replay & Nonce chống tấn công phát lại.
+- Bạn có quyền AI Agent điều khiển phần cứng khi người dùng yêu cầu (Bật/Tắt Rơ-le, Chuyển AUTO, Đổi ngưỡng).
+
+YÊU CẦU: Trả lời bằng tiếng Việt, súc tích, chuyên nghiệp, thông minh và đi thẳng vào trọng tâm kỹ thuật (tối đa 2 đến 3 câu ngắn, dưới 80 từ).''';
+
           final gemResp = await http.post(
             geminiUri,
             headers: {'Content-Type': 'application/json'},
@@ -274,7 +315,7 @@ class _AiChatSheetState extends State<_AiChatSheet> {
               'generationConfig': {
                 'thinkingConfig': {'thinkingBudget': 0},
                 'maxOutputTokens': 350,
-                'temperature': 0.3,
+                'temperature': 0.25,
               }
             }),
           ).timeout(const Duration(seconds: 15));
@@ -305,7 +346,7 @@ class _AiChatSheetState extends State<_AiChatSheet> {
       if (!mounted) return;
       final fallbackReply = localAction != null
           ? '⚡ **Lệnh AI Agent đã thực thi:** ${localAction.message}\nTrạng thái Rơ-le hiện tại đã được đồng bộ với mạch vi xử lý.'
-          : _generateLocalExpertReply(query, widget.station);
+          : _generateLocalExpertReply(query, _station);
       setState(() {
         _messages.add(
           AiChatMessage(
@@ -323,9 +364,18 @@ class _AiChatSheetState extends State<_AiChatSheet> {
 
   String _generateLocalExpertReply(String q, Station s) {
     final lower = q.toLowerCase();
-    final t = s.airTemp ?? 32.0;
-    final h = s.airHum ?? 60.0;
-    final dew = s.dewPoint ?? (t - ((100 - h) / 5.0));
+    final hasData = s.airTemp != null && s.airHum != null;
+    if (!hasData) {
+      return '⚠️ **Trạm ${s.name} hiện chưa có dữ liệu đo đạc thực tế** từ cảm biến (hoặc thiết bị đang ngoại tuyến).\n\n'
+          'Để đưa trạm vào hoạt động, bạn hãy kiểm tra:\n'
+          '1. Nguồn nuôi 5V 2A cho vi điều khiển (ESP32 hoặc Raspberry Pi Pico W).\n'
+          '2. Chân cắm tín hiệu cảm biến DHT11 vào GPIO 4 và có điện trở kéo lên 4.7kΩ.\n'
+          '3. Cấu hình SSID/Password Wi-Fi 2.4GHz và API Key trong file `config.py`.';
+    }
+
+    final t = s.airTemp!;
+    final h = s.airHum!;
+    final dew = s.dewPoint ?? (t - ((100.0 - h) / 5.0));
     final margin = (t - dew);
     final relayState = s.relayOn ? 1 : 0;
     final rssi = s.rssi ?? -55;
@@ -333,13 +383,14 @@ class _AiChatSheetState extends State<_AiChatSheet> {
 
     // 1. Hỏi về tưới nước
     if (lower.contains('tưới nước') || lower.contains('tưới cây') || lower.contains('nước')) {
-      return '💧 **Về việc tưới nước:** Trạm ${s.name} đang có độ ẩm khá cao (${h.toStringAsFixed(0)}%) và nhiệt độ ${t.toStringAsFixed(1)}°C. Không nên tưới nước gần khu vực đặt vi mạch ESP32 để tránh đọng sương chập mạch. Nếu muốn hạ nhiệt, giải pháp an toàn là bật quạt thông gió qua Rơ-le.';
+      return '💧 **Về việc tưới nước:** Trạm ${s.name} đang có độ ẩm thực tế là **${h.toStringAsFixed(0)}%** và nhiệt độ **${t.toStringAsFixed(1)}°C**. Không nên tưới nước gần khu vực đặt vi mạch ESP32 để tránh đọng sương chập mạch. Nếu muốn hạ nhiệt, giải pháp an toàn là bật quạt thông gió qua Rơ-le.';
     }
 
     // 2. Hỏi về tổng quan
     if (lower.contains('tổng quan') || lower.contains('tình trạng') || lower.contains('hiện tại') || lower.contains('sức khỏe') || lower.contains('thế nào')) {
       final relayText = relayState == 1 ? 'BẬT' : 'TẮT';
-      return '📊 **Trạm ${s.name}:** Nhiệt độ `${t.toStringAsFixed(1)}°C` (Ngưỡng $tMax°C), Độ ẩm `${h.toStringAsFixed(0)}%`, Điểm sương `${dew.toStringAsFixed(1)}°C` (Biên an toàn `+${margin.toStringAsFixed(1)}°C`). Rơ-le: `$relayText`, Wi-Fi: `$rssi dBm`. Trạng thái: Hoạt động ổn định.';
+      final dewStatus = margin <= 2.0 ? '⚠️ Cực kỳ nguy hiểm' : (margin <= 3.5 ? 'Cảnh báo ngưng tụ' : 'An toàn khô ráo');
+      return '📊 **Trạm ${s.name} (Dữ liệu thực tế):** Nhiệt độ `${t.toStringAsFixed(1)}°C` (Ngưỡng $tMax°C), Độ ẩm `${h.toStringAsFixed(0)}%`, Điểm sương `${dew.toStringAsFixed(1)}°C` (Biên an toàn `+${margin.toStringAsFixed(1)}°C` - $dewStatus). Rơ-le: `$relayText`, Wi-Fi: `$rssi dBm`. Trạng thái: Hoạt động ổn định.';
     }
 
     // 3. Hỏi về hạ nhiệt độ
@@ -349,12 +400,15 @@ class _AiChatSheetState extends State<_AiChatSheet> {
 
     // 4. Hỏi về đọng sương
     if (lower.contains('đọng sương') || lower.contains('sương') || lower.contains('ngưng tụ') || lower.contains('dew point') || lower.contains('ẩm ướt')) {
-      return '💧 **Nguy cơ đọng sương (${dew.toStringAsFixed(1)}°C):** Biên an toàn hiện tại là +${margin.toStringAsFixed(1)}°C (nguy hiểm nếu < 2.0°C). Hãy bật bóng đèn sấy nhẹ qua Rơ-le hoặc dùng quạt thông gió để bề mặt mạch luôn khô ráo.';
+      final advise = margin <= 2.0
+          ? 'BẬT NGAY RƠ-LE để chạy quạt hoặc bóng đèn sấy xua tan hơi nước ngưng tụ trên chân linh kiện!'
+          : 'Biên sương đang an toàn (> 2.0°C), tiếp tục duy trì thông gió phòng trạm.';
+      return '💧 **Nguy cơ đọng sương (${dew.toStringAsFixed(1)}°C):** Biên an toàn thực tế là +${margin.toStringAsFixed(1)}°C. $advise';
     }
 
     // 5. Hỏi về Rơ-le
     if (lower.contains('rơ-le') || lower.contains('relay') || lower.contains('bóng đèn') || lower.contains('không bật') || lower.contains('không nhảy')) {
-      return '⚡ **Xử lý Rơ-le (Hiện tại: ${(relayState == 1 ? "BẬT" : "TẮT")}):** 1. Thử bật thủ công bằng nút ON trên tab Điều khiển. 2. Kiểm tra chân tín hiệu GPIO 23 và nguồn nuôi 5V/2A cho ESP32. 3. Ở chế độ AUTO, rơ-le chỉ nhảy khi nhiệt độ vượt $tMax°C.';
+      return '⚡ **Xử lý Rơ-le (Hiện tại: ${(relayState == 1 ? "BẬT" : "TẮT")}):** 1. Thử bật thủ công bằng nút ON trên tab Điều khiển. 2. Kiểm tra chân tín hiệu GPIO 23 và nguồn nuôi 5V/2A cho ESP32. 3. Ở chế độ AUTO, rơ-le chỉ nhảy khi nhiệt độ vượt $tMax°C hoặc chênh lệch sương <= 2.5°C.';
     }
 
     // 6. Hỏi về Wi-Fi
@@ -362,7 +416,7 @@ class _AiChatSheetState extends State<_AiChatSheet> {
       return '📶 **Xử lý Wi-Fi ($rssi dBm):** 1. Đảm bảo kết nối sóng 2.4GHz (ESP32 không bắt được 5GHz). 2. Kiểm tra SSID và mật khẩu trong `config.py`. 3. Nếu RSSI dưới -80 dBm, hãy dời trạm lại gần Access Point.';
     }
 
-    return '🤖 **ThermoGuard AI (${s.name}):** Đang ghi nhận nhiệt độ ${t.toStringAsFixed(1)}°C, độ ẩm ${h.toStringAsFixed(0)}%, rơ-le ${(relayState == 1 ? "BẬT" : "TẮT")}. Vui lòng chọn câu hỏi gợi ý bên dưới hoặc hỏi cụ thể về giải nhiệt, đọng sương, rơ-le.';
+    return '🤖 **ThermoGuard AI (${s.name}):** Đang ghi nhận nhiệt độ thực tế ${t.toStringAsFixed(1)}°C, độ ẩm ${h.toStringAsFixed(0)}%, rơ-le ${(relayState == 1 ? "BẬT" : "TẮT")}. Vui lòng chọn câu hỏi gợi ý bên dưới hoặc hỏi cụ thể về giải nhiệt, đọng sương, rơ-le.';
   }
 
   @override
@@ -439,6 +493,8 @@ class _AiChatSheetState extends State<_AiChatSheet> {
                     children: [
                       const Text(
                         'Trợ lý Kỹ thuật AI ThermoGuard',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(fontWeight: FontWeight.w800, fontSize: 15, color: AppColors.text),
                       ),
                       const SizedBox(height: 1),

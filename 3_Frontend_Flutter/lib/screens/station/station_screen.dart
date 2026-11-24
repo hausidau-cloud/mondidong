@@ -111,23 +111,57 @@ class _StationScreenState extends State<StationScreen> {
                     );
                   },
                 ),
-                IconButton(
-                  tooltip: 'Báo cáo Kiểm định Đồ án (PDF / CSV)',
-                  icon: const Icon(Icons.assessment_outlined),
-                  onPressed: () => showStationReportDialog(context, s),
-                ),
-                IconButton(
-                  tooltip: 'So sánh Đối chiếu Đa trạm',
-                  icon: const Icon(Icons.compare_arrows_rounded),
-                  onPressed: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => ComparisonScreen(initialStationId1: s.id),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert_rounded),
+                  tooltip: 'Công cụ & Tùy chọn',
+                  onSelected: (val) {
+                    if (val == 'report') {
+                      showStationReportDialog(context, s);
+                    } else if (val == 'compare') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => ComparisonScreen(initialStationId1: s.id),
+                        ),
+                      );
+                    } else if (val == 'refresh') {
+                      refresh();
+                    }
+                  },
+                  itemBuilder: (ctx) => [
+                    const PopupMenuItem(
+                      value: 'report',
+                      child: Row(
+                        children: [
+                          Icon(Icons.assessment_outlined, color: AppColors.primaryLight, size: 20),
+                          SizedBox(width: 10),
+                          Text('Biên bản Kiểm định A4'),
+                        ],
+                      ),
                     ),
-                  ),
+                    const PopupMenuItem(
+                      value: 'compare',
+                      child: Row(
+                        children: [
+                          Icon(Icons.compare_arrows_rounded, color: AppColors.ok, size: 20),
+                          SizedBox(width: 10),
+                          Text('So sánh Đối chiếu Đa trạm'),
+                        ],
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'refresh',
+                      child: Row(
+                        children: [
+                          Icon(Icons.refresh_rounded, color: AppColors.text2, size: 20),
+                          SizedBox(width: 10),
+                          Text('Làm mới dữ liệu'),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-                IconButton(tooltip: 'Làm mới', onPressed: refresh, icon: const Icon(Icons.refresh_rounded)),
-                const SizedBox(width: 6),
+                const SizedBox(width: 4),
               ],
               flexibleSpace: FlexibleSpaceBar(
                 collapseMode: CollapseMode.pin,

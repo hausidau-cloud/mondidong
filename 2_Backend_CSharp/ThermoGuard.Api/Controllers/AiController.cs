@@ -526,20 +526,52 @@ public class AiController : ControllerBase
         int stationId = req.station_id ?? 1;
         var st = _store.GetStation(stationId);
         var dev = _store.Devices.FirstOrDefault(d => d.StationId == stationId)
-                  ?? _store.Devices.FirstOrDefault(d => d.Id == stationId)
-                  ?? _store.Devices.FirstOrDefault();
+                  ?? _store.Devices.FirstOrDefault(d => d.Id == stationId);
+        if (dev == null && _store.Devices.Count > 0 && stationId == 1)
+        {
+            dev = _store.Devices.FirstOrDefault();
+        }
 
+        var devId = dev?.Id ?? stationId;
         var stationName = st?.Name ?? dev?.Name ?? $"Trạm #{stationId}";
         var location = st?.Location ?? dev?.Location ?? "Chưa rõ vị trí";
-        double curTemp = dev?.AirTemp ?? 30.0;
-        double curHum = dev?.AirHum ?? 55.0;
-        double curDew = dev?.DewPoint ?? (curTemp - ((100 - curHum) / 5.0));
-        double dewMargin = Math.Round(curTemp - curDew, 1);
-        string status = dev?.Status ?? "ONLINE";
+        var devCode = dev?.DeviceCode ?? $"TG-S{stationId}";
+
+        // Đọc danh sách đo đạc thực tế mới nhất từ DataStore
+        var readings = _store.Readings
+            .Where(r => r.DeviceId == devId || r.DeviceId == stationId)
+            .OrderByDescending(r => r.Id)
+            .Take(15)
+            .ToList();
+        var latest = readings.FirstOrDefault();
+
+        bool hasRealTelemetry = (latest != null && latest.AirTemp.HasValue && latest.AirHum.HasValue) 
+                             || (dev != null && dev.AirTemp.HasValue && dev.AirHum.HasValue);
+
+        double? curTemp = latest?.AirTemp ?? dev?.AirTemp;
+        double? curHum = latest?.AirHum ?? dev?.AirHum;
+        double? curDew = latest?.DewPoint ?? dev?.DewPoint;
+        if (curDew == null && curTemp.HasValue && curHum.HasValue)
+        {
+            // Magnus-Tetens exact formula
+            double a = 17.27, b = 237.7;
+            double alpha = ((a * curTemp.Value) / (b + curTemp.Value)) + Math.Log(curHum.Value / 100.0);
+            curDew = Math.Round((b * alpha) / (a - alpha), 1);
+        }
+        double? dewMargin = (curTemp.HasValue && curDew.HasValue) ? Math.Round(curTemp.Value - curDew.Value, 1) : null;
+        double? probeTemp = latest?.ProbeTemp ?? dev?.ProbeTemp;
+        int lightPct = latest?.LightPct ?? dev?.LightPct ?? 0;
+        int rssi = latest?.Rssi ?? dev?.Rssi ?? -55;
+        string status = dev?.Status ?? (hasRealTelemetry ? "OK" : "OFFLINE");
         string relayMode = dev?.RelayMode ?? "AUTO";
-        int relayState = dev?.RelayState ?? 0;
-        int rssi = dev?.Rssi ?? -55;
-        string firmware = dev?.Firmware ?? "esp32-dht11-ipgps-2.0";
+        int relayState = dev?.RelayState ?? latest?.RelayState ?? 0;
+        string lastSeen = latest?.RecordedAt ?? dev?.LastSeen ?? "Chưa có";
+        bool isOnline = dev?.Online ?? hasRealTelemetry;
+
+        int aqi = dev?.Aqi ?? 42;
+        int gasPpm = dev?.GasPpm ?? 45;
+        double soilHum = dev?.SoilHum ?? 65.0;
+        int waterLevel = dev?.WaterLevel ?? 82;
 
         // AI AGENT: Nhận diện ý định & Thực thi hành động thật trên phần cứng (Function / Action Calling)
         var action = DetectActionFromMessage(req.message);
@@ -586,6 +618,32 @@ public class AiController : ControllerBase
             }
         }
 
+        // Mô tả ngữ cảnh dữ liệu thực tế
+        string realDataDesc;
+        if (hasRealTelemetry && curTemp.HasValue && curHum.HasValue)
+        {
+            string dewEval = dewMargin <= 2.0 
+                ? "NGUY HIỂM: Nguy cơ đọng sương làm ướt bo mạch rất cao!" 
+                : (dewMargin <= 3.5 ? "Cảnh báo nguy cơ ngưng tụ sương" : "Môi trường khô ráo, an toàn");
+
+            realDataDesc = $@"DỮ LIỆU ĐO ĐẠC THỰC TẾ TỪ CẢM BIẾN (MỚI NHẤT):
+- Nhiệt độ không khí: {curTemp.Value:F1}°C (Ngưỡng an toàn tối đa: {dev?.AirTempMax ?? 40.0}°C)
+- Độ ẩm không khí: {curHum.Value:F1}% (Ngưỡng an toàn tối đa: {dev?.AirHumMax ?? 75.0}%)
+- Điểm đọng sương Td: {curDew:F1}°C
+- Biên an toàn ngưng tụ sương (T - Td): +{dewMargin:F1}°C -> Đánh giá: {dewEval}
+- Nhiệt độ đầu dò kim loại DS18B20: {(probeTemp.HasValue ? $"{probeTemp.Value:F1}°C" : "Chưa gắn đầu dò")}
+- Cường độ ánh sáng môi trường: {lightPct}%
+- Trạng thái Rơ-le: {(relayState == 1 ? "ĐANG BẬT" : "ĐANG TẮT")} (Chế độ: {relayMode})
+- Chất lượng sóng Wi-Fi (RSSI): {rssi} dBm ({(rssi >= -65 ? "Sóng mạnh" : rssi >= -75 ? "Sóng trung bình" : "Sóng yếu")})
+- Cảm biến môi trường mở rộng: AQI = {aqi}, Khói/Gas = {gasPpm} ppm, Độ ẩm đất = {soilHum:F1}%, Mực nước bồn = {waterLevel}%
+- Trạng thái hoạt động: {(isOnline ? "TRỰC TUYẾN (ONLINE)" : "NGOẠI TUYẾN (OFFLINE)")} - Bản tin gần nhất: {lastSeen}";
+        }
+        else
+        {
+            realDataDesc = $@"TRẠNG THÁI TRẠM: HIỆN CHƯA CÓ BẢN TIN TELEMETRY NÀO HOẶC TRẠM ĐANG NGOẠI TUYẾN (OFFLINE).
+- Lưu ý quan trọng: TUYỆT ĐỐI KHÔNG TỰ BỊA ĐẶT số đo nhiệt độ hoặc độ ẩm khi chưa có dữ liệu. Hãy thông báo rõ cho người dùng trạm hiện chưa có dữ liệu thực tế và hướng dẫn họ kiểm tra nguồn cấp, Wi-Fi và API Key.";
+        }
+
         // Thử gọi Google Gemini API nếu có cấu hình key
         string? apiKey = !string.IsNullOrWhiteSpace(req.gemini_key) 
             ? req.gemini_key.Trim()
@@ -600,9 +658,21 @@ public class AiController : ControllerBase
                 var geminiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{modelName}:generateContent?key={apiKey}";
                 
                 var actionNote = action != null && action.Executed ? $"\n[LƯU Ý: Hệ thống đã tự động thực thi hành động: {action.Message}. Hãy xác nhận điều này một cách thông minh cho người dùng]." : "";
-                var systemContext = $@"Bạn là Trợ lý AI Tự hành (AI Agent) hệ thống IoT ThermoGuard hỗ trợ trạm {stationName} (Nhiệt độ: {curTemp:F1}°C, Độ ẩm: {curHum:F1}%, Điểm sương: {curDew:F1}°C, Rơ-le: {(relayState == 1 ? "BẬT" : "TẮT")}).
-Bạn có quyền năng tự động điều khiển Rơ-le và cài đặt ngưỡng khi người dùng yêu cầu.{actionNote}
-YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂM (tối đa 2 đến 3 câu ngắn, dưới 70 từ, không chào hỏi lan man).";
+                var systemContext = $@"Bạn là Trợ lý Kỹ thuật AI Cấp cao & Chuyên gia IoT của Hệ thống Giám sát Vi khí hậu ThermoGuard 2.5 (chuyên ngành Điện tử - Viễn thông & CNTT).
+Bạn đang phân tích và hỗ trợ trực tiếp trạm: **{stationName}** (Mã phần cứng: {devCode}, Vị trí: {location}).
+
+{realDataDesc}
+
+KIẾN THỨC CHUYÊN MÔN CỦA BẠN (HÃY ÁP DỤNG ĐỂ GIẢI ĐÁP CHÍNH XÁC):
+1. VẬT LÝ ĐỌNG SƯƠNG: Điểm đọng sương Td tính bằng công thức Magnus-Tetens. Khi hiệu số (T - Td) <= 2.0°C, hơi nước ngưng tụ thành giọt bám trên bo mạch gây chập cháy linh kiện SMD. Cần BẬT quạt thông gió hoặc bóng đèn sưởi nhiệt để xua tan sương.
+2. PHẦN CỨNG & CẢM BIẾN: ESP32 / Raspberry Pi Pico W, cảm biến DHT11 (chân GPIO 4), DS18B20 (chân GPIO 15, trở kéo 4.7k), module Rơ-le 5V cách ly quang (GPIO 23). Nếu cảm biến báo lỗi, kiểm tra lỏng dây hoặc thiếu trở kéo.
+3. BẢO MẬT: Mọi gói tin telemetry đều được xác thực HMAC-SHA256 kèm Nonce chống tấn công phát lại (Anti-Replay Attack). Nếu bị từ chối, kiểm tra API Key và chênh lệch đồng hồ thời gian (Timestamp).
+4. TỰ ĐỘNG HÓA IFTTT: Hệ thống tự động kích hoạt Rơ-le theo các ngưỡng: Nhiệt độ vượt ngưỡng max, Biên đọng sương <= ngưỡng, hoặc Trời tối (quang trở).
+5. QUYỀN HẠNH AI AGENT: Bạn có khả năng tự động thực thi lệnh điều khiển phần cứng khi người dùng yêu cầu (Bật/Tắt Rơ-le, chuyển AUTO, đổi ngưỡng nhiệt/ẩm, hẹn giờ).{actionNote}
+
+NGUYÊN TẮC PHẢN HỒI:
+- Trả lời bằng tiếng Việt, súc tích, chuyên nghiệp, thông minh và đi thẳng vào vấn đề kỹ thuật (tối đa 2 đến 3 câu ngắn, dưới 90 từ).
+- Luôn dựa vào dữ liệu thực tế đo được ở trên. Nếu trạm chưa có dữ liệu, hãy giải thích rõ và hướng dẫn kết nối.";
 
                 var payload = new
                 {
@@ -621,7 +691,7 @@ YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂ
                             thinkingBudget = 0
                         },
                         maxOutputTokens = 350,
-                        temperature = 0.3
+                        temperature = 0.25
                     }
                 };
 
@@ -658,10 +728,10 @@ YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂ
             catch { }
         }
 
-        // BỘ MÁY CHUYÊN GIA IOT NỘI BỘ (Autonomous Expert Engine - Không phụ thuộc Internet ngoài)
+        // BỘ MÁY CHUYÊN GIA IOT NỘI BỘ (Autonomous Expert Engine - Đọc dữ liệu thực tế)
         string reply = action != null && action.Executed
             ? $"⚡ **Lệnh AI Agent đã thực thi:** {action.Message}. Rơ-le trạm {stationName} hiện tại: {(relayState == 1 ? "BẬT" : "TẮT")} (Chế độ: {relayMode})."
-            : GenerateExpertReply(req.message, stationName, location, curTemp, curHum, curDew, dewMargin, status, relayMode, relayState, rssi, dev?.AirTempMax ?? 40.0, dev?.AirHumMax ?? 75.0);
+            : GenerateExpertReply(req.message, stationName, location, curTemp, curHum, curDew, dewMargin, status, relayMode, relayState, rssi, dev?.AirTempMax ?? 40.0, dev?.AirHumMax ?? 75.0, hasRealTelemetry, isOnline);
         var suggestions = GenerateSmartSuggestions(req.message, curTemp, curHum, dewMargin);
 
         return Ok(new
@@ -686,48 +756,68 @@ YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂ
                 hum = curHum,
                 dew_margin = dewMargin,
                 relay = relayState,
-                status
+                status,
+                has_real_data = hasRealTelemetry
             }
         });
     }
 
     private static string GenerateExpertReply(
         string q, string stName, string loc,
-        double t, double h, double dew, double margin,
+        double? t, double? h, double? dew, double? margin,
         string status, string relayMode, int relayState, int rssi,
-        double tMax, double hMax)
+        double tMax, double hMax, bool hasData, bool isOnline)
     {
         string lower = q.ToLowerInvariant();
+
+        // Trường hợp trạm chưa có dữ liệu thực tế hoặc đang ngoại tuyến
+        if (!hasData || !t.HasValue || !h.HasValue)
+        {
+            return $"⚠️ **Trạm {stName} hiện chưa có dữ liệu đo đạc thực tế** từ cảm biến (hoặc thiết bị đang ngoại tuyến).\n\n" +
+                   "Để đưa trạm vào hoạt động, bạn hãy kiểm tra:\n" +
+                   "1. Nguồn nuôi 5V 2A cho bo mạch vi điều khiển (ESP32 hoặc Raspberry Pi Pico W).\n" +
+                   "2. Kết nối chân cảm biến DHT11 vào GPIO 4 và có điện trở kéo lên 4.7kΩ.\n" +
+                   "3. Kiểm tra thông tin Wi-Fi 2.4GHz và API Key bảo mật trong file `config.py`.";
+        }
+
+        double curT = t.Value;
+        double curH = h.Value;
+        double curDew = dew ?? (curT - ((100.0 - curH) / 5.0));
+        double curMargin = margin ?? (curT - curDew);
 
         // 1. Hỏi về tưới nước / làm mát bằng nước
         if (lower.Contains("tưới nước") || lower.Contains("tưới cây") || lower.Contains("nước"))
         {
-            return $"💧 **Về việc tưới nước:** Trạm {stName} đang có độ ẩm khá cao ({h:F1}%) và nhiệt độ {t:F1}°C. Không nên tưới nước gần khu vực đặt vi mạch ESP32 để tránh hơi ẩm bão hòa gây đọng sương chập mạch. Nếu muốn hạ nhiệt, giải pháp an toàn là bật quạt thông gió qua Rơ-le.";
+            return $"💧 **Về việc tưới nước:** Trạm {stName} đang có độ ẩm thực tế là **{curH:F1}%** và nhiệt độ **{curT:F1}°C**. Không nên tưới nước gần khu vực đặt vi mạch ESP32 để tránh hơi ẩm bão hòa gây đọng sương chập mạch. Nếu muốn hạ nhiệt, giải pháp an toàn là bật quạt thông gió qua Rơ-le.";
         }
 
         // 2. Hỏi về tình trạng trạm hiện tại / tổng quan
         if (lower.Contains("tổng quan") || lower.Contains("tình trạng") || lower.Contains("hiện tại") || lower.Contains("sức khỏe") || lower.Contains("thế nào"))
         {
             string relayText = relayState == 1 ? "BẬT" : "TẮT";
-            return $"📊 **Trạm {stName}:** Nhiệt độ `{t:F1}°C` (Ngưỡng {tMax}°C), Độ ẩm `{h:F1}%`, Điểm sương `{dew:F1}°C` (Biên an toàn `+{margin}°C`). Rơ-le: `{relayText}`, Wi-Fi: `{rssi} dBm`. Trạng thái: {(status == "OK" ? "Hoạt động tốt." : status)}";
+            string dewStatus = curMargin <= 2.0 ? "⚠️ Cực kỳ nguy hiểm" : (curMargin <= 3.5 ? "Cảnh báo ngưng tụ" : "An toàn khô ráo");
+            return $"📊 **Trạm {stName} (Dữ liệu thực tế):** Nhiệt độ `{curT:F1}°C` (Ngưỡng {tMax}°C), Độ ẩm `{curH:F1}%`, Điểm sương `{curDew:F1}°C` (Biên an toàn `+{curMargin:F1}°C` - {dewStatus}). Rơ-le: `{relayText}`, Wi-Fi: `{rssi} dBm`. Trạng thái: {(status == "OK" ? "Hoạt động tốt." : status)}";
         }
 
         // 3. Hỏi về nhiệt độ cao / quá nhiệt
         if (lower.Contains("nhiệt độ cao") || lower.Contains("quá nhiệt") || lower.Contains("nóng") || lower.Contains("giảm nhiệt") || lower.Contains("nhiệt độ") || lower.Contains("hạ nhiệt"))
         {
-            return $"🌡️ **Hạ nhiệt trạm {stName} ({t:F1}°C):** 1. Bật Rơ-le sang ON để quạt tản nhiệt hoạt động. 2. Đảm bảo phòng thông thoáng, tránh ánh nắng chiếu trực tiếp. 3. Để rơ-le ở chế độ AUTO để tự bật khi vượt {tMax}°C.";
+            return $"🌡️ **Hạ nhiệt trạm {stName} ({curT:F1}°C):** 1. Bật Rơ-le sang ON để quạt tản nhiệt hoạt động. 2. Đảm bảo phòng thông thoáng, tránh ánh nắng chiếu trực tiếp. 3. Để rơ-le ở chế độ AUTO để tự bật khi vượt {tMax}°C.";
         }
 
         // 4. Hỏi về điểm đọng sương (Dew Point) & Ngưng tụ
         if (lower.Contains("đọng sương") || lower.Contains("sương") || lower.Contains("ngưng tụ") || lower.Contains("dew point") || lower.Contains("ẩm ướt"))
         {
-            return $"💧 **Nguy cơ đọng sương ({dew:F1}°C):** Biên an toàn hiện tại là +{margin}°C (nguy hiểm nếu < 2.0°C). Để chống ngưng tụ hơi nước trên mạch ESP32, hãy bật bóng đèn sấy nhẹ qua Rơ-le hoặc dùng quạt thông gió.";
+            string advise = curMargin <= 2.0 
+                ? "BẬT NGAY RƠ-LE để chạy quạt hoặc bóng đèn sấy xua tan hơi nước ngưng tụ trên chân linh kiện!" 
+                : "Biên sương đang an toàn (> 2.0°C), tiếp tục duy trì thông gió phòng trạm.";
+            return $"💧 **Nguy cơ đọng sương ({curDew:F1}°C):** Biên an toàn thực tế là +{curMargin:F1}°C. {advise}";
         }
 
         // 5. Hỏi về Rơ-le / Thiết bị tải / Không bật được
         if (lower.Contains("rơ-le") || lower.Contains("relay") || lower.Contains("bóng đèn") || lower.Contains("không bật") || lower.Contains("không nhảy"))
         {
-            return $"⚡ **Xử lý Rơ-le (Hiện tại: {(relayState == 1 ? "BẬT" : "TẮT")}):** 1. Thử bật thủ công bằng nút ON trên tab Điều khiển. 2. Kiểm tra chân tín hiệu GPIO 23 và nguồn nuôi 5V/2A cho ESP32. 3. Ở chế độ AUTO, rơ-le chỉ nhảy khi nhiệt độ vượt {tMax}°C hoặc chênh lệch sương < 3°C.";
+            return $"⚡ **Xử lý Rơ-le (Hiện tại: {(relayState == 1 ? "BẬT" : "TẮT")}):** 1. Thử bật thủ công bằng nút ON trên tab Điều khiển. 2. Kiểm tra chân tín hiệu GPIO 23 và nguồn nuôi 5V/2A cho ESP32. 3. Ở chế độ AUTO, rơ-le chỉ nhảy khi nhiệt độ vượt {tMax}°C hoặc chênh lệch sương <= 2.5°C.";
         }
 
         // 6. Hỏi về Wi-Fi / Mất kết nối / OFFLINE
@@ -737,7 +827,7 @@ YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂ
         }
 
         // 7. Mặc định ngắn gọn
-        return $"🤖 **ThermoGuard AI ({stName}):** Đang ghi nhận nhiệt độ {t:F1}°C, độ ẩm {h:F1}%, rơ-le {(relayState == 1 ? "BẬT" : "TẮT")}. Vui lòng chọn câu hỏi gợi ý bên dưới hoặc hỏi cụ thể về giải nhiệt, đọng sương, rơ-le.";
+        return $"🤖 **ThermoGuard AI ({stName}):** Đang ghi nhận nhiệt độ {curT:F1}°C, độ ẩm {curH:F1}%, rơ-le {(relayState == 1 ? "BẬT" : "TẮT")}. Vui lòng chọn câu hỏi gợi ý bên dưới hoặc hỏi cụ thể về giải nhiệt, đọng sương, rơ-le.";
     }
 
     private static AiAction? DetectActionFromMessage(string message)
@@ -792,14 +882,15 @@ YÊU CẦU: Trả lời NGẮN GỌN, HỢP LÝ và ĐI THẲNG VÀO TRỌNG TÂ
         return null;
     }
 
-    private static List<string> GenerateSmartSuggestions(string q, double t, double h, double margin)
+    private static List<string> GenerateSmartSuggestions(string q, double? t, double? h, double? margin)
     {
         var list = new List<string>();
-        if (t > 31.0) list.Add("Cách hạ nhiệt độ trạm nhanh nhất?");
-        if (margin < 3.5) list.Add("Làm sao để tránh đọng sương?");
+        if (t.HasValue && t.Value > 31.0) list.Add("Cách hạ nhiệt độ trạm nhanh nhất?");
+        if (margin.HasValue && margin.Value < 3.5) list.Add("Làm sao để tránh đọng sương?");
         list.Add("Tình trạng tổng quan trạm hiện tại?");
-        list.Add("Kiểm tra Rơ-le và Bóng đèn 220V");
-        list.Add("Khắc phục khi ESP32 mất Wi-Fi");
+        list.Add("Kiểm tra Rơ-le và Thiết bị ngoại vi");
+        list.Add("Khắc phục khi vi điều khiển mất Wi-Fi");
+        list.Add("Kiểm tra đấu nối cảm biến DHT11");
         return list;
     }
 }
