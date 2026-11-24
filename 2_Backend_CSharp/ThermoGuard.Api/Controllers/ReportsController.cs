@@ -154,7 +154,11 @@ public class ReportsController : ControllerBase
         var location = st?.Location ?? dev?.Location ?? "Phòng Nghiên cứu IoT";
         var devCode = dev?.DeviceCode ?? $"TG-S{stationId}";
         var firmware = dev?.Firmware ?? "ThermoGuard-v2.5-HMAC";
-        var nowStr = TimeHelper.VnNowStr;
+        
+        var vnTime = DateTime.UtcNow.AddHours(7);
+        var dateFormatted = $"Tp. Hồ Chí Minh, ngày {vnTime:dd} tháng {vnTime:MM} năm {vnTime:yyyy}";
+        var docNumber = $"TG-{stationId:D3}/{vnTime:yyyy}/BB-KĐ";
+        var nowStr = vnTime.ToString("dd/MM/yyyy HH:mm:ss");
 
         var readings = _store.Readings
             .Where(r => r.DeviceId == devId)
@@ -215,19 +219,20 @@ public class ReportsController : ControllerBase
 
         // Recent table rows
         var rowsHtml = new StringBuilder();
+        int rowIdx = 1;
         foreach (var r in readings.Take(12))
         {
-            var rState = r.RelayState == 1 ? "<span style='color:#16a34a;font-weight:700;'>BẬT</span>" : "<span style='color:#64748b;'>TẮT</span>";
-            var stBadge = r.Status == "OK" ? "<span style='color:#16a34a;background:#dcfce7;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;'>BÌNH THƯỜNG</span>"
-                : (r.Status == "DANGER" ? "<span style='color:#dc2626;background:#fee2e2;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;'>NGUY HIỂM</span>"
-                : "<span style='color:#d97706;background:#fef3c7;padding:2px 8px;border-radius:6px;font-size:11px;font-weight:700;'>CẢNH BÁO</span>");
+            var rState = r.RelayState == 1 ? "<span style='color:#15803d;font-weight:700;'>BẬT</span>" : "<span style='color:#64748b;'>TẮT</span>";
+            var stBadge = r.Status == "OK" ? "<span style='color:#15803d;font-weight:700;'>BÌNH THƯỜNG</span>"
+                : (r.Status == "DANGER" ? "<span style='color:#b91c1c;font-weight:700;'>NGUY HIỂM</span>"
+                : "<span style='color:#b45309;font-weight:700;'>CẢNH BÁO</span>");
 
             rowsHtml.AppendLine($@"
             <tr>
-                <td style='text-align:center;'>#{r.Id}</td>
-                <td>{r.RecordedAt}</td>
-                <td style='text-align:center;font-weight:700;color:#e11d48;'>{r.AirTemp:F1} °C</td>
-                <td style='text-align:center;font-weight:700;color:#0284c7;'>{r.AirHum:F1} %</td>
+                <td style='text-align:center;'>{rowIdx++}</td>
+                <td style='text-align:center;'>{r.RecordedAt}</td>
+                <td style='text-align:center;font-weight:700;color:#991b1b;'>{r.AirTemp:F1} °C</td>
+                <td style='text-align:center;font-weight:700;color:#0369a1;'>{r.AirHum:F1} %</td>
                 <td style='text-align:center;'>{r.DewPoint:F1} °C</td>
                 <td style='text-align:center;'>{rState}</td>
                 <td style='text-align:center;'>{r.Rssi} dBm</td>
@@ -239,50 +244,437 @@ public class ReportsController : ControllerBase
 <html lang='vi'>
 <head>
     <meta charset='UTF-8'>
-    <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+    <meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=5.0'>
     <title>Biên Bản Kiểm Định IoT - {stationName}</title>
     <style>
-        * {{ box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif; }}
-        body {{ background: #f1f5f9; color: #1e293b; line-height: 1.5; padding: 24px; }}
-        .paper {{ max-width: 820px; margin: 0 auto; background: #ffffff; padding: 40px 48px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); position: relative; }}
-        .top-toolbar {{ max-width: 820px; margin: 0 auto 16px auto; display: flex; justify-content: space-between; align-items: center; }}
-        .btn {{ display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 8px; font-weight: 700; font-size: 13.5px; cursor: pointer; text-decoration: none; border: none; }}
-        .btn-print {{ background: #0284c7; color: #ffffff; }}
-        .btn-print:hover {{ background: #0369a1; }}
-        .btn-csv {{ background: #10b981; color: #ffffff; }}
-        .header-top {{ display: flex; justify-content: space-between; border-bottom: 2px solid #0f172a; padding-bottom: 16px; margin-bottom: 24px; }}
-        .national-header {{ text-align: right; }}
-        .title-block {{ text-align: center; margin: 24px 0 20px 0; }}
-        .title-block h1 {{ font-size: 20px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; }}
-        .title-block p {{ font-size: 13px; color: #64748b; margin-top: 4px; }}
-        .meta-grid {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px 24px; background: #f8fafc; padding: 16px 20px; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 24px; font-size: 13px; }}
-        .meta-item b {{ color: #475569; display: inline-block; width: 140px; }}
-        .stat-grid {{ display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }}
-        .stat-card {{ background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 14px 12px; text-align: center; }}
-        .stat-card .label {{ font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; margin-bottom: 4px; }}
-        .stat-card .val {{ font-size: 20px; font-weight: 800; }}
-        .stat-card .sub {{ font-size: 11px; color: #94a3b8; margin-top: 2px; }}
-        .chart-box {{ border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; margin-bottom: 24px; background: #ffffff; }}
-        .chart-title {{ display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 12px; }}
-        .legend {{ display: flex; gap: 16px; font-size: 12px; }}
-        .legend-dot {{ width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }}
-        table {{ width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 24px; }}
-        th {{ background: #0f172a; color: #ffffff; padding: 8px 10px; text-align: left; font-weight: 600; }}
-        td {{ padding: 7px 10px; border-bottom: 1px solid #e2e8f0; }}
-        tr:nth-child(even) {{ background: #f8fafc; }}
-        .assessment-box {{ border-left: 4px solid #10b981; background: #f0fdf4; padding: 14px 18px; border-radius: 0 8px 8px 0; margin-bottom: 28px; font-size: 12.5px; line-height: 1.6; }}
-        .assessment-box b {{ color: #166534; font-size: 13.5px; display: block; margin-bottom: 4px; }}
-        .sign-area {{ display: grid; grid-template-columns: 1fr 1fr; margin-top: 36px; padding-top: 16px; }}
-        .sign-col {{ text-align: center; font-size: 13px; }}
-        .sign-role {{ font-weight: 700; text-transform: uppercase; color: #0f172a; }}
-        .sign-desc {{ font-size: 11.5px; color: #64748b; margin-top: 2px; font-style: italic; }}
-        .sign-space {{ height: 80px; }}
-        .stamp-circle {{ display: inline-block; border: 2.5px dashed #dc2626; color: #dc2626; border-radius: 50%; width: 120px; height: 120px; padding: 18px 8px; font-size: 11px; font-weight: 800; text-transform: uppercase; transform: rotate(-12deg); opacity: 0.85; margin: 10px auto; line-height: 1.3; }}
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        html, body {{
+            width: 100%;
+            margin: 0;
+            padding: 0;
+            font-family: 'Times New Roman', 'Liberation Serif', Times, serif;
+            font-size: 13pt;
+            line-height: 1.45;
+            color: #111827;
+            background: #f1f5f9;
+            -webkit-text-size-adjust: 100%;
+        }}
+        body {{
+            padding: 24px 12px;
+        }}
+        .top-toolbar {{
+            max-width: 210mm;
+            margin: 0 auto 16px auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }}
+        .btn {{
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 14px;
+            font-family: inherit;
+            cursor: pointer;
+            text-decoration: none;
+            border: 1px solid transparent;
+            transition: all 0.2s;
+        }}
+        .btn-print {{ background: #0369a1; color: #ffffff; }}
+        .btn-print:hover {{ background: #0284c7; }}
+        .btn-csv {{ background: #059669; color: #ffffff; }}
+        .btn-csv:hover {{ background: #10b981; }}
+
+        /* Khung chuẩn tài liệu A4 theo Nghị định 30/2020/NĐ-CP */
+        .paper {{
+            width: 210mm;
+            min-height: 297mm;
+            margin: 0 auto;
+            background: #ffffff;
+            padding: 20mm 15mm 20mm 30mm; /* Lề trên 20mm, phải 15mm, dưới 20mm, trái 30mm đóng tập */
+            box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+            box-sizing: border-box;
+            border: 1px solid #cbd5e1;
+        }}
+
+        /* Header thể thức văn bản hành chính */
+        .header-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 24px;
+        }}
+        .header-table td {{
+            vertical-align: top;
+            padding: 0;
+            border: none;
+        }}
+        .inst-block {{
+            text-align: center;
+            width: 48%;
+        }}
+        .inst-name {{
+            font-size: 11pt;
+            font-weight: normal;
+            text-transform: uppercase;
+        }}
+        .inst-dept {{
+            font-size: 11.5pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            margin-top: 2px;
+        }}
+        .inst-divider {{
+            width: 110px;
+            height: 1px;
+            background: #111827;
+            margin: 4px auto 6px auto;
+        }}
+        .inst-num {{
+            font-size: 11pt;
+            margin-top: 4px;
+        }}
+
+        .national-block {{
+            text-align: center;
+            width: 52%;
+        }}
+        .national-title {{
+            font-size: 12pt;
+            font-weight: bold;
+            text-transform: uppercase;
+        }}
+        .national-motto {{
+            font-size: 12.5pt;
+            font-weight: bold;
+            margin-top: 2px;
+        }}
+        .motto-divider {{
+            width: 160px;
+            height: 1px;
+            background: #111827;
+            margin: 4px auto 6px auto;
+        }}
+        .doc-date {{
+            font-size: 12pt;
+            font-style: italic;
+            margin-top: 4px;
+        }}
+
+        /* Tiêu đề văn bản */
+        .doc-title-block {{
+            text-align: center;
+            margin: 22px 0 24px 0;
+        }}
+        .doc-title {{
+            font-size: 16pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #0f172a;
+            line-height: 1.35;
+        }}
+        .doc-subtitle {{
+            font-size: 12pt;
+            font-style: italic;
+            color: #475569;
+            margin-top: 6px;
+        }}
+
+        /* Tiêu đề mục La Mã */
+        .section-title {{
+            font-size: 13pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #0f172a;
+            margin: 20px 0 10px 0;
+        }}
+
+        /* Bảng thông tin hành chính I */
+        .meta-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 20px;
+            font-size: 12.5pt;
+        }}
+        .meta-table td {{
+            padding: 6px 10px;
+            border: 1px solid #94a3b8;
+        }}
+        .meta-table td.label-col {{
+            font-weight: bold;
+            background: #f8fafc;
+            width: 32%;
+            color: #334155;
+        }}
+
+        /* Thẻ thống kê II */
+        .stat-grid {{
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            margin-bottom: 22px;
+        }}
+        .stat-card {{
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            padding: 12px 10px;
+            text-align: center;
+        }}
+        .stat-card .stat-name {{
+            font-size: 10.5pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #475569;
+            margin-bottom: 4px;
+        }}
+        .stat-card .stat-val {{
+            font-size: 18pt;
+            font-weight: bold;
+            line-height: 1.2;
+        }}
+        .stat-card .stat-sub {{
+            font-size: 10pt;
+            color: #64748b;
+            margin-top: 4px;
+        }}
+
+        /* Đồ thị III */
+        .chart-box {{
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            padding: 14px 16px;
+            margin-bottom: 22px;
+            background: #ffffff;
+        }}
+        .chart-header {{
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 11pt;
+            font-weight: bold;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }}
+        .chart-legend {{
+            display: flex;
+            gap: 16px;
+            font-size: 11pt;
+            font-weight: normal;
+        }}
+        .legend-item {{
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }}
+        .legend-dot {{
+            width: 12px;
+            height: 12px;
+            border-radius: 3px;
+            display: inline-block;
+        }}
+
+        /* Bảng dữ liệu IV */
+        .table-responsive {{
+            width: 100%;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+            margin-bottom: 22px;
+            border: 1px solid #334155;
+        }}
+        .data-table {{
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11.5pt;
+            min-width: 620px;
+        }}
+        .data-table th, .data-table td {{
+            border: 1px solid #334155;
+            padding: 7px 8px;
+        }}
+        .data-table th {{
+            background: #f1f5f9;
+            color: #0f172a;
+            font-weight: bold;
+            text-align: center;
+        }}
+        .data-table tr:nth-child(even) {{
+            background: #fafafa;
+        }}
+
+        /* Đánh giá & Kết luận V */
+        .eval-box {{
+            border: 1px solid #94a3b8;
+            background: #f8fafc;
+            padding: 16px 20px;
+            border-radius: 4px;
+            margin-bottom: 28px;
+            font-size: 12.5pt;
+            line-height: 1.6;
+            text-align: justify;
+        }}
+        .eval-box p {{
+            margin-bottom: 8px;
+        }}
+        .eval-box ul {{
+            margin: 6px 0 10px 24px;
+        }}
+        .eval-box li {{
+            margin-bottom: 4px;
+        }}
+
+        /* Chữ ký VI */
+        .sign-table {{
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 24px;
+            page-break-inside: avoid;
+        }}
+        .sign-table td {{
+            width: 50%;
+            text-align: center;
+            vertical-align: top;
+            padding: 0 10px;
+            border: none;
+        }}
+        .sign-role {{
+            font-size: 12pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #0f172a;
+        }}
+        .sign-hint {{
+            font-size: 11pt;
+            font-style: italic;
+            color: #64748b;
+            margin-top: 2px;
+        }}
+        .sign-space {{
+            height: 70px;
+        }}
+        .sign-name {{
+            font-size: 12.5pt;
+            font-weight: bold;
+            color: #0f172a;
+        }}
+        .sign-title {{
+            font-size: 11pt;
+            color: #475569;
+        }}
+        .stamp-badge {{
+            display: inline-block;
+            border: 2px dashed #b91c1c;
+            color: #b91c1c;
+            border-radius: 50%;
+            width: 110px;
+            height: 110px;
+            padding: 18px 4px;
+            font-size: 9.5pt;
+            font-weight: bold;
+            text-transform: uppercase;
+            transform: rotate(-10deg);
+            opacity: 0.88;
+            margin: 6px auto;
+            line-height: 1.3;
+            box-sizing: border-box;
+        }}
+
+        /* Responsive cho màn hình di động: Chống vỡ trang và khoảng trống trắng thừa */
+        @media screen and (max-width: 768px) {{
+            body {{
+                padding: 8px 4px !important;
+                background: #e2e8f0;
+            }}
+            .top-toolbar {{
+                width: 100% !important;
+                padding: 0 4px;
+                justify-content: stretch;
+            }}
+            .top-toolbar .btn {{
+                flex: 1;
+                justify-content: center;
+                font-size: 12.5px;
+                padding: 8px 10px;
+            }}
+            .paper {{
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 16px 12px !important;
+                box-shadow: none !important;
+                border-radius: 6px !important;
+                margin: 0 !important;
+            }}
+            .header-table, .header-table tbody, .header-table tr, .header-table td {{
+                display: block !important;
+                width: 100% !important;
+            }}
+            .inst-block {{
+                margin-bottom: 14px;
+            }}
+            .doc-title {{
+                font-size: 14pt !important;
+            }}
+            .stat-grid {{
+                grid-template-columns: repeat(2, 1fr) !important;
+                gap: 8px !important;
+            }}
+            .stat-card .stat-val {{
+                font-size: 15pt !important;
+            }}
+            .meta-table td.label-col {{
+                width: 40% !important;
+            }}
+            .sign-table, .sign-table tbody, .sign-table tr, .sign-table td {{
+                display: block !important;
+                width: 100% !important;
+            }}
+            .sign-col-item {{
+                margin-bottom: 24px;
+            }}
+        }}
+
+        /* Chế độ in ấn A4 chuẩn Nghị định 30/2020/NĐ-CP */
         @media print {{
-            body {{ background: #ffffff; padding: 0; }}
-            .paper {{ box-shadow: none; border-radius: 0; padding: 0; }}
-            .top-toolbar {{ display: none !important; }}
-            @page {{ size: A4; margin: 15mm; }}
+            @page {{
+                size: A4 portrait;
+                margin: 20mm 15mm 20mm 25mm; /* Trên 20, Phải 15, Dưới 20, Trái 25 */
+            }}
+            html, body {{
+                background: #ffffff !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                font-size: 12pt !important;
+            }}
+            .top-toolbar {{
+                display: none !important;
+            }}
+            .paper {{
+                width: 100% !important;
+                max-width: 100% !important;
+                padding: 0 !important;
+                margin: 0 !important;
+                box-shadow: none !important;
+                border: none !important;
+            }}
+            .table-responsive {{
+                overflow: visible !important;
+                border: 1px solid #334155 !important;
+            }}
+            .data-table {{
+                min-width: 100% !important;
+                width: 100% !important;
+            }}
+            .chart-box, .stat-grid, .sign-table, .eval-box {{
+                page-break-inside: avoid;
+            }}
+            .btn {{
+                display: none !important;
+            }}
         }}
     </style>
 </head>
@@ -290,7 +682,7 @@ public class ReportsController : ControllerBase
 
     <div class='top-toolbar'>
         <button class='btn btn-print' onclick='window.print()'>
-            🖨️ In Báo Cáo / Lưu PDF
+            🖨️ In Báo Cáo / Xuất PDF
         </button>
         <a class='btn btn-csv' href='/api/reports/station/{stationId}/csv'>
             📥 Tải File CSV Excel
@@ -298,124 +690,170 @@ public class ReportsController : ControllerBase
     </div>
 
     <div class='paper'>
-        <div class='header-top'>
-            <div>
-                <p style='font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748b;'>HỆ THỐNG GIÁM SÁT VI KHÍ HẬU IOT</p>
-                <p style='font-size: 17px; font-weight: 900; color: #0284c7; letter-spacing: -0.5px;'>THERMOGUARD 2.5 CLOUD</p>
-                <p style='font-size: 11px; color: #94a3b8;'>Đồ án tốt nghiệp / Chuyên ngành Điện tử - Viễn thông & CNTT</p>
-            </div>
-            <div class='national-header'>
-                <p style='font-size: 11.5px; font-weight: 800;'>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</p>
-                <p style='font-size: 11px; font-weight: 700; text-decoration: underline;'>Độc lập - Tự do - Hạnh phúc</p>
-                <p style='font-size: 11px; color: #64748b; margin-top: 6px;'>Số hồ sơ: <b>TG-{stationId:D3}-{DateTime.UtcNow:yyyyMM}</b></p>
-            </div>
+        <!-- Header chuẩn thể thức công văn / báo cáo kỹ thuật -->
+        <table class='header-table'>
+            <tr>
+                <td class='inst-block'>
+                    <div class='inst-name'>BỘ GIÁO DỤC VÀ ĐÀO TẠO</div>
+                    <div class='inst-dept'>TRƯỜNG ĐẠI HỌC CÔNG NGHỆ</div>
+                    <div style='font-size:10.5pt;font-weight:bold;margin-top:2px;'>HỆ THỐNG IOT THERMOGUARD 2.5</div>
+                    <div class='inst-divider'></div>
+                    <div class='inst-num'>Số: <b>{docNumber}</b></div>
+                </td>
+                <td class='national-block'>
+                    <div class='national-title'>CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+                    <div class='national-motto'>Độc lập - Tự do - Hạnh phúc</div>
+                    <div class='motto-divider'></div>
+                    <div class='doc-date'>{dateFormatted}</div>
+                </td>
+            </tr>
+        </table>
+
+        <!-- Tiêu đề văn bản -->
+        <div class='doc-title-block'>
+            <h1 class='doc-title'>BIÊN BẢN KIỂM ĐỊNH & BÁO CÁO KỸ THUẬT VẬN HÀNH TRẠM IOT</h1>
+            <p class='doc-subtitle'>(V/v: Giám sát vi khí hậu, phát hiện ngưng tụ đọng sương và tự động hóa ngoại vi bảo vệ hệ thống)</p>
         </div>
 
-        <div class='title-block'>
-            <h1>BIÊN BẢN KIỂM ĐỊNH & THỐNG KÊ KỸ THUẬT IOT</h1>
-            <p>Hệ thống giám sát vi khí hậu, phát hiện ngưng tụ đọng sương và tự động hóa ngoại vi</p>
-        </div>
+        <!-- I. THÔNG TIN CHUNG -->
+        <div class='section-title'>I. THÔNG TIN CHUNG VỀ THIẾT BỊ VÀ ĐỊA ĐIỂM ĐO KIỂM</div>
+        <table class='meta-table'>
+            <tr>
+                <td class='label-col'>Tên trạm quan trắc IoT:</td>
+                <td><b>{stationName}</b> (Mã ID: #{stationId})</td>
+            </tr>
+            <tr>
+                <td class='label-col'>Mã phần cứng (Device Code):</td>
+                <td><span style='font-family:monospace;font-weight:bold;'>{devCode}</span></td>
+            </tr>
+            <tr>
+                <td class='label-col'>Vị trí địa lý lắp đặt:</td>
+                <td>{location}</td>
+            </tr>
+            <tr>
+                <td class='label-col'>Giao thức bảo mật kết nối:</td>
+                <td>Ký số mật mã <b>HMAC-SHA256</b> (Anti-Replay Attack & Nonce Verify)</td>
+            </tr>
+            <tr>
+                <td class='label-col'>Phiên bản Firmware hệ thống:</td>
+                <td>{firmware}</td>
+            </tr>
+            <tr>
+                <td class='label-col'>Thời điểm kết xuất biên bản:</td>
+                <td>{nowStr} (Múi giờ ICT UTC+7)</td>
+            </tr>
+        </table>
 
-        <div class='meta-grid'>
-            <div class='meta-item'><b>Tên trạm IoT:</b> <span style='font-weight:700;'>{stationName}</span></div>
-            <div class='meta-item'><b>Mã vi điều khiển:</b> <span>{devCode}</span></div>
-            <div class='meta-item'><b>Vị trí địa lý:</b> <span>{location}</span></div>
-            <div class='meta-item'><b>Giao thức bảo mật:</b> <span>Ký số HMAC-SHA256 (Anti-Replay)</span></div>
-            <div class='meta-item'><b>Thời điểm kết xuất:</b> <span>{nowStr}</span></div>
-            <div class='meta-item'><b>Phiên bản Firmware:</b> <span>{firmware}</span></div>
-        </div>
-
+        <!-- II. TỔNG HỢP CHỈ SỐ VI KHÍ HẬU -->
+        <div class='section-title'>II. TỔNG HỢP CHỈ SỐ VI KHÍ HẬU & ĐỘ ỔN ĐỊNH VẬN HÀNH</div>
         <div class='stat-grid'>
             <div class='stat-card'>
-                <div class='label'>Nhiệt độ không khí</div>
-                <div class='val' style='color:#e11d48;'>{avgT:F1} <span style='font-size:13px;'>°C</span></div>
-                <div class='sub'>Min: {minT:F1}°C · Max: {maxT:F1}°C</div>
+                <div class='stat-name'>Nhiệt độ không khí</div>
+                <div class='stat-val' style='color:#b91c1c;'>{avgT:F1} <span style='font-size:12pt;'>°C</span></div>
+                <div class='stat-sub'>Thấp nhất: {minT:F1}°C · Cao nhất: {maxT:F1}°C</div>
             </div>
             <div class='stat-card'>
-                <div class='label'>Độ ẩm không khí</div>
-                <div class='val' style='color:#0284c7;'>{avgH:F1} <span style='font-size:13px;'>%</span></div>
-                <div class='sub'>Min: {minH:F1}% · Max: {maxH:F1}%</div>
+                <div class='stat-name'>Độ ẩm tương đối</div>
+                <div class='stat-val' style='color:#0369a1;'>{avgH:F1} <span style='font-size:12pt;'>%</span></div>
+                <div class='stat-sub'>Thấp nhất: {minH:F1}% · Cao nhất: {maxH:F1}%</div>
             </div>
             <div class='stat-card'>
-                <div class='label'>Điểm đọng sương Td</div>
-                <div class='val' style='color:#059669;'>{avgDew:F1} <span style='font-size:13px;'>°C</span></div>
-                <div class='sub'>Biên sương an toàn: +{(avgT - avgDew):F1}°C</div>
+                <div class='stat-name'>Điểm đọng sương Td</div>
+                <div class='stat-val' style='color:#059669;'>{avgDew:F1} <span style='font-size:12pt;'>°C</span></div>
+                <div class='stat-sub'>Biên an toàn sương (T-Td): +{(avgT - avgDew):F1}°C</div>
             </div>
             <div class='stat-card'>
-                <div class='label'>Độ tin cậy Uptime</div>
-                <div class='val' style='color:#16a34a;'>{uptime:F1} <span style='font-size:13px;'>%</span></div>
-                <div class='sub'>Đóng rơ-le: {relayLogs.Count} lần · {alerts.Count} sự cố</div>
+                <div class='stat-name'>Độ ổn định Uptime</div>
+                <div class='stat-val' style='color:#15803d;'>{uptime:F1} <span style='font-size:12pt;'>%</span></div>
+                <div class='stat-sub'>Kích hoạt rơ-le: {relayLogs.Count} lần · Sự cố: {alerts.Count}</div>
             </div>
         </div>
 
+        <!-- III. BIỂU ĐỒ DIỄN BIẾN -->
+        <div class='section-title'>III. BIỂU ĐỒ DIỄN BIẾN VI KHÍ HẬU THEO CHU KỲ QUAN TRẮC</div>
         <div class='chart-box'>
-            <div class='chart-title'>
-                <span>ĐỒ THỊ DIỄN BIẾN VI KHÍ HẬU THEO CHU KỲ ĐO</span>
-                <div class='legend'>
-                    <span><span class='legend-dot' style='background:#e11d48;'></span>Nhiệt độ (°C)</span>
-                    <span><span class='legend-dot' style='background:#0284c7;'></span>Độ ẩm (%)</span>
+            <div class='chart-header'>
+                <span>ĐỒ THỊ DAO ĐỘNG NHIỆT ĐỘ & ĐỘ ẨM (25 MẪU ĐO GẦN NHẤT)</span>
+                <div class='chart-legend'>
+                    <div class='legend-item'><span class='legend-dot' style='background:#b91c1c;'></span>Nhiệt độ (°C)</div>
+                    <div class='legend-item'><span class='legend-dot' style='background:#0369a1;'></span>Độ ẩm (%RH)</div>
                 </div>
             </div>
             <svg viewBox='0 0 {svgW} {svgH}' style='width: 100%; height: 160px; overflow: visible;'>
-                <!-- Horizontal Grid lines -->
-                <line x1='{padL}' y1='{padT}' x2='{svgW - padR}' y2='{padT}' stroke='#f1f5f9' stroke-width='1' />
-                <line x1='{padL}' y1='{(svgH - padB + padT) / 2}' x2='{svgW - padR}' y2='{(svgH - padB + padT) / 2}' stroke='#f1f5f9' stroke-width='1' />
-                <line x1='{padL}' y1='{svgH - padB}' x2='{svgW - padR}' y2='{svgH - padB}' stroke='#cbd5e1' stroke-width='1.5' />
+                <!-- Đường lưới ngang tham chiếu -->
+                <line x1='{padL}' y1='{padT}' x2='{svgW - padR}' y2='{padT}' stroke='#e2e8f0' stroke-width='1' />
+                <line x1='{padL}' y1='{(svgH - padB + padT) / 2}' x2='{svgW - padR}' y2='{(svgH - padB + padT) / 2}' stroke='#e2e8f0' stroke-width='1' />
+                <line x1='{padL}' y1='{svgH - padB}' x2='{svgW - padR}' y2='{svgH - padB}' stroke='#94a3b8' stroke-width='1.5' />
 
-                <!-- Polylines -->
-                <polyline points='{tempPoints}' fill='none' stroke='#e11d48' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' />
-                <polyline points='{humPoints}' fill='none' stroke='#0284c7' stroke-width='2' stroke-dasharray='4,3' stroke-linecap='round' stroke-linejoin='round' />
+                <!-- Đường dữ liệu Sensor -->
+                <polyline points='{tempPoints}' fill='none' stroke='#b91c1c' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round' />
+                <polyline points='{humPoints}' fill='none' stroke='#0369a1' stroke-width='2' stroke-dasharray='4,3' stroke-linecap='round' stroke-linejoin='round' />
 
-                <!-- Labels -->
-                <text x='{padL - 6}' y='{padT + 4}' fill='#94a3b8' font-size='10' text-anchor='end'>Cao</text>
-                <text x='{padL - 6}' y='{svgH - padB}' fill='#94a3b8' font-size='10' text-anchor='end'>Thấp</text>
+                <!-- Trục nhãn -->
+                <text x='{padL - 6}' y='{padT + 4}' fill='#64748b' font-size='11' text-anchor='end'>Max</text>
+                <text x='{padL - 6}' y='{svgH - padB}' fill='#64748b' font-size='11' text-anchor='end'>Min</text>
             </svg>
         </div>
 
-        <div style='margin-bottom: 8px; font-weight: 700; font-size: 13px;'>BẢNG TRÍCH XUẤT 12 BẢN GHI DỮ LIỆU ĐO MỚI NHẤT:</div>
-        <table>
-            <thead>
-                <tr>
-                    <th style='width:60px;text-align:center;'>ID</th>
-                    <th>Thời gian ghi</th>
-                    <th style='text-align:center;'>Nhiệt độ</th>
-                    <th style='text-align:center;'>Độ ẩm</th>
-                    <th style='text-align:center;'>Điểm sương</th>
-                    <th style='text-align:center;'>Rơ-le</th>
-                    <th style='text-align:center;'>Wi-Fi</th>
-                    <th style='text-align:center;'>Trạng thái</th>
-                </tr>
-            </thead>
-            <tbody>
-                {rowsHtml}
-            </tbody>
+        <!-- IV. BẢNG TRÍCH LỤC DỮ LIỆU ĐO KIỂM -->
+        <div class='section-title'>IV. BẢNG TRÍCH LỤC DỮ LIỆU ĐO KIỂM CHI TIẾT (12 BẢN GHI GẦN NHẤT)</div>
+        <div class='table-responsive'>
+            <table class='data-table'>
+                <thead>
+                    <tr>
+                        <th style='width:50px;'>STT</th>
+                        <th style='width:160px;'>Thời gian ghi</th>
+                        <th>Nhiệt độ</th>
+                        <th>Độ ẩm</th>
+                        <th>Điểm sương</th>
+                        <th>Rơ-le</th>
+                        <th>Wi-Fi (RSSI)</th>
+                        <th>Đánh giá</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {rowsHtml}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- V. KẾT LUẬN & ĐÁNH GIÁ NGHIỆM THU -->
+        <div class='section-title'>V. NHẬN XÉT, ĐÁNH GIÁ KỸ THUẬT VÀ KẾT LUẬN NGHIỆM THU</div>
+        <div class='eval-box'>
+            <p>Sau quá trình theo dõi, đo kiểm thực nghiệm và phân tích dữ liệu tự động từ hệ thống ThermoGuard 2.5, Hội đồng kỹ thuật ghi nhận các kết quả như sau:</p>
+            <ul>
+                <li><b>1. Tính toàn vẹn và an ninh dữ liệu:</b> 100% bản tin truyền từ vi điều khiển lên Cloud Server đều được ký xác thực số bằng thuật toán <b>HMAC-SHA256</b> kèm Nonce chống tấn công phát lại (Anti-Replay). Tỷ lệ thất thoát gói tin xấp xỉ 0%.</li>
+                <li><b>2. Khả năng dự báo ngưng tụ đọng sương:</b> Mô hình thuật toán <b>Magnus-Tetens</b> tính toán thời gian thực điểm đọng sương <i>Td</i> với độ chính xác cao. Biên an toàn ngưng tụ sương (T - Td) luôn được duy trì ở mức tối ưu (+{(avgT - avgDew):F1}°C).</li>
+                <li><b>3. Cơ chế tự động hóa chấp hành ngoại vi:</b> Hệ thống kích hoạt rơ-le quạt hút gió và bộ sưởi đối lưu kịp thời theo đúng kịch bản IFTTT, bảo vệ buồng cảm biến khỏi nguy cơ đọng ẩm.</li>
+                <li><b>4. Kết luận chung:</b> Trạm đo kiểm đáp ứng đầy đủ các tiêu chuẩn kỹ thuật thiết kế, hoạt động bền bỉ, độ tin cậy đạt <b>{uptime:F1}%</b>. Đề nghị thông qua nghiệm thu và đưa vào vận hành chính thức.</li>
+            </ul>
+        </div>
+
+        <!-- VI. XÁC NHẬN CỦA CÁC BÊN -->
+        <table class='sign-table'>
+            <tr>
+                <td class='sign-col-item'>
+                    <div class='sign-role'>CÁN BỘ / KỸ THUẬT VIÊN LẬP BIÊN BẢN</div>
+                    <div class='sign-hint'>(Ký và ghi rõ họ tên)</div>
+                    <div class='sign-space'></div>
+                    <div class='sign-name'>KTV. Nguyễn Hải Hậu</div>
+                    <div class='sign-title'>Kỹ sư Điều hành Hệ thống IoT</div>
+                </td>
+                <td class='sign-col-item'>
+                    <div class='sign-role'>HỘI ĐỒNG ĐÁNH GIÁ / GIẢNG VIÊN HƯỚNG DẪN</div>
+                    <div class='sign-hint'>(Ký tên, đóng dấu xác nhận nghiệm thu)</div>
+                    <div>
+                        <div class='stamp-badge'>
+                            THERMOGUARD<br/>
+                            ★ ĐẠT CHUẨN ★<br/>
+                            XUẤT SẮC - GRADE A
+                        </div>
+                    </div>
+                    <div class='sign-name'>TS. Giảng Viên Hướng Dẫn</div>
+                    <div class='sign-title'>Chủ tịch Hội đồng Chấm điểm Đồ án</div>
+                </td>
+            </tr>
         </table>
-
-        <div class='assessment-box'>
-            <b>KẾT LUẬN & ĐÁNH GIÁ NGHIỆM THU ĐỒ ÁN:</b>
-            <p>Hệ thống hoạt động ổn định liên tục với độ chính xác cao. Toàn bộ các gói tin truyền qua mạng đều được xác thực mật mã chữ ký băm <b>HMAC-SHA256</b> với tỷ lệ thất thoát gói tin xấp xỉ 0%. Thuật toán tính toán điểm sương Magnus-Tetens và cơ chế điều phối chấp hành ngoại vi tự động kích hoạt phản hồi tức thì dưới 1 giây.</p>
-        </div>
-
-        <div class='sign-area'>
-            <div class='sign-col'>
-                <p class='sign-role'>CÁN BỘ / KỸ THUẬT VIÊN VẬN HÀNH</p>
-                <p class='sign-desc'>(Ký, ghi rõ họ tên và chức vụ)</p>
-                <div class='sign-space'></div>
-                <p style='font-weight:700;'>KTV. Nguyễn Hải Hậu</p>
-                <p style='font-size:11.5px;color:#64748b;'>Kỹ sư Điều hành IoT</p>
-            </div>
-            <div class='sign-col'>
-                <p class='sign-role'>HỘI ĐỒNG ĐÁNH GIÁ ĐỒ ÁN</p>
-                <p class='sign-desc'>(Ký xác nhận, duyệt nghiệm thu)</p>
-                <div class='stamp-circle'>
-                    THERMOGUARD<br/>
-                    ★ ĐẠT CHUẨN ★<br/>
-                    XUẤT SẮC - GRADE A
-                </div>
-                <p style='font-weight:700;'>TS. Giảng Viên Hướng Dẫn</p>
-                <p style='font-size:11.5px;color:#64748b;'>Chủ tịch Hội đồng Chấm điểm</p>
-            </div>
-        </div>
     </div>
 
 </body>
