@@ -131,6 +131,15 @@ try:
 except Exception as e:
     print(">> Loi khoi tao UART GPS:", e)
 
+# Cam bien Do sach/ban cua nuoc TDS Meter GP27 (ADC1)
+tds_adc = None
+try:
+    tds_pin = getattr(config, "PIN_TDS_ADC", 27)
+    tds_adc = machine.ADC(machine.Pin(tds_pin))
+    print(">> Khoi tao Cam bien TDS do nuoc thanh cong (GP27 - ADC1)")
+except Exception as e:
+    print(">> Loi khoi tao ADC TDS:", e)
+
 # Cam bien nhiet do chip noi bo tren Raspberry Pi Pico 2 W (RP2040/RP2350 - ADC 4)
 try:
     pico_temp_adc = machine.ADC(4)
@@ -185,6 +194,8 @@ state = {
     "gps_src": "NONE",
     "gps_rx_bytes": 0,     # Tong byte UART0 da nhan (dung chan doan day noi)
     "gps_last_fix_ms": 0,
+    "tds": 0,
+    "water_quality": "SACH",
 }
 
 # Dong bo gio server
@@ -558,6 +569,42 @@ def read_light():
     if percent_dark > 100: percent_dark = 100
     return raw, percent_dark
 
+def read_tds():
+    if not tds_adc:
+        return None
+    try:
+        total = 0
+        samples = 8
+        for _ in range(samples):
+            total += tds_adc.read_u16()
+            time.sleep_ms(1)
+        raw = total // samples
+        voltage = raw * 3.3 / 65535.0
+
+        # Bu nhiet do nuoc theo que DS18B20 (hoac 25°C)
+        t = state.get("probe") or 25.0
+        compensation = 1.0 + 0.02 * (t - 25.0)
+        v_comp = voltage / compensation
+
+        # Cong thuc chuyen doi DFRobot TDS Meter (ppm)
+        tds_val = (133.42 * (v_comp ** 3) - 255.86 * (v_comp ** 2) + 857.39 * v_comp) * 0.5
+        if tds_val < 0:
+            tds_val = 0
+        tds_int = int(round(tds_val))
+        state["tds"] = tds_int
+
+        if tds_int < 70:
+            state["water_quality"] = "TINH KHIET"
+        elif tds_int <= 300:
+            state["water_quality"] = "NUOC SACH"
+        elif tds_int <= 500:
+            state["water_quality"] = "NUOC CUNG"
+        else:
+            state["water_quality"] = "O NHIEM"
+        return tds_int
+    except Exception:
+        return None
+
 # Bien doc DS18B20 khong chan (non-blocking)
 last_ds_start = 0
 ds_converting = False
@@ -600,6 +647,9 @@ def poll_sensors():
     pt = read_pico_temp()
     if pt is not None:
         state["pico_t"] = pt
+
+    # 5. Cam bien chat luong nuoc TDS Meter (GP27)
+    read_tds()
 
 # ==============================================================
 # 7. DIEU KHIEN DUC PHONG (FAIL-SAFE KHI MAT BACKEND)
@@ -652,6 +702,8 @@ def send_to_backend():
         "dew_point": state["dew"],
         "light_raw": state["light_raw"],
         "light_pct": state["light_pct"],
+        "tds": state.get("tds", 0),
+        "water_quality": state.get("water_quality", "SACH"),
         "relay_state": 1 if state["relay"] else 0,
         "rssi": wlan.status("rssi") if hasattr(wlan, "status") else -50,
         "fw": FW_VERSION,
@@ -778,9 +830,10 @@ def draw_oled(blink=False):
     h_str = "--.-" if state["air_h"] is None else "{:.1f}".format(state["air_h"])
     o.text("Air:{}C {}%".format(t_str, h_str), 0, 14, 1)
 
-    # 3. Hang 2: Que inox nuoc (DS18B20) & Quang tro LDR
+    # 3. Hang 2: Que inox nuoc (DS18B20) & Do sach/ban TDS
     p_str = "--.-" if state["probe"] is None else "{:.1f}".format(state["probe"])
-    o.text("Nuoc:{}C Toi:{}%".format(p_str, state["light_pct"]), 0, 26, 1)
+    tds_val = state.get("tds", 0)
+    o.text("N:{}C TDS:{}p".format(p_str, tds_val)[:16], 0, 26, 1)
 
     # 4. Hang 3: Trang thai Relay + Che do + Tinh trang Ve tinh
     r_str = "BAT" if state["relay"] else "TAT"
@@ -807,20 +860,13 @@ def draw_oled(blink=False):
         footer = "! " + state["reason"]
     elif state["alert"]:
         footer = "! " + state["alert"]
-    elif cycle == 0 and state.get("lat") is not None:
-        footer = "LAT:{:.5f}".format(state["lat"])
-    elif cycle == 1 and state.get("lon") is not None:
-        footer = "LON:{:.5f}".format(state["lon"])
-    elif cycle == 2:
-        if state.get("gps_alt_m") is not None:
-            footer = "Alt:{}m S:{}".format(int(state["gps_alt_m"]), s_use or s_view)
-        elif state.get("gps_speed_kmh") is not None and state["gps_speed_kmh"] > 0:
-            footer = "Spd:{}km/h".format(state["gps_speed_kmh"])
-        elif s_view > 0:
-            footer = "S:{} dung/{} nhin".format(s_use, s_view)
-        else:
-            footer = "GPS: {}".format(sat_status)
-    elif cycle == 3 and wifi_connected:
+    elif cycle == 0 and state.get("lat") is not None and state.get("lon") is not None:
+        src_prefix = "SAT:" if state.get("gps_fixed") else "GPS:"
+        footer = "{}{:.3f},{:.3f}".format(src_prefix, state["lat"], state["lon"])
+    elif cycle == 1:
+        footer = "TDS:{}p ({})".format(state.get("tds", 0), state.get("water_quality", "SACH"))
+    elif cycle == 2 and wifi_connected:
+        footer = "IP:" + wifi_ip
         footer = "IP:" + wifi_ip
     else:
         footer = state.get("connected_ssid") or "Pico 2 W Online"

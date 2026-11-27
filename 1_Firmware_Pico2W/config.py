@@ -39,6 +39,9 @@ PIN_DS18B20  = 22     # GP22 (Chan 29 - co tro 4.7k keo len 3V3)
 # - Cam bien Cuong do anh sang / Quang tro MKE-S02 (ADC):
 PIN_LDR_ADC  = 26     # GP26 (Chan 31, ADC0)
 
+# - Cam bien Do sach/ban cua nuoc TDS Meter (ADC1):
+PIN_TDS_ADC  = 27     # GP27 (Chan 32, ADC1)
+
 # - Module Relay 5V dieu khien den/thiet bi:
 PIN_RELAY    = 13     # GP13 (Chan 17)
 RELAY_ACTIVE_HIGH = True  # True: Muc 1 (HIGH) la DONG/BAT relay; False neu relay kich muc Thap
