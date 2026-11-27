@@ -160,7 +160,28 @@ def connect_wifi():
     except Exception:
         pass
 
-    for ssid, password in config.WIFI_LIST:
+    visible_ssids = set()
+    try:
+        scan_results = wlan.scan()
+        for item in scan_results:
+            try:
+                name = item[0].decode('utf-8', 'ignore').strip()
+                if name:
+                    visible_ssids.add(name)
+            except Exception:
+                pass
+    except Exception as e:
+        print(">> Scan loi, fallback thu lan luot:", e)
+
+    candidates = []
+    for ssid, pwd in config.WIFI_LIST:
+        if not visible_ssids or ssid in visible_ssids:
+            candidates.append((ssid, pwd))
+
+    if not candidates:
+        candidates = config.WIFI_LIST
+
+    for ssid, password in candidates:
         print(">> ESP32 thu ket noi: '{}' ...".format(ssid))
         try:
             try:

@@ -226,8 +226,8 @@ public class DataStore
                 {
                     Id = 2,
                     StationId = 2,
-                    DeviceCode = "ESP-01",
-                    ApiKey = "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+                    DeviceCode = "ESP32-1",
+                    ApiKey = "esp32_dev_secret_key_8888",
                     Name = "Tram2",
                     Profile = "aquarium",
                     Location = "Phòng Thực Nghiệm Nấm (10.8255, 106.6297)",
@@ -268,6 +268,25 @@ public class DataStore
                 }
                 catch { }
             }
+
+            // Dọn dẹp trạm trùng lặp: Giữ đúng 2 trạm duy nhất (Trạm 1: Pico và Trạm 2: ESP32)
+            try
+            {
+                var tram1 = Stations.FirstOrDefault(s => s.Name.ToLower().Contains("tram1") || s.Name.ToLower().Contains("pico"));
+                var tram2 = Stations.FirstOrDefault(s => s.Name.ToLower().Contains("tram2") || s.Name.ToLower().Contains("esp"));
+
+                if (tram1 != null && tram2 != null)
+                {
+                    var extra = Stations.Where(s => s.Id != tram1.Id && s.Id != tram2.Id).ToList();
+                    foreach (var ex in extra)
+                    {
+                        Stations.Remove(ex);
+                        try { db.Stations.Remove(ex); } catch { }
+                    }
+                    db.SaveChanges();
+                }
+            }
+            catch { }
         }
         catch (Exception ex)
         {
@@ -471,6 +490,7 @@ public class DataStore
                     {
                         var fallbackSig = ComputeHmacSha256("faf805d549a04998880242db2f1d3948", $"{dev.DeviceCode}|{req.Ts}|{req.Payload}");
                         var fallbackSig2 = ComputeHmacSha256("a1b2c3d4e5f60718293a4b5c6d7e8f90", $"{dev.DeviceCode}|{req.Ts}|{req.Payload}");
+                        var fallbackSig3 = ComputeHmacSha256("esp32_dev_secret_key_8888", $"{dev.DeviceCode}|{req.Ts}|{req.Payload}");
                         if (string.Equals(req.Sig, fallbackSig, StringComparison.OrdinalIgnoreCase))
                         {
                             dev.ApiKey = "faf805d549a04998880242db2f1d3948";
@@ -478,6 +498,10 @@ public class DataStore
                         else if (string.Equals(req.Sig, fallbackSig2, StringComparison.OrdinalIgnoreCase))
                         {
                             dev.ApiKey = "a1b2c3d4e5f60718293a4b5c6d7e8f90";
+                        }
+                        else if (string.Equals(req.Sig, fallbackSig3, StringComparison.OrdinalIgnoreCase))
+                        {
+                            dev.ApiKey = "esp32_dev_secret_key_8888";
                         }
                         else
                         {

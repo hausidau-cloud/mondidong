@@ -5,9 +5,11 @@
 # 1. DANH SACH WI-FI (Tu dong quet va ket noi mang san co)
 WIFI_LIST = [
     ("NHA TRO 102", "0902511322"),
+    ("Duy Thuc_2", "thuchuong"),
+    ("Duy thuc", "thuchuong"),
     ("_hhau.05_", "00000000"),
     ("Bekind Coffee", "camonquykhach"),
-    
+    ("Quan Buu", "0777803936"),
 ]
 
 # 2. DIA CHI BACKEND C# (Cloud Server Render hoac Localhost)
