@@ -8,7 +8,8 @@ import '../core/theme.dart';
 import '../models/models.dart';
 
 /// Hien thi Modal Dieu khien bang giong noi tieng Viet (Voice Control AI)
-Future<void> showVoiceControlDialog(BuildContext context, Station station, {VoidCallback? onCommandExecuted}) {
+/// Ho tro ca dieu khien tai tram cu the hoac dieu khien toan he thong da tram (Global Voice AI)
+Future<void> showVoiceControlDialog(BuildContext context, Station? station, {VoidCallback? onCommandExecuted}) {
   return showModalBottomSheet(
     context: context,
     isScrollControlled: true,
@@ -18,10 +19,10 @@ Future<void> showVoiceControlDialog(BuildContext context, Station station, {Void
 }
 
 class VoiceControlSheet extends StatefulWidget {
-  final Station station;
+  final Station? station;
   final VoidCallback? onCommandExecuted;
 
-  const VoiceControlSheet({super.key, required this.station, this.onCommandExecuted});
+  const VoiceControlSheet({super.key, this.station, this.onCommandExecuted});
 
   @override
   State<VoiceControlSheet> createState() => _VoiceControlSheetState();
@@ -39,18 +40,36 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
   bool _processing = false;
   String _selectedLocaleId = 'vi_VN';
 
+  List<Station> _stations = [];
+
   late AnimationController _animCtrl;
 
-  final List<String> _quickCommands = [
-    'Bật hệ thống phun sương',
-    'Tắt hệ thống phun sương',
-    'Chuyển sang tự động',
-    'Bật máy bơm nước',
-    'Tắt máy bơm nước',
-    'Bật quạt thông gió',
-    'Tắt quạt thông gió',
-    'Nhiệt độ hiện tại bao nhiêu?',
-  ];
+  List<String> get _quickCommands {
+    if (widget.station != null) {
+      return [
+        'Bật hệ thống phun sương',
+        'Tắt hệ thống phun sương',
+        'Bật máy bơm nước',
+        'Tắt máy bơm nước',
+        'Bật quạt thông gió',
+        'Tắt quạt thông gió',
+        'Chuyển sang tự động',
+        'Nhiệt độ hiện tại bao nhiêu?',
+      ];
+    }
+    return [
+      'Bật hệ thống phun sương trạm 1',
+      'Tắt hệ thống phun sương trạm 1',
+      'Bật máy bơm nước trạm 2',
+      'Tắt máy bơm nước trạm 2',
+      'Bật quạt thông gió trạm 1',
+      'Tắt quạt thông gió trạm 1',
+      'Bật hệ thống phun sương trạm 2',
+      'Chuyển trạm 1 sang tự động',
+      'Chuyển trạm 2 sang tự động',
+      'Nhiệt độ trạm 1 bao nhiêu?',
+    ];
+  }
 
   @override
   void initState() {
@@ -59,6 +78,13 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
+
+    if (widget.station != null) {
+      _stations = [widget.station!];
+    } else {
+      _loadStations();
+    }
+
     _initSpeech();
   }
 
@@ -68,6 +94,17 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
     _animCtrl.dispose();
     _inputCtrl.dispose();
     super.dispose();
+  }
+
+  Future<void> _loadStations() async {
+    try {
+      final list = await Session.I.stations();
+      if (mounted) {
+        setState(() {
+          _stations = list;
+        });
+      }
+    } catch (_) {}
   }
 
   Future<void> _initSpeech() async {
@@ -80,7 +117,9 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
           if (status == 'listening') {
             setState(() {
               _isListening = true;
-              _statusMessage = 'Đang lắng nghe giọng nói... Hãy nói "Bật hệ thống phun sương"';
+              _statusMessage = widget.station != null
+                  ? 'Đang lắng nghe... Hãy nói "Bật hệ thống phun sương"'
+                  : 'Đang lắng nghe... Hãy nói "Bật hệ thống phun sương trạm 1"';
             });
           } else if (status == 'notListening' || status == 'done') {
             setState(() {
@@ -142,7 +181,9 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
       _executionResult = null;
       _isSuccess = false;
       _isListening = true;
-      _statusMessage = 'Đang lắng nghe... Hãy nói to: "Bật hệ thống phun sương"';
+      _statusMessage = widget.station != null
+          ? 'Đang lắng nghe... Hãy nói to: "Bật hệ thống phun sương"'
+          : 'Đang lắng nghe... Hãy nói to: "Bật hệ thống phun sương trạm 1"';
     });
 
     HapticFeedback.mediumImpact();
@@ -228,6 +269,92 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
     );
   }
 
+  /// Phan tich va tim danh sach tram phu hop voi cau lenh
+  List<Station> _resolveTargetStations(String cmd) {
+    if (_stations.isEmpty) {
+      if (widget.station != null) return [widget.station!];
+      return [];
+    }
+
+    // 1. Kiem tra xem co phai tat ca cac tram khong
+    final isAll = cmd.contains('tất cả') ||
+        cmd.contains('tat ca') ||
+        cmd.contains('toàn bộ') ||
+        cmd.contains('mọi trạm') ||
+        cmd.contains('cả hai trạm') ||
+        cmd.contains('all');
+    if (isAll) {
+      return _stations;
+    }
+
+    // 2. Kiem tra so tram cu the: "tram 1", "trạm 1", "trạm một", "trạm 2", "trạm hai"...
+    int? stationNum;
+    final numRegex = RegExp(r'(?:trạm|tram|station)\s*([0-9]+|một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười|mot|tư)', caseSensitive: false);
+    final match = numRegex.firstMatch(cmd);
+    if (match != null) {
+      final token = match.group(1)?.toLowerCase();
+      if (token == '1' || token == 'một' || token == 'mot' || token == 'nhất') {
+        stationNum = 1;
+      } else if (token == '2' || token == 'hai') {
+        stationNum = 2;
+      } else if (token == '3' || token == 'ba') {
+        stationNum = 3;
+      } else if (token == '4' || token == 'bốn' || token == 'bon' || token == 'tư') {
+        stationNum = 4;
+      } else if (token == '5' || token == 'năm' || token == 'nam') {
+        stationNum = 5;
+      } else {
+        stationNum = int.tryParse(token ?? '');
+      }
+    }
+
+    if (stationNum != null) {
+      final matched = _stations.where((s) {
+        final nameNormalized = s.name.toLowerCase().replaceAll(' ', '');
+        final isNameMatch = nameNormalized.contains('tram$stationNum') ||
+            nameNormalized.contains('trạm$stationNum') ||
+            nameNormalized.contains('tram0$stationNum') ||
+            nameNormalized.contains('trạm0$stationNum');
+        final isIdMatch = s.id == stationNum;
+        return isNameMatch || isIdMatch;
+      }).toList();
+
+      if (matched.isNotEmpty) {
+        // Uu tien tram dang Online hoat dong tot
+        matched.sort((a, b) => (b.online ? 1 : 0).compareTo(a.online ? 1 : 0));
+        return [matched.first];
+      }
+    }
+
+    // 3. Kiem tra theo tu khoa ten hoac vi tri cua tram (vd: phong a, nấm)
+    for (final s in _stations) {
+      final sName = s.name.toLowerCase();
+      if (sName.isNotEmpty && cmd.contains(sName)) {
+        return [s];
+      }
+      final sLoc = (s.location ?? '').toLowerCase();
+      if (sLoc.isNotEmpty && (cmd.contains(sLoc) || (sLoc.contains('phong a') && cmd.contains('phòng a')))) {
+        return [s];
+      }
+    }
+
+    // 4. Neu khong noi ten tram:
+    if (widget.station != null) {
+      return [widget.station!];
+    }
+
+    // O man hinh ngoai (Global), mac dinh chon tram dau tien dang Online
+    final onlineStations = _stations.where((s) => s.online).toList();
+    if (onlineStations.isNotEmpty) {
+      return [onlineStations.first];
+    }
+    if (_stations.isNotEmpty) {
+      return [_stations.first];
+    }
+
+    return [];
+  }
+
   /// Bo phan tich y dinh ngu nghia tieng Viet & Dong bo toan dien Relay + Thiet bi chap hanh (Actuators)
   Future<void> _executeVoiceCommand(String rawCommand) async {
     final cmd = rawCommand.trim().toLowerCase();
@@ -235,168 +362,183 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
 
     setState(() {
       _processing = true;
-      _statusMessage = 'Đang xử lý câu lệnh: "$rawCommand"...';
+      _statusMessage = 'Đang phân tích và xử lý câu lệnh: "$rawCommand"...';
     });
 
     try {
-      final isTurnOn = cmd.contains('bật') || cmd.contains('mở') || cmd.contains('start') || cmd.contains('kích hoạt');
-      final isTurnOff = cmd.contains('tắt') || cmd.contains('đóng') || cmd.contains('stop') || cmd.contains('dừng') || cmd.contains('ngừng') || cmd.contains('ngắt');
-      final isAuto = cmd.contains('tự động') || cmd.contains('auto') || cmd.contains('chế độ tự động');
+      final targetStations = _resolveTargetStations(cmd);
+      if (targetStations.isEmpty) {
+        throw 'Không tìm thấy trạm giám sát phù hợp. Vui lòng thử lại!';
+      }
 
-      final isMist = cmd.contains('phun sương') || cmd.contains('tưới sương');
-      final isPump = cmd.contains('máy bơm') || cmd.contains('bơm') || cmd.contains('tưới cây') || cmd.contains('nước');
-      final isFan = cmd.contains('quạt') || cmd.contains('thông gió') || cmd.contains('đối lưu');
-      final isLight = cmd.contains('đèn') || cmd.contains('sưởi');
-      final isSiren = cmd.contains('còi') || cmd.contains('báo động');
+      final isTurnOn = cmd.contains('bật') || cmd.contains('mở') || cmd.contains('start') || cmd.contains('kích hoạt') || cmd.contains('bat');
+      final isTurnOff = cmd.contains('tắt') || cmd.contains('tat') || cmd.contains('đóng') || cmd.contains('stop') || cmd.contains('dừng') || cmd.contains('ngừng') || cmd.contains('ngắt');
+      final isAuto = cmd.contains('tự động') || cmd.contains('tu dong') || cmd.contains('auto') || cmd.contains('chế độ tự động');
+
+      final isMist = cmd.contains('phun sương') || cmd.contains('phun suong') || cmd.contains('tưới sương') || cmd.contains('sương');
+      final isPump = cmd.contains('máy bơm') || cmd.contains('may bom') || cmd.contains('bơm') || cmd.contains('tưới cây') || cmd.contains('nước');
+      final isFan = cmd.contains('quạt') || cmd.contains('quat') || cmd.contains('thông gió') || cmd.contains('đối lưu');
+      final isLight = cmd.contains('đèn') || cmd.contains('den') || cmd.contains('sưởi');
+      final isSiren = cmd.contains('còi') || cmd.contains('coi') || cmd.contains('báo động');
       final isRelay = cmd.contains('rơ le') || cmd.contains('rơ-le') || cmd.contains('relay') || cmd.contains('làm mát') || cmd.contains('thiết bị');
+
+      final stationNames = targetStations.map((s) => s.name).join(', ');
 
       if (isTurnOn) {
         String targetName = 'HỆ THỐNG PHUN SƯƠNG';
 
-        // 1. Phun suong
-        if (isMist || (!isPump && !isFan && !isLight && !isSiren)) {
-          targetName = 'HỆ THỐNG PHUN SƯƠNG';
-          await Session.I.setRelayMode(widget.station.id, 'ON');
-          try {
-            await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'misting', state: true, mode: 'MANUAL');
-          } catch (_) {}
-        }
+        for (final st in targetStations) {
+          // 1. Phun suong
+          if (isMist || (!isPump && !isFan && !isLight && !isSiren)) {
+            targetName = 'HỆ THỐNG PHUN SƯƠNG';
+            await Session.I.setRelayMode(st.id, 'ON');
+            try {
+              await Session.I.updateActuator(stationId: st.id, actuatorId: 'misting', state: true, mode: 'MANUAL');
+            } catch (_) {}
+          }
 
-        // 2. May bom
-        if (isPump) {
-          targetName = 'MÁY BƠM NƯỚC';
-          await Session.I.setRelayMode(widget.station.id, 'ON');
-          try {
-            await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'pump', state: true, mode: 'MANUAL');
-          } catch (_) {}
-        }
+          // 2. May bom
+          if (isPump) {
+            targetName = 'MÁY BƠM NƯỚC';
+            await Session.I.setRelayMode(st.id, 'ON');
+            try {
+              await Session.I.updateActuator(stationId: st.id, actuatorId: 'pump', state: true, mode: 'MANUAL');
+            } catch (_) {}
+          }
 
-        // 3. Quat thong gio
-        if (isFan) {
-          targetName = 'QUẠT THÔNG GIÓ';
-          try {
-            await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'fan', state: true, mode: 'MANUAL');
-          } catch (_) {}
-        }
+          // 3. Quat thong gio
+          if (isFan) {
+            targetName = 'QUẠT THÔNG GIÓ';
+            try {
+              await Session.I.updateActuator(stationId: st.id, actuatorId: 'fan', state: true, mode: 'MANUAL');
+            } catch (_) {}
+          }
 
-        // 4. Den suoi
-        if (isLight) {
-          targetName = 'ĐÈN SƯỞI BỨC XẠ';
-          try {
-            await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'light', state: true, mode: 'MANUAL');
-          } catch (_) {}
-        }
+          // 4. Den suoi
+          if (isLight) {
+            targetName = 'ĐÈN SƯỞI BỨC XẠ';
+            try {
+              await Session.I.updateActuator(stationId: st.id, actuatorId: 'light', state: true, mode: 'MANUAL');
+            } catch (_) {}
+          }
 
-        // 5. Coi hu
-        if (isSiren) {
-          targetName = 'CÒI HÚ BÁO ĐỘNG';
-          try {
-            await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'siren', state: true, mode: 'MANUAL');
-          } catch (_) {}
-        }
+          // 5. Coi hu
+          if (isSiren) {
+            targetName = 'CÒI HÚ BÁO ĐỘNG';
+            try {
+              await Session.I.updateActuator(stationId: st.id, actuatorId: 'siren', state: true, mode: 'MANUAL');
+            } catch (_) {}
+          }
 
-        if (isRelay) {
-          await Session.I.setRelayMode(widget.station.id, 'ON');
+          if (isRelay) {
+            await Session.I.setRelayMode(st.id, 'ON');
+          }
         }
 
         HapticFeedback.heavyImpact();
         if (!mounted) return;
         setState(() {
           _isSuccess = true;
-          _executionResult = '✓ ĐÃ THỰC THI: BẬT $targetName (ON)';
-          _statusMessage = 'Đã kích hoạt $targetName và Rơ-le thành công cho trạm ${widget.station.name}!';
+          _executionResult = '✓ ĐÃ BẬT $targetName CHO $stationNames (ON)';
+          _statusMessage = 'Đã kích hoạt $targetName và Rơ-le thành công cho trạm $stationNames!';
         });
 
         widget.onCommandExecuted?.call();
       } else if (isTurnOff) {
         String targetName = 'HỆ THỐNG PHUN SƯƠNG';
 
-        // 1. Phun suong
-        if (isMist || (!isPump && !isFan && !isLight && !isSiren)) {
-          targetName = 'HỆ THỐNG PHUN SƯƠNG';
-          await Session.I.setRelayMode(widget.station.id, 'OFF');
-          try {
-            await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'misting', state: false, mode: 'MANUAL');
-          } catch (_) {}
-        }
+        for (final st in targetStations) {
+          // 1. Phun suong
+          if (isMist || (!isPump && !isFan && !isLight && !isSiren)) {
+            targetName = 'HỆ THỐNG PHUN SƯƠNG';
+            await Session.I.setRelayMode(st.id, 'OFF');
+            try {
+              await Session.I.updateActuator(stationId: st.id, actuatorId: 'misting', state: false, mode: 'MANUAL');
+            } catch (_) {}
+          }
 
-        // 2. May bom
-        if (isPump) {
-          targetName = 'MÁY BƠM NƯỚC';
-          try {
-            await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'pump', state: false, mode: 'MANUAL');
-          } catch (_) {}
-        }
+          // 2. May bom
+          if (isPump) {
+            targetName = 'MÁY BƠM NƯỚC';
+            try {
+              await Session.I.updateActuator(stationId: st.id, actuatorId: 'pump', state: false, mode: 'MANUAL');
+            } catch (_) {}
+          }
 
-        // 3. Quat thong gio
-        if (isFan) {
-          targetName = 'QUẠT THÔNG GIÓ';
-          try {
-            await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'fan', state: false, mode: 'MANUAL');
-          } catch (_) {}
-        }
+          // 3. Quat thong gio
+          if (isFan) {
+            targetName = 'QUẠT THÔNG GIÓ';
+            try {
+              await Session.I.updateActuator(stationId: st.id, actuatorId: 'fan', state: false, mode: 'MANUAL');
+            } catch (_) {}
+          }
 
-        // 4. Den suoi
-        if (isLight) {
-          targetName = 'ĐÈN SƯỞI BỨC XẠ';
-          try {
-            await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'light', state: false, mode: 'MANUAL');
-          } catch (_) {}
-        }
+          // 4. Den suoi
+          if (isLight) {
+            targetName = 'ĐÈN SƯỞI BỨC XẠ';
+            try {
+              await Session.I.updateActuator(stationId: st.id, actuatorId: 'light', state: false, mode: 'MANUAL');
+            } catch (_) {}
+          }
 
-        // 5. Coi hu
-        if (isSiren) {
-          targetName = 'CÒI HÚ BÁO ĐỘNG';
-          try {
-            await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'siren', state: false, mode: 'MANUAL');
-          } catch (_) {}
-        }
+          // 5. Coi hu
+          if (isSiren) {
+            targetName = 'CÒI HÚ BÁO ĐỘNG';
+            try {
+              await Session.I.updateActuator(stationId: st.id, actuatorId: 'siren', state: false, mode: 'MANUAL');
+            } catch (_) {}
+          }
 
-        if (isRelay) {
-          await Session.I.setRelayMode(widget.station.id, 'OFF');
+          if (isRelay) {
+            await Session.I.setRelayMode(st.id, 'OFF');
+          }
         }
 
         HapticFeedback.heavyImpact();
         if (!mounted) return;
         setState(() {
           _isSuccess = true;
-          _executionResult = '✓ ĐÃ THỰC THI: TẮT $targetName (OFF)';
-          _statusMessage = 'Đã tắt $targetName và Rơ-le thành công cho trạm ${widget.station.name}!';
+          _executionResult = '✓ ĐÃ TẮT $targetName CHO $stationNames (OFF)';
+          _statusMessage = 'Đã tắt $targetName và Rơ-le thành công cho trạm $stationNames!';
         });
 
         widget.onCommandExecuted?.call();
       } else if (isAuto) {
-        await Session.I.setRelayMode(widget.station.id, 'AUTO');
-        for (final actId in ['misting', 'fan', 'light', 'pump', 'siren']) {
-          try {
-            await Session.I.updateActuator(stationId: widget.station.id, actuatorId: actId, mode: 'AUTO');
-          } catch (_) {}
+        for (final st in targetStations) {
+          await Session.I.setRelayMode(st.id, 'AUTO');
+          for (final actId in ['misting', 'fan', 'light', 'pump', 'siren']) {
+            try {
+              await Session.I.updateActuator(stationId: st.id, actuatorId: actId, mode: 'AUTO');
+            } catch (_) {}
+          }
         }
+
         HapticFeedback.heavyImpact();
         if (!mounted) return;
         setState(() {
           _isSuccess = true;
-          _executionResult = '✓ ĐÃ THỰC THI: CHUYỂN CHẾ ĐỘ TỰ ĐỘNG (AUTO)';
-          _statusMessage = 'Tất cả cơ cấu chấp hành đã chuyển sang tự động kiểm soát theo nhiệt độ và độ ẩm!';
+          _executionResult = '✓ ĐÃ CHUYỂN CHẾ ĐỘ TỰ ĐỘNG CHO $stationNames (AUTO)';
+          _statusMessage = 'Tất cả cơ cấu chấp hành tại trạm $stationNames đã chuyển sang tự động kiểm soát!';
         });
 
         widget.onCommandExecuted?.call();
       } else {
-        // Tra loi cau hoi qua AI
-        _statusMessage = 'AI đang phân tích câu hỏi và soạn phản hồi...';
+        // Tra loi cau hoi qua AI cho tram dau tien tim duoc
+        final firstSt = targetStations.first;
+        _statusMessage = 'AI đang phân tích câu hỏi về trạm ${firstSt.name}...';
         final aiRes = await Session.I.askAiChat(
-          stationId: widget.station.id,
+          stationId: firstSt.id,
           message: rawCommand,
           history: [],
           geminiKey: Session.I.geminiKey,
         );
 
         if (aiRes.action != null && aiRes.action!.executed && aiRes.action!.mode != null) {
-          await Session.I.setRelayMode(widget.station.id, aiRes.action!.mode!);
+          await Session.I.setRelayMode(firstSt.id, aiRes.action!.mode!);
           if (aiRes.action!.mode == 'ON') {
-            try { await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'misting', state: true, mode: 'MANUAL'); } catch (_) {}
+            try { await Session.I.updateActuator(stationId: firstSt.id, actuatorId: 'misting', state: true, mode: 'MANUAL'); } catch (_) {}
           } else if (aiRes.action!.mode == 'OFF') {
-            try { await Session.I.updateActuator(stationId: widget.station.id, actuatorId: 'misting', state: false, mode: 'MANUAL'); } catch (_) {}
+            try { await Session.I.updateActuator(stationId: firstSt.id, actuatorId: 'misting', state: false, mode: 'MANUAL'); } catch (_) {}
           }
           widget.onCommandExecuted?.call();
         }
@@ -404,7 +546,7 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
         if (!mounted) return;
         setState(() {
           _isSuccess = true;
-          _executionResult = '💡 TRỢ LÝ AI TRẢ LỜI:';
+          _executionResult = '💡 TRỢ LÝ AI TRẢ LỜI (${firstSt.name}):';
           _statusMessage = aiRes.reply;
         });
       }
@@ -426,6 +568,8 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
 
   @override
   Widget build(BuildContext context) {
+    final isGlobal = widget.station == null;
+
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
       decoration: const BoxDecoration(
@@ -473,12 +617,14 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Điều Khiển Giọng Nói (Voice AI)',
-                        style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: AppColors.text),
+                      Text(
+                        isGlobal ? 'Điều Khiển Giọng Nói Đa Trạm (Voice AI)' : 'Điều Khiển Giọng Nói (Voice AI)',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15.5, color: AppColors.text),
                       ),
                       Text(
-                        'Trạm: ${widget.station.name} · Tiếng Việt',
+                        isGlobal
+                            ? 'Ra lệnh: "Bật phun sương trạm 1", "Tắt bơm trạm 2"...'
+                            : 'Trạm: ${widget.station!.name} · Tiếng Việt',
                         style: const TextStyle(fontSize: 12, color: AppColors.text3),
                       ),
                     ],
@@ -490,7 +636,56 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
                 ),
               ],
             ),
-            const SizedBox(height: 14),
+
+            // Danh sach badge cac tram san sang (neu o che do Global)
+            if (isGlobal && _stations.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: [
+                    const Text('Trạm sẵn sàng: ', style: TextStyle(fontSize: 11, color: AppColors.text3, fontWeight: FontWeight.w600)),
+                    for (final s in _stations)
+                      Container(
+                        margin: const EdgeInsets.only(right: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: (s.online ? AppColors.ok : AppColors.muted).withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: (s.online ? AppColors.ok : AppColors.muted).withValues(alpha: 0.35),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: s.online ? AppColors.ok : AppColors.muted,
+                              ),
+                            ),
+                            const SizedBox(width: 5),
+                            Text(
+                              s.name,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold,
+                                color: s.online ? AppColors.ok : AppColors.text3,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+
+            const SizedBox(height: 12),
 
             // Box hien thi giong noi & ket qua thuc thi
             Container(
@@ -567,7 +762,7 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
             // Thanh go lenh bang chu (Text input fallback)
             Container(
@@ -591,12 +786,14 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
                         }
                       },
                       style: const TextStyle(fontSize: 13, color: AppColors.text),
-                      decoration: const InputDecoration(
-                        hintText: 'Hoặc gõ câu lệnh (vd: bật hệ thống phun sương)...',
-                        hintStyle: TextStyle(fontSize: 12, color: AppColors.text3),
+                      decoration: InputDecoration(
+                        hintText: isGlobal
+                            ? 'Hoặc gõ câu lệnh (vd: bật hệ thống phun sương trạm 1)...'
+                            : 'Hoặc gõ câu lệnh (vd: bật hệ thống phun sương)...',
+                        hintStyle: const TextStyle(fontSize: 12, color: AppColors.text3),
                         border: InputBorder.none,
                         isDense: true,
-                        contentPadding: EdgeInsets.symmetric(vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
                   ),
@@ -614,7 +811,7 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
                 ],
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
             // Nut Micro lon o giua voi hieu ung gon song
             Center(
@@ -633,8 +830,8 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
                       }
                     },
                     child: Container(
-                      width: 68 * scale,
-                      height: 68 * scale,
+                      width: 66 * scale,
+                      height: 66 * scale,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         gradient: LinearGradient(
@@ -665,16 +862,16 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
             ),
             const SizedBox(height: 6),
             Text(
-              _isListening ? 'Bấm để Dừng nghe & Thực thi' : 'Chạm micro để Nói (hoặc chạm gợi ý)',
+              _isListening ? 'Bấm để Dừng nghe & Thực thi' : 'Chạm micro để Nói (hoặc chọn gợi ý)',
               style: const TextStyle(fontSize: 11.5, color: AppColors.text3, fontWeight: FontWeight.w600),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 12),
 
             // Goi y cau lenh mau (Quick Command Chips)
             const Align(
               alignment: Alignment.centerLeft,
               child: Text(
-                'CHẠM ĐỂ THỰC THI NHANH (MÔ PHỎNG GIỌNG NÓI):',
+                'CHẠM ĐỂ THỰC THI NHANH:',
                 style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w700, color: AppColors.text3, letterSpacing: 0.6),
               ),
             ),

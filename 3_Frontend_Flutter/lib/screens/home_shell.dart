@@ -12,6 +12,7 @@ import 'hub_screen.dart';
 import 'map_screen.dart';
 import 'messages_screen.dart';
 import 'settings_screen.dart';
+import '../widgets/voice_control_dialog.dart';
 
 class HomeShell extends StatefulWidget {
   const HomeShell({super.key});
@@ -239,6 +240,20 @@ class _HomeShellState extends State<HomeShell> {
 
     final body = IndexedStack(index: _tab, children: pages);
 
+    final voiceFab = _tab <= 1
+        ? FloatingActionButton.extended(
+            heroTag: 'home_shell_voice_fab',
+            backgroundColor: AppColors.primary,
+            elevation: 5,
+            icon: const Icon(Icons.mic_rounded, color: Colors.white, size: 22),
+            label: const Text(
+              'Giọng nói AI',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13.5),
+            ),
+            onPressed: () => showVoiceControlDialog(context, null),
+          )
+        : null;
+
     if (wide) {
       return Scaffold(
         body: Row(children: [
@@ -259,11 +274,13 @@ class _HomeShellState extends State<HomeShell> {
           const VerticalDivider(width: 1, color: AppColors.border),
           Expanded(child: body),
         ]),
+        floatingActionButton: voiceFab,
       );
     }
 
     return Scaffold(
       body: body,
+      floatingActionButton: voiceFab,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _tab,
         onDestinationSelected: _setTab,

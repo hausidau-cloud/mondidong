@@ -10,6 +10,7 @@ import '../models/models.dart';
 import '../widgets/charts.dart';
 import '../widgets/common.dart';
 import '../widgets/qr_dialogs.dart';
+import '../widgets/voice_control_dialog.dart';
 import 'comparison_screen.dart';
 import 'station/station_screen.dart';
 
@@ -304,6 +305,21 @@ class _HubScreenState extends State<HubScreen> {
                 const Text('Tổng quan hệ thống'),
               ]),
               actions: [
+                IconButton(
+                  tooltip: 'Điều khiển bằng Giọng nói AI',
+                  icon: Container(
+                    padding: const EdgeInsets.all(7),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(colors: [Color(0xFF0284C7), Color(0xFF06B6D4)]),
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(color: const Color(0xFF0284C7).withValues(alpha: 0.35), blurRadius: 6),
+                      ],
+                    ),
+                    child: const Icon(Icons.mic_rounded, color: Colors.white, size: 18),
+                  ),
+                  onPressed: () => showVoiceControlDialog(context, null, onCommandExecuted: _load),
+                ),
                 IconButton(
                   tooltip: 'So sánh Đối chiếu Đa trạm',
                   icon: const Icon(Icons.compare_arrows_rounded, color: Color(0xFF38BDF8)),
