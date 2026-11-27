@@ -125,7 +125,13 @@ class _AiChatSheetState extends State<_AiChatSheet> {
           children: [
             Icon(Icons.vpn_key_rounded, color: AppColors.primary, size: 22),
             SizedBox(width: 8),
-            Text('Cấu hình Google Gemini API', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+            Expanded(
+              child: Text(
+                'Cấu hình Google Gemini API',
+                style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           ],
         ),
         content: Column(
@@ -566,18 +572,20 @@ YÊU CẦU: Trả lời bằng tiếng Việt, súc tích, chuyên nghiệp, th�
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
               alignment: Alignment.centerLeft,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
+              child: const Row(
                 children: [
-                  const SizedBox(
+                  SizedBox(
                     width: 14,
                     height: 14,
                     child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
                   ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'AI đang phân tích dữ liệu cảm biến & soạn câu trả lời...',
-                    style: TextStyle(fontSize: 12, color: AppColors.text3, fontStyle: FontStyle.italic),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'AI đang phân tích dữ liệu cảm biến & soạn câu trả lời...',
+                      style: TextStyle(fontSize: 12, color: AppColors.text3, fontStyle: FontStyle.italic),
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),

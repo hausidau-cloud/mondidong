@@ -230,14 +230,19 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
                         letterSpacing: 0.5,
                         color: AppColors.text,
                       ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     Text(
                       'Chất lượng không khí AQI · Khói Gas MQ-2 · Bồn nước · Ẩm đất',
                       style: TextStyle(fontSize: 11, color: AppColors.text3),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2.5),
                 decoration: BoxDecoration(

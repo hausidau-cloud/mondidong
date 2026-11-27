@@ -44,8 +44,13 @@ PIN_RELAY    = 13     # GP13 (Chan 17)
 RELAY_ACTIVE_HIGH = True  # True: Muc 1 (HIGH) la DONG/BAT relay; False neu relay kich muc Thap
 
 # - Module GPS U-blox NEO-6M (UART0):
-PIN_GPS_TX   = 0      # GP0 (Chan 1 - Pico TX noi vao RX cua GPS)
-PIN_GPS_RX   = 1      # GP1 (Chan 2 - Pico RX noi vao TX cua GPS)
+# Huong dan dau day phan cung cho Pico 2 W:
+#   * VCC cua NEO-6M  -> Chan Pin 36 (3V3_OUT) hoac Chan Pin 40 (VBUS 5V)
+#   * GND cua NEO-6M  -> Chan Pin 3 / 8 / 38 (GND)
+#   * TXD cua NEO-6M  -> Chan GP1 (Pin 2 cua Pico - UART0 RX)
+#   * RXD cua NEO-6M  -> Chan GP0 (Pin 1 cua Pico - UART0 TX)
+PIN_GPS_TX   = 0      # GP0 (Chan 1 - Pico TX noi vao RXD cua GPS)
+PIN_GPS_RX   = 1      # GP1 (Chan 2 - Pico RX noi vao TXD cua GPS)
 GPS_BAUDRATE = 9600
 
 # 6. NGUONG DIEU KHIEN DUC PHONG (FAIL-SAFE KHI MAT KET NOI SERVER)

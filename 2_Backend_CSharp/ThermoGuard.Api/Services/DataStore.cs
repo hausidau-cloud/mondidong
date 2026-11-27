@@ -323,6 +323,16 @@ public class DataStore
                     if (root.TryGetProperty("rssi", out var rsVal) && rsVal.ValueKind == JsonValueKind.Number) rssi = rsVal.GetInt32();
                     if (root.TryGetProperty("fw", out var fwVal) && fwVal.ValueKind == JsonValueKind.String) fw = fwVal.GetString();
                     if (root.TryGetProperty("location", out var locVal) && locVal.ValueKind == JsonValueKind.String) locFromPayload = locVal.GetString();
+
+                    double? latFromPayload = null;
+                    double? lonFromPayload = null;
+                    if (root.TryGetProperty("lat", out var latElem) && latElem.ValueKind == JsonValueKind.Number) latFromPayload = latElem.GetDouble();
+                    if (root.TryGetProperty("lon", out var lonElem) && lonElem.ValueKind == JsonValueKind.Number) lonFromPayload = lonElem.GetDouble();
+
+                    if (string.IsNullOrWhiteSpace(locFromPayload) && latFromPayload.HasValue && lonFromPayload.HasValue)
+                    {
+                        locFromPayload = $"GPS Vệ tinh ({latFromPayload.Value:F4}, {lonFromPayload.Value:F4})";
+                    }
                 }
                 catch (Exception ex)
                 {

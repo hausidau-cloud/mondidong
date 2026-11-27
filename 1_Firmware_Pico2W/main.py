@@ -176,10 +176,15 @@ state = {
     "lon": None,
     "address": "",
     "gps_fixed": False,
-    "gps_sats": 0,
+    "gps_sats": 0,         # So ve tinh dang su dung de tinh toa do (GGA)
+    "gps_sats_view": 0,    # Tong so ve tinh nhin thay tren bau troi (GSV)
     "gps_lat": None,
     "gps_lon": None,
+    "gps_alt_m": None,     # Do cao so voi muc nuoc bien (m)
+    "gps_speed_kmh": None, # Toc do di chuyen (km/h)
     "gps_src": "NONE",
+    "gps_rx_bytes": 0,     # Tong byte UART0 da nhan (dung chan doan day noi)
+    "gps_last_fix_ms": 0,
 }
 
 # Dong bo gio server
@@ -306,6 +311,7 @@ def connect_wifi_auto():
 # 5.1 XU LY MODULE GPS NEO-6M & DINH VI DA PHUONG THUC
 # ==============================================================
 gps_buffer = b""
+last_gps_diag_ms = 0
 
 def parse_nmea_coord(coord_str, direction):
     try:
@@ -322,15 +328,23 @@ def parse_nmea_coord(coord_str, direction):
         return None
 
 def poll_gps():
-    """Doc va phan tich ban tin NMEA tu module GPS (Khong chan, non-blocking)"""
-    global gps_buffer
+    """Doc va phan tich toan dien ban tin NMEA tu module GPS NEO-6M (Khong chan, non-blocking):
+       - Ho tro tat ca talker: $GP (GPS), $GN (Glonass/Da he), $GL, $BD (BeiDou), $GA (Galileo)
+       - Ban tin RMC: Toa do, toc do km/h, trang thai Fix (A) / Void (V)
+       - Ban tin GGA: So ve tinh dang su dung, do cao so voi muc nuoc bien (m)
+       - Ban tin GSV: Tong so ve tinh dang nhin thay tren bau troi (cuc ky huu ich khi o trong nha)
+       - Tu dong in nhat ky chan doan phan cung UART moi 15s giup kiem tra ngay day noi
+    """
+    global gps_buffer, last_gps_diag_ms
     if not gps_uart:
         return
 
     try:
-        if gps_uart.any():
-            chunk = gps_uart.read(gps_uart.any())
+        n_avail = gps_uart.any()
+        if n_avail > 0:
+            chunk = gps_uart.read(n_avail)
             if chunk:
+                state["gps_rx_bytes"] = state.get("gps_rx_bytes", 0) + len(chunk)
                 gps_buffer += chunk
                 if len(gps_buffer) > 512:
                     gps_buffer = gps_buffer[-256:]
@@ -345,30 +359,40 @@ def poll_gps():
                     except Exception:
                         continue
 
-                    # Phan tich ban tin $GPRMC hoac $GNRMC (Toa do, toc do, trang thai fix)
-                    if line_str.startswith("$GPRMC") or line_str.startswith("$GNRMC"):
+                    # 1. Ban tin RMC: $..RMC,time,status,lat,N/S,lon,E/W,speed_knots,course,date,...
+                    if len(line_str) > 6 and line_str[3:6] == "RMC":
                         parts = line_str.split(",")
-                        if len(parts) >= 7:
+                        if len(parts) >= 8:
                             status = parts[2] # A = Valid (Fix), V = Void (No fix)
                             if status == 'A' and parts[3] and parts[5]:
                                 lat = parse_nmea_coord(parts[3], parts[4])
                                 lon = parse_nmea_coord(parts[5], parts[6])
                                 if lat is not None and lon is not None:
-                                    if not state.get("gps_fixed"):
-                                        print("🛰️ [GPS-FIX] DA BAT DUOC VE TINH! Lat={}, Lon={}".format(lat, lon))
+                                    was_fixed = state.get("gps_fixed", False)
                                     state["gps_fixed"] = True
                                     state["gps_lat"] = lat
                                     state["gps_lon"] = lon
                                     state["lat"] = lat
                                     state["lon"] = lon
                                     state["gps_src"] = "SATELLITE"
+                                    state["gps_last_fix_ms"] = time.ticks_ms()
+                                    if not was_fixed:
+                                        print("🛰️ [GPS-FIX] DA KHOA VE TINH THANH CONG! Lat={}, Lon={}".format(lat, lon))
+                                try:
+                                    if parts[7]:
+                                        knots = float(parts[7])
+                                        state["gps_speed_kmh"] = round(knots * 1.852, 1)
+                                except Exception:
+                                    pass
                             elif status == 'V':
-                                state["gps_fixed"] = False
+                                # Neu tam thoi mat khoa, duy tri toa do cu neu vua fix duoi 60 giay
+                                if time.ticks_diff(time.ticks_ms(), state.get("gps_last_fix_ms", 0)) > 60000:
+                                    state["gps_fixed"] = False
 
-                    # Phan tich ban tin $GPGGA hoac $GNGGA (So luong ve tinh nhan duoc)
-                    elif line_str.startswith("$GPGGA") or line_str.startswith("$GNGGA"):
+                    # 2. Ban tin GGA: $..GGA,time,lat,N/S,lon,E/W,fix_quality,num_sats,hdop,alt,M,...
+                    elif len(line_str) > 6 and line_str[3:6] == "GGA":
                         parts = line_str.split(",")
-                        if len(parts) >= 8:
+                        if len(parts) >= 10:
                             sats = parts[7]
                             if sats.isdigit():
                                 state["gps_sats"] = int(sats)
@@ -383,6 +407,36 @@ def poll_gps():
                                     state["lat"] = lat
                                     state["lon"] = lon
                                     state["gps_src"] = "SATELLITE"
+                                    state["gps_last_fix_ms"] = time.ticks_ms()
+                            try:
+                                if parts[9]:
+                                    state["gps_alt_m"] = round(float(parts[9]), 1)
+                            except Exception:
+                                pass
+
+                    # 3. Ban tin GSV: $..GSV,total_msgs,msg_num,total_sats,... (So ve tinh tren bau troi)
+                    elif len(line_str) > 6 and line_str[3:6] == "GSV":
+                        parts = line_str.split(",")
+                        if len(parts) >= 4:
+                            tot_sats = parts[3]
+                            if tot_sats.isdigit():
+                                state["gps_sats_view"] = int(tot_sats)
+
+        # 4. Tu dong in log chan doan UART moi 15 giay de kiem tra ngay phan cung
+        now_ms = time.ticks_ms()
+        if time.ticks_diff(now_ms, last_gps_diag_ms) > 15000:
+            last_gps_diag_ms = now_ms
+            rx_cnt = state.get("gps_rx_bytes", 0)
+            if rx_cnt == 0:
+                print("⚠️ [GPS-UART] CHUA NHAN BYTE NAO! Kiem tra day: NEO-6M TXD noi GP1 (Pin 2), RXD noi GP0 (Pin 1), VCC/GND da sang den?")
+            else:
+                s_use = state.get("gps_sats", 0)
+                s_view = state.get("gps_sats_view", 0)
+                fix_str = "FIX_OK" if state.get("gps_fixed") else ("CHO_FIX({} ve tinh)".format(s_view) if s_view > 0 else "QUET_TIN_HIEU")
+                print("🛰️ [GPS-STATUS] UART0: {} bytes | Trang thai: {} | Sats: {} dung / {} nhin | Lat: {} Lon: {}".format(
+                    rx_cnt, fix_str, s_use, s_view, state.get("gps_lat"), state.get("gps_lon")
+                ))
+
     except Exception:
         pass
 
@@ -603,6 +657,8 @@ def send_to_backend():
         "fw": FW_VERSION,
         "lat": state["lat"],
         "lon": state["lon"],
+        "gps_sats": state.get("gps_sats", 0),
+        "gps_src": state.get("gps_src", "NONE"),
         "location": loc_display,
     }
     payload_str = json.dumps(payload_obj)
@@ -689,13 +745,18 @@ def draw_oled(blink=False):
 
     # 1. Header: Ma thiet bi & Trang thai GPS + Server
     o.fill_rect(0, 0, 128, 11, 1)
-    o.text(config.DEVICE_CODE, 2, 2, 0)
+    dev_str = config.DEVICE_CODE
+    o.text(dev_str, 2, 2, 0)
 
     # Kí hiệu GPS tren Header:
+    s_use = state.get("gps_sats", 0)
+    s_view = state.get("gps_sats_view", 0)
     if state.get("gps_fixed"):
         gps_tag = "SAT*" if blink else "SAT "
-    elif state.get("gps_sats", 0) > 0:
-        gps_tag = "S:{}".format(state["gps_sats"])
+    elif s_use > 0:
+        gps_tag = "S:{}".format(s_use)
+    elif s_view > 0:
+        gps_tag = "S:{}".format(s_view)
     elif state.get("gps_src") == "WIFI":
         gps_tag = "WIFI"
     else:
@@ -704,8 +765,13 @@ def draw_oled(blink=False):
     st = "OFF" if state["offline"] else state["status"]
     tag = "{}|{}".format(gps_tag, st)
     w = len(tag) * 8 + 4
-    o.fill_rect(128 - w, 1, w, 9, 0)
-    o.text(tag, 128 - w + 2, 2, 1)
+    badge_x = 128 - w
+    dev_w = len(dev_str) * 8 + 4
+    if badge_x < dev_w:
+        badge_x = dev_w
+        w = 128 - badge_x
+    o.fill_rect(badge_x, 1, w, 9, 0)
+    o.text(tag, badge_x + 2, 2, 1)
 
     # 2. Hang 1: Khong khi (T & H)
     t_str = "--.-" if state["air_t"] is None else "{:.1f}".format(state["air_t"])
@@ -716,18 +782,24 @@ def draw_oled(blink=False):
     p_str = "--.-" if state["probe"] is None else "{:.1f}".format(state["probe"])
     o.text("Nuoc:{}C Toi:{}%".format(p_str, state["light_pct"]), 0, 26, 1)
 
-    # 4. Hang 3: Quang tro & Trang thai Relay & Toa do thu gon
+    # 4. Hang 3: Trang thai Relay + Che do + Tinh trang Ve tinh
     r_str = "BAT" if state["relay"] else "TAT"
     mode_str = state["mode"][:1]
-    if state["lat"] is not None and state["lon"] is not None:
-        loc_short = "{:.3f},{:.3f}".format(state["lat"], state["lon"])
+    if state.get("gps_fixed"):
+        sat_status = "SAT:FIX"
+    elif s_view > 0:
+        sat_status = "S:{}cho".format(s_view)
+    elif state.get("gps_src") == "WIFI":
+        sat_status = "GPS:WiFi"
+    elif state.get("gps_rx_bytes", 0) > 0:
+        sat_status = "GPS:Scan"
     else:
-        loc_short = "Tim ve tinh.."
-    o.text("R:{} [{}] {}".format(r_str, mode_str, loc_short[:7]), 0, 38, 1)
+        sat_status = "GPS:Wait"
+    o.text("R:{} [{}] {}".format(r_str, mode_str, sat_status), 0, 38, 1)
 
-    # 5. Hang 4: Footer luan chuyen thong tin mượt mà (3 giay / man hinh)
+    # 5. Hang 4: Footer luan chuyen thong tin (3 giay / man hinh)
     now_sec = time.ticks_ms() // 1000
-    cycle = (now_sec // 3) % 3
+    cycle = (now_sec // 3) % 4
 
     if state["msg"]:
         footer = "> " + state["msg"]
@@ -735,10 +807,20 @@ def draw_oled(blink=False):
         footer = "! " + state["reason"]
     elif state["alert"]:
         footer = "! " + state["alert"]
-    elif cycle == 0 and state.get("lat") is not None and state.get("lon") is not None:
-        src_prefix = "SAT:" if state.get("gps_fixed") else "GPS:"
-        footer = "{}{:.3f},{:.3f}".format(src_prefix, state["lat"], state["lon"])
-    elif cycle == 1 and wifi_connected:
+    elif cycle == 0 and state.get("lat") is not None:
+        footer = "LAT:{:.5f}".format(state["lat"])
+    elif cycle == 1 and state.get("lon") is not None:
+        footer = "LON:{:.5f}".format(state["lon"])
+    elif cycle == 2:
+        if state.get("gps_alt_m") is not None:
+            footer = "Alt:{}m S:{}".format(int(state["gps_alt_m"]), s_use or s_view)
+        elif state.get("gps_speed_kmh") is not None and state["gps_speed_kmh"] > 0:
+            footer = "Spd:{}km/h".format(state["gps_speed_kmh"])
+        elif s_view > 0:
+            footer = "S:{} dung/{} nhin".format(s_use, s_view)
+        else:
+            footer = "GPS: {}".format(sat_status)
+    elif cycle == 3 and wifi_connected:
         footer = "IP:" + wifi_ip
     else:
         footer = state.get("connected_ssid") or "Pico 2 W Online"
