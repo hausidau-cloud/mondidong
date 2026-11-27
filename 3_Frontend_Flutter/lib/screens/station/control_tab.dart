@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../models/models.dart';
 import '../../widgets/common.dart';
 import '../../widgets/device_visuals.dart';
+import '../../widgets/voice_control_dialog.dart';
 import 'station_screen.dart';
 
 class ControlTab extends StatefulWidget {
@@ -309,6 +310,90 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
 
   static String _modeLabel(String m) => switch (m) { 'ON' => 'BẬT thủ công', 'OFF' => 'TẮT thủ công', _ => 'Tự động' };
 
+  Widget _voiceControlCard(Station s) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF0284C7).withValues(alpha: 0.35)),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF0284C7).withValues(alpha: 0.08),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(13),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF0284C7), Color(0xFF06B6D4)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              shape: BoxShape.circle,
+              boxShadow: [
+                BoxShadow(
+                  color: const Color(0xFF0284C7).withValues(alpha: 0.35),
+                  blurRadius: 10,
+                  spreadRadius: 1,
+                ),
+              ],
+            ),
+            child: const Icon(Icons.mic_rounded, color: Colors.white, size: 22),
+          ),
+          const SizedBox(width: 12),
+          const Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Text(
+                      'ĐIỀU KHIỂN GIỌNG NÓI (VOICE AI)',
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 0.5,
+                        color: AppColors.text,
+                      ),
+                    ),
+                    SizedBox(width: 6),
+                    Text('✨ Tiếng Việt', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Color(0xFF06B6D4))),
+                  ],
+                ),
+                SizedBox(height: 2),
+                Text(
+                  'Nói: "Bật hệ thống phun sương", "Tắt máy bơm", "Chuyển tự động"...',
+                  style: TextStyle(fontSize: 11, color: AppColors.text3),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF0284C7),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              elevation: 0,
+            ),
+            icon: const Icon(Icons.mic_rounded, size: 15),
+            label: const Text('Ra lệnh', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
+            onPressed: () => showVoiceControlDialog(context, s, onCommandExecuted: () => widget.onChanged()),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
@@ -316,6 +401,7 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
     final isEsp = s.isEsp32;
     final admin = Session.I.isAdmin;
     final wide = MediaQuery.sizeOf(context).width >= 900;
+    final voice = _voiceControlCard(s);
     final relay = _relayCard(s, admin);
     final oled = _oledCard(s, admin);
     final sched = _schedulerCard(s);
@@ -330,6 +416,8 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
         _loadAutomations(),
       ]);
     }, children: [
+      voice,
+      const SizedBox(height: 16),
       actuators,
       const SizedBox(height: 16),
       automations,

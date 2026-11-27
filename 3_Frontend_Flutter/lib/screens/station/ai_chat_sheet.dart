@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/api.dart';
 import '../../core/theme.dart';
 import '../../models/models.dart';
+import '../../widgets/voice_control_dialog.dart';
 
 Future<void> showAiChatModal(BuildContext context, Station station) {
   return showModalBottomSheet(
@@ -271,17 +272,21 @@ class _AiChatSheetState extends State<_AiChatSheet> {
       // 0. Nhan dien y dinh AI Agent cuc bo neu co lenh dieu khien
       AiActionItem? localAction;
       final qLower = query.toLowerCase();
-      if (qLower.contains('bật rơ-le') || qLower.contains('bật rơ le') || qLower.contains('bật relay') || qLower.contains('bật quạt') || qLower.contains('bật đèn') || qLower.contains('bật máy làm mát')) {
+      final isMist = qLower.contains('phun sương') || qLower.contains('bơm') || qLower.contains('máy bơm') || qLower.contains('tưới') || qLower.contains('nước');
+      final isTurnOn = qLower.contains('bật') || qLower.contains('mở') || qLower.contains('kích hoạt');
+      final isTurnOff = qLower.contains('tắt') || qLower.contains('đóng') || qLower.contains('dừng') || qLower.contains('ngừng');
+
+      if (isTurnOn && (isMist || qLower.contains('rơ-le') || qLower.contains('rơ le') || qLower.contains('relay') || qLower.contains('quạt') || qLower.contains('đèn') || qLower.contains('máy làm mát') || qLower.contains('thiết bị'))) {
         Session.I.setRelayMode(widget.station.id, 'ON');
-        localAction = AiActionItem(type: 'SET_RELAY', mode: 'ON', executed: true, message: 'Đã thực thi: BẬT Rơ-le thành công trên ESP32!');
+        localAction = AiActionItem(type: 'SET_RELAY', mode: 'ON', executed: true, message: 'Đã thực thi: BẬT ${isMist ? "Hệ thống Phun sương / Máy bơm" : "Rơ-le"} thành công!');
         HapticFeedback.mediumImpact();
-      } else if (qLower.contains('tắt rơ-le') || qLower.contains('tắt rơ le') || qLower.contains('tắt relay') || qLower.contains('tắt quạt') || qLower.contains('tắt đèn')) {
+      } else if (isTurnOff && (isMist || qLower.contains('rơ-le') || qLower.contains('rơ le') || qLower.contains('relay') || qLower.contains('quạt') || qLower.contains('đèn') || qLower.contains('thiết bị'))) {
         Session.I.setRelayMode(widget.station.id, 'OFF');
-        localAction = AiActionItem(type: 'SET_RELAY', mode: 'OFF', executed: true, message: 'Đã thực thi: TẮT Rơ-le thành công trên ESP32!');
+        localAction = AiActionItem(type: 'SET_RELAY', mode: 'OFF', executed: true, message: 'Đã thực thi: TẮT ${isMist ? "Hệ thống Phun sương / Máy bơm" : "Rơ-le"} thành công!');
         HapticFeedback.mediumImpact();
       } else if (qLower.contains('chuyển rơ-le sang tự động') || qLower.contains('tự động') || qLower.contains('auto')) {
         Session.I.setRelayMode(widget.station.id, 'AUTO');
-        localAction = AiActionItem(type: 'SET_RELAY', mode: 'AUTO', executed: true, message: 'Đã chuyển Rơ-le sang AUTO thành công!');
+        localAction = AiActionItem(type: 'SET_RELAY', mode: 'AUTO', executed: true, message: 'Đã chuyển sang chế độ TỰ ĐỘNG (AUTO) thành công!');
         HapticFeedback.mediumImpact();
       }
 
@@ -649,6 +654,23 @@ YÊU CẦU: Trả lời bằng tiếng Việt, súc tích, chuyên nghiệp, th�
                           contentPadding: EdgeInsets.symmetric(vertical: 11),
                         ),
                       ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: IconButton(
+                      tooltip: 'Điều khiển giọng nói (Voice AI)',
+                      icon: const Icon(Icons.mic_rounded, color: AppColors.primaryLight, size: 21),
+                      onPressed: () {
+                        showVoiceControlDialog(context, _station, onCommandExecuted: () {
+                          // refresh if needed
+                        });
+                      },
                     ),
                   ),
                   const SizedBox(width: 8),

@@ -837,7 +837,8 @@ NGUYÊN TẮC PHẢN HỒI:
         // 1. Dieu khien Ro-le: BAT
         if (lower.Contains("bật rơ-le") || lower.Contains("bật rơ le") || lower.Contains("bật relay") || 
             lower.Contains("bật quạt") || lower.Contains("bật đèn") || lower.Contains("bật máy làm mát") ||
-            lower.Contains("turn on relay") || lower.Contains("bật thiết bị") || lower.Contains("mở rơ le") || lower.Contains("mở quạt"))
+            lower.Contains("bật phun sương") || lower.Contains("bật hệ thống phun sương") || lower.Contains("bật máy bơm") || lower.Contains("bật bơm") ||
+            lower.Contains("turn on relay") || lower.Contains("bật thiết bị") || lower.Contains("mở rơ le") || lower.Contains("mở quạt") || lower.Contains("tưới cây"))
         {
             return new AiAction { Type = "SET_RELAY", Mode = "ON" };
         }
@@ -845,6 +846,7 @@ NGUYÊN TẮC PHẢN HỒI:
         // 2. Dieu khien Ro-le: TAT
         if (lower.Contains("tắt rơ-le") || lower.Contains("tắt rơ le") || lower.Contains("tắt relay") || 
             lower.Contains("tắt quạt") || lower.Contains("tắt đèn") || lower.Contains("ngắt rơ-le") ||
+            lower.Contains("tắt phun sương") || lower.Contains("tắt hệ thống phun sương") || lower.Contains("tắt máy bơm") || lower.Contains("tắt bơm") || lower.Contains("dừng phun") || lower.Contains("ngừng phun") ||
             lower.Contains("turn off relay") || lower.Contains("tắt thiết bị") || lower.Contains("đóng rơ le"))
         {
             return new AiAction { Type = "SET_RELAY", Mode = "OFF" };
@@ -852,6 +854,7 @@ NGUYÊN TẮC PHẢN HỒI:
 
         // 3. Dieu khien Ro-le: AUTO
         if (lower.Contains("chuyển rơ-le sang tự động") || lower.Contains("chuyển rơ le sang tự động") || 
+            lower.Contains("chuyển sang tự động") || lower.Contains("chế độ tự động") ||
             lower.Contains("chế độ auto") || lower.Contains("đặt auto") || lower.Contains("rơ-le tự động") || lower.Contains("set auto"))
         {
             return new AiAction { Type = "SET_RELAY", Mode = "AUTO" };
