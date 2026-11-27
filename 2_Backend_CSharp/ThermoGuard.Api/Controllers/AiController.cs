@@ -581,8 +581,20 @@ public class AiController : ControllerBase
             {
                 var targetMode = action.Mode ?? "AUTO";
                 dev.RelayMode = targetMode;
-                if (targetMode == "ON") dev.RelayState = 1;
-                else if (targetMode == "OFF") dev.RelayState = 0;
+                if (targetMode == "ON")
+                {
+                    dev.RelayState = 1;
+                    _store.UpdateActuator(st?.Id ?? dev.StationId ?? dev.Id, "misting", true, "MANUAL", 1, "Trợ lý AI ThermoGuard");
+                }
+                else if (targetMode == "OFF")
+                {
+                    dev.RelayState = 0;
+                    _store.UpdateActuator(st?.Id ?? dev.StationId ?? dev.Id, "misting", false, "MANUAL", 1, "Trợ lý AI ThermoGuard");
+                }
+                else
+                {
+                    _store.UpdateActuator(st?.Id ?? dev.StationId ?? dev.Id, "misting", null, "AUTO", 1, "Trợ lý AI ThermoGuard");
+                }
 
                 _store.AddRelayLog(new Models.RelayLogItem
                 {

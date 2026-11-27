@@ -387,7 +387,15 @@ class _ControlTabState extends State<ControlTab> with AutomaticKeepAliveClientMi
             ),
             icon: const Icon(Icons.mic_rounded, size: 15),
             label: const Text('Ra lệnh', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.w700)),
-            onPressed: () => showVoiceControlDialog(context, s, onCommandExecuted: () => widget.onChanged()),
+            onPressed: () => showVoiceControlDialog(
+              context,
+              s,
+              onCommandExecuted: () async {
+                await widget.onChanged();
+                await _loadActuators();
+                if (mounted) setState(() {});
+              },
+            ),
           ),
         ],
       ),

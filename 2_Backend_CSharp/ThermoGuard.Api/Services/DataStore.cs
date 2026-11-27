@@ -1253,6 +1253,30 @@ public class DataStore
             if (level.HasValue && level.Value >= 1 && level.Value <= 3) item.Level = level.Value;
             item.UpdatedAt = TimeHelper.VnNowStr;
 
+            // Đồng bộ sang Rơ-le phần cứng nếu là Phun sương hoặc Bơm tưới
+            if (actuatorId.Equals("misting", StringComparison.OrdinalIgnoreCase) ||
+                actuatorId.Equals("pump", StringComparison.OrdinalIgnoreCase))
+            {
+                var dev = Devices.FirstOrDefault(d => d.StationId == stationId || d.Id == stationId);
+                if (dev != null)
+                {
+                    if (item.Mode == "AUTO")
+                    {
+                        dev.RelayMode = "AUTO";
+                    }
+                    else if (item.State)
+                    {
+                        dev.RelayMode = "ON";
+                        dev.RelayState = 1;
+                    }
+                    else
+                    {
+                        dev.RelayMode = "OFF";
+                        dev.RelayState = 0;
+                    }
+                }
+            }
+
             AddRelayLog(new RelayLogItem
             {
                 DeviceId = stationId,

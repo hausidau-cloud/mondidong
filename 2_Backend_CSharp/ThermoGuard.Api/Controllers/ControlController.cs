@@ -68,8 +68,20 @@ public class ControlController : ControllerBase
             if (mode != "AUTO" && mode != "ON" && mode != "OFF") mode = "AUTO";
 
             dev.RelayMode = mode;
-            if (mode == "ON") dev.RelayState = 1;
-            if (mode == "OFF") dev.RelayState = 0;
+            if (mode == "ON")
+            {
+                dev.RelayState = 1;
+                _store.UpdateActuator(dev.StationId ?? dev.Id, "misting", true, "MANUAL", 1, curUser?.FullName);
+            }
+            else if (mode == "OFF")
+            {
+                dev.RelayState = 0;
+                _store.UpdateActuator(dev.StationId ?? dev.Id, "misting", false, "MANUAL", 1, curUser?.FullName);
+            }
+            else
+            {
+                _store.UpdateActuator(dev.StationId ?? dev.Id, "misting", null, "AUTO", 1, curUser?.FullName);
+            }
 
             _store.AddRelayLog(new Models.RelayLogItem
             {
