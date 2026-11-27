@@ -279,12 +279,36 @@ public class DataStore
         {
             Users.Add(new AppUser { Id = 1, Username = "admin", Password = "password123", FullName = "Quản trị viên Hệ thống", Role = "admin" });
         }
+
+        // Đồng bộ phân công quản trị viên Admin có toàn quyền mọi trạm
+        try
+        {
+            var adminUsers = Users.Where(u => string.Equals(u.Role, "admin", StringComparison.OrdinalIgnoreCase) || u.Username == "admin").ToList();
+            foreach (var adm in adminUsers)
+            {
+                foreach (var st in Stations)
+                {
+                    if (!Assignments.Any(a => a.UserId == adm.Id && a.DeviceId == st.Id))
+                    {
+                        var assign = new StationAssignment { UserId = adm.Id, DeviceId = st.Id, AssignedAt = TimeHelper.VnNow };
+                        Assignments.Add(assign);
+                    }
+                }
+            }
+        }
+        catch { }
     }
 
     public List<int> GetStationIdsForUser(int userId)
     {
         lock (_lock)
         {
+            var u = Users.FirstOrDefault(x => x.Id == userId);
+            if (u != null && string.Equals(u.Role, "admin", StringComparison.OrdinalIgnoreCase))
+            {
+                // Admin có toàn quyền tất cả các trạm trong hệ thống
+                return Stations.Select(s => s.Id).ToList();
+            }
             return Assignments.Where(a => a.UserId == userId).Select(a => a.DeviceId).Distinct().ToList();
         }
     }
@@ -293,7 +317,9 @@ public class DataStore
     {
         lock (_lock)
         {
-            return Assignments.Where(a => a.DeviceId == deviceId).Select(a => a.UserId).Distinct().ToList();
+            var ids = Assignments.Where(a => a.DeviceId == deviceId).Select(a => a.UserId).ToList();
+            var adminIds = Users.Where(u => string.Equals(u.Role, "admin", StringComparison.OrdinalIgnoreCase) || u.Username == "admin").Select(u => u.Id);
+            return ids.Concat(adminIds).Distinct().ToList();
         }
     }
 
@@ -476,6 +502,24 @@ public class DataStore
                     if (root.TryGetProperty("fw", out var fwVal) && fwVal.ValueKind == JsonValueKind.String) fw = fwVal.GetString();
                     if (root.TryGetProperty("location", out var locVal) && locVal.ValueKind == JsonValueKind.String) locFromPayload = locVal.GetString();
 
+                    int? tdsVal = null;
+                    string? waterQualityVal = null;
+                    int? gpsSatsVal = null;
+                    double? gpsAltVal = null;
+                    double? gpsSpeedVal = null;
+
+                    if (root.TryGetProperty("tds", out var tdsElem) && tdsElem.ValueKind == JsonValueKind.Number) tdsVal = tdsElem.GetInt32();
+                    if (root.TryGetProperty("water_quality", out var wqElem) && wqElem.ValueKind == JsonValueKind.String) waterQualityVal = wqElem.GetString();
+                    if (root.TryGetProperty("gps_sats", out var gsElem) && gsElem.ValueKind == JsonValueKind.Number) gpsSatsVal = gsElem.GetInt32();
+                    if (root.TryGetProperty("gps_alt", out var gaElem) && gaElem.ValueKind == JsonValueKind.Number) gpsAltVal = gaElem.GetDouble();
+                    if (root.TryGetProperty("gps_speed", out var gspElem) && gspElem.ValueKind == JsonValueKind.Number) gpsSpeedVal = gspElem.GetDouble();
+
+                    if (tdsVal.HasValue) dev.Tds = tdsVal.Value;
+                    if (!string.IsNullOrEmpty(waterQualityVal)) dev.WaterQuality = waterQualityVal;
+                    if (gpsSatsVal.HasValue) dev.GpsSats = gpsSatsVal.Value;
+                    if (gpsAltVal.HasValue) dev.GpsAlt = gpsAltVal.Value;
+                    if (gpsSpeedVal.HasValue) dev.GpsSpeed = gpsSpeedVal.Value;
+
                     double? latFromPayload = null;
                     double? lonFromPayload = null;
                     if (root.TryGetProperty("lat", out var latElem) && latElem.ValueKind == JsonValueKind.Number) latFromPayload = latElem.GetDouble();
@@ -639,6 +683,8 @@ public class DataStore
                 ProbeTemp = probeT,
                 PicoTemp = picoT,
                 LightPct = dev.LightPct,
+                Tds = dev.Tds,
+                WaterQuality = dev.WaterQuality,
                 RelayState = dev.RelayState,
                 Status = dev.Status,
                 Rssi = dev.Rssi,

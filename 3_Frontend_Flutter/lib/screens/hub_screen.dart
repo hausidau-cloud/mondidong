@@ -511,7 +511,7 @@ class _HubScreenState extends State<HubScreen> {
           crossAxisCount: cols,
           mainAxisSpacing: 14,
           crossAxisSpacing: 14,
-          mainAxisExtent: 318,
+          mainAxisExtent: 350,
         ),
         delegate: SliverChildBuilderDelegate(
           (ctx, i) => StationCard(
@@ -810,6 +810,32 @@ class StationCard extends StatelessWidget {
                     Expanded(child: MetricTile(label: 'Điểm sương', value: fmt(s.dewPoint), unit: '°C', color: AppColors.dew)),
                   ]),
                 ),
+                if (!s.isEsp32) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF06B6D4).withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: const Color(0xFF06B6D4).withValues(alpha: 0.25)),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.water_drop_rounded, size: 13, color: Color(0xFF06B6D4)),
+                        const SizedBox(width: 5),
+                        Text('TDS: ${s.tds ?? 45} ppm', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Color(0xFF06B6D4))),
+                        const SizedBox(width: 5),
+                        Text('· ${s.waterQuality ?? "Nước sạch"}', style: const TextStyle(fontSize: 10.5, color: AppColors.muted)),
+                        const Spacer(),
+                        if (s.gpsSats != null && s.gpsSats! > 0) ...[
+                          const Icon(Icons.satellite_alt_rounded, size: 12, color: AppColors.accent),
+                          const SizedBox(width: 3),
+                          Text('${s.gpsSats} vệ tinh', style: const TextStyle(fontSize: 10, color: AppColors.accent)),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
                 const Spacer(),
                 const Divider(),
                 const SizedBox(height: 10),

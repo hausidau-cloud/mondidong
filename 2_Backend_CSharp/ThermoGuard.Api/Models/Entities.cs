@@ -307,6 +307,26 @@ public class Device
     [JsonPropertyName("water_level")]
     public int? WaterLevel { get; set; } = 82;
 
+    [NotMapped]
+    [JsonPropertyName("tds")]
+    public int? Tds { get; set; } = 45;
+
+    [NotMapped]
+    [JsonPropertyName("water_quality")]
+    public string? WaterQuality { get; set; } = "TINH KHIET";
+
+    [NotMapped]
+    [JsonPropertyName("gps_sats")]
+    public int? GpsSats { get; set; } = 0;
+
+    [NotMapped]
+    [JsonPropertyName("gps_alt")]
+    public double? GpsAlt { get; set; } = 0;
+
+    [NotMapped]
+    [JsonPropertyName("gps_speed")]
+    public double? GpsSpeed { get; set; } = 0;
+
     [JsonPropertyName("light_raw")]
     public int LightRaw { get; set; } = 0;
 
@@ -407,6 +427,26 @@ public class ReadingRecord
     [NotMapped]
     [JsonPropertyName("water_level")]
     public int? WaterLevel { get; set; } = 82;
+
+    [NotMapped]
+    [JsonPropertyName("tds")]
+    public int? Tds { get; set; } = 45;
+
+    [NotMapped]
+    [JsonPropertyName("water_quality")]
+    public string? WaterQuality { get; set; } = "TINH KHIET";
+
+    [NotMapped]
+    [JsonPropertyName("gps_sats")]
+    public int? GpsSats { get; set; } = 0;
+
+    [NotMapped]
+    [JsonPropertyName("gps_alt")]
+    public double? GpsAlt { get; set; } = 0;
+
+    [NotMapped]
+    [JsonPropertyName("gps_speed")]
+    public double? GpsSpeed { get; set; } = 0;
 
     [JsonPropertyName("light_pct")]
     public int LightPct { get; set; }

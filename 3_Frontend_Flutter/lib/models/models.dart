@@ -167,6 +167,11 @@ class Station {
   final int? gasPpm;
   final double? soilHum;
   final int? waterLevel;
+  final int? tds;
+  final String? waterQuality;
+  final int? gpsSats;
+  final double? gpsAlt;
+  final double? gpsSpeed;
 
   Station({
     required this.id,
@@ -225,6 +230,11 @@ class Station {
     this.gasPpm,
     this.soilHum,
     this.waterLevel,
+    this.tds,
+    this.waterQuality,
+    this.gpsSats,
+    this.gpsAlt,
+    this.gpsSpeed,
   });
 
   factory Station.fromJson(Map<String, dynamic> j) => Station(
@@ -284,6 +294,11 @@ class Station {
         gasPpm: j['gas_ppm'] != null ? toInt(j['gas_ppm']) : null,
         soilHum: toDbl(j['soil_hum']),
         waterLevel: j['water_level'] != null ? toInt(j['water_level']) : null,
+        tds: j['tds'] != null ? toInt(j['tds']) : null,
+        waterQuality: j['water_quality']?.toString(),
+        gpsSats: j['gps_sats'] != null ? toInt(j['gps_sats']) : null,
+        gpsAlt: toDbl(j['gps_alt']),
+        gpsSpeed: toDbl(j['gps_speed']),
       );
 
   /// Bien an toan suong: T - Td

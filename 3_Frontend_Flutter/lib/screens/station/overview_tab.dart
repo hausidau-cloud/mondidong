@@ -45,6 +45,11 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
   // ------------------------------------------------------------------ banner dinh vi GPS
   Widget _locationBanner(Station s) {
     final loc = (s.location != null && s.location!.isNotEmpty) ? s.location! : 'Đang định vị qua Wi-Fi...';
+    final isSatellite = loc.contains('Vệ tinh') || (s.gpsSats != null && s.gpsSats! > 0);
+    final badgeColor = isSatellite ? const Color(0xFF0284C7) : Colors.green;
+    final badgeIcon = isSatellite ? Icons.satellite_alt_rounded : Icons.wifi_rounded;
+    final badgeText = isSatellite ? (s.gpsSats != null && s.gpsSats! > 0 ? '${s.gpsSats} Vệ tinh' : 'GPS NEO-6M') : 'GPS Wi-Fi';
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
       decoration: BoxDecoration(
@@ -57,19 +62,19 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppColors.accent.withAlpha(30),
+              color: (isSatellite ? const Color(0xFF0284C7) : AppColors.accent).withAlpha(30),
               shape: BoxShape.circle,
             ),
-            child: const Icon(Icons.location_on_rounded, color: AppColors.accent, size: 20),
+            child: Icon(isSatellite ? Icons.satellite_alt_rounded : Icons.location_on_rounded, color: isSatellite ? const Color(0xFF0284C7) : AppColors.accent, size: 20),
           ),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text(
-                  'VỊ TRÍ & ĐỊNH VỊ GPS',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.muted, letterSpacing: 0.6),
+                Text(
+                  isSatellite ? 'VỊ TRÍ VỆ TINH GPS NEO-6M' : 'VỊ TRÍ & ĐỊNH VỊ GPS',
+                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: AppColors.muted, letterSpacing: 0.6),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -84,16 +89,16 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.green.withAlpha(30),
+              color: badgeColor.withAlpha(30),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.green.withAlpha(75)),
+              border: Border.all(color: badgeColor.withAlpha(75)),
             ),
-            child: const Row(
+            child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.wifi_rounded, size: 13, color: Colors.green),
-                SizedBox(width: 4),
-                Text('GPS Wi-Fi', style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: Colors.green)),
+                Icon(badgeIcon, size: 13, color: badgeColor),
+                const SizedBox(width: 4),
+                Text(badgeText, style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: badgeColor)),
               ],
             ),
           ),
@@ -125,10 +130,15 @@ class _OverviewTabState extends State<OverviewTab> with AutomaticKeepAliveClient
             dewRisk ? AppColors.danger : AppColors.dew),
       ];
     } else {
-      // Tram Pico 2 W day du 3 cam bien (DS18B20 + SHT30 + Quang tro) + Chip Pico
+      // Tram Pico 2 W day du 4 cam bien (DS18B20 + SHT30 + Quang tro + TDS Meter nuoc) + Chip Pico
+      final tdsVal = s.tds?.toDouble() ?? 45.0;
+      final wq = s.waterQuality ?? (tdsVal < 70 ? 'Tinh khiết' : (tdsVal <= 300 ? 'Nước sạch' : (tdsVal <= 500 ? 'Nước cứng' : 'Ô nhiễm')));
+      final Color tdsColor = tdsVal > 500 ? AppColors.danger : (tdsVal > 300 ? AppColors.warn : const Color(0xFF06B6D4));
+
       items = [
         _G('DS18B20', p.probeLabel, s.probeTemp, '°C', 'Ngưỡng ${fmt(s.probeMin)} – ${fmt(s.probeMax)}°C',
             s.probeTemp == null ? 0 : (s.probeTemp! - pLo) / (pHi - pLo), s.probeTemp == null ? AppColors.off : (pOut ? AppColors.danger : AppColors.probe)),
+        _G('TDS METER', 'Độ sạch nước (TDS)', tdsVal, 'ppm', 'Chất lượng: $wq', (tdsVal) / 600.0, tdsColor),
         _G('SHT30', 'Nhiệt độ không khí', s.airTemp, '°C', 'Tối đa ${fmt(s.airTempMax)}°C', (s.airTemp ?? 0) / (s.airTempMax * 1.25),
             (s.airTemp ?? 0) > s.airTempMax ? AppColors.danger : AppColors.air),
         _G('SHT30', 'Độ ẩm tương đối', s.airHum, '%', 'Tối đa ${fmt(s.airHumMax, 0)}%', (s.airHum ?? 0) / 100,
