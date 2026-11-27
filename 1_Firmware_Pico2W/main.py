@@ -120,6 +120,17 @@ ldr = machine.ADC(machine.Pin(config.PIN_LDR_ADC))
 # Relay GP13
 relay_pin = machine.Pin(config.PIN_RELAY, machine.Pin.OUT)
 
+# Module GPS U-blox NEO-6M (UART0: GP0-TX, GP1-RX, 9600 baud)
+gps_uart = None
+try:
+    gps_tx_pin = getattr(config, "PIN_GPS_TX", 0)
+    gps_rx_pin = getattr(config, "PIN_GPS_RX", 1)
+    gps_baud = getattr(config, "GPS_BAUDRATE", 9600)
+    gps_uart = machine.UART(0, baudrate=gps_baud, tx=machine.Pin(gps_tx_pin), rx=machine.Pin(gps_rx_pin), timeout=10)
+    print(">> Khoi tao UART0 GPS thanh cong (GP0-TX, GP1-RX, 9600 baud)")
+except Exception as e:
+    print(">> Loi khoi tao UART GPS:", e)
+
 # Cam bien nhiet do chip noi bo tren Raspberry Pi Pico 2 W (RP2040/RP2350 - ADC 4)
 try:
     pico_temp_adc = machine.ADC(4)
@@ -164,6 +175,11 @@ state = {
     "lat": None,
     "lon": None,
     "address": "",
+    "gps_fixed": False,
+    "gps_sats": 0,
+    "gps_lat": None,
+    "gps_lon": None,
+    "gps_src": "NONE",
 }
 
 # Dong bo gio server
@@ -287,31 +303,130 @@ def connect_wifi_auto():
     return False
 
 # ==============================================================
-# 5.1 TU DONG DINH VI GPS THEO WI-FI VA IP PUBLIC
+# 5.1 XU LY MODULE GPS NEO-6M & DINH VI DA PHUONG THUC
 # ==============================================================
+gps_buffer = b""
+
+def parse_nmea_coord(coord_str, direction):
+    try:
+        dot = coord_str.find('.')
+        if dot < 0: return None
+        deg_len = dot - 2
+        deg = float(coord_str[:deg_len])
+        minutes = float(coord_str[deg_len:])
+        val = deg + (minutes / 60.0)
+        if direction in ['S', 'W']:
+            val = -val
+        return round(val, 5)
+    except Exception:
+        return None
+
+def poll_gps():
+    """Doc va phan tich ban tin NMEA tu module GPS (Khong chan, non-blocking)"""
+    global gps_buffer
+    if not gps_uart:
+        return
+
+    try:
+        if gps_uart.any():
+            chunk = gps_uart.read(gps_uart.any())
+            if chunk:
+                gps_buffer += chunk
+                if len(gps_buffer) > 512:
+                    gps_buffer = gps_buffer[-256:]
+
+                while b"\n" in gps_buffer:
+                    line, gps_buffer = gps_buffer.split(b"\n", 1)
+                    line = line.strip()
+                    if not line.startswith(b"$"):
+                        continue
+                    try:
+                        line_str = line.decode('ascii', 'ignore')
+                    except Exception:
+                        continue
+
+                    # Phan tich ban tin $GPRMC hoac $GNRMC (Toa do, toc do, trang thai fix)
+                    if line_str.startswith("$GPRMC") or line_str.startswith("$GNRMC"):
+                        parts = line_str.split(",")
+                        if len(parts) >= 7:
+                            status = parts[2] # A = Valid (Fix), V = Void (No fix)
+                            if status == 'A' and parts[3] and parts[5]:
+                                lat = parse_nmea_coord(parts[3], parts[4])
+                                lon = parse_nmea_coord(parts[5], parts[6])
+                                if lat is not None and lon is not None:
+                                    if not state.get("gps_fixed"):
+                                        print("🛰️ [GPS-FIX] DA BAT DUOC VE TINH! Lat={}, Lon={}".format(lat, lon))
+                                    state["gps_fixed"] = True
+                                    state["gps_lat"] = lat
+                                    state["gps_lon"] = lon
+                                    state["lat"] = lat
+                                    state["lon"] = lon
+                                    state["gps_src"] = "SATELLITE"
+                            elif status == 'V':
+                                state["gps_fixed"] = False
+
+                    # Phan tich ban tin $GPGGA hoac $GNGGA (So luong ve tinh nhan duoc)
+                    elif line_str.startswith("$GPGGA") or line_str.startswith("$GNGGA"):
+                        parts = line_str.split(",")
+                        if len(parts) >= 8:
+                            sats = parts[7]
+                            if sats.isdigit():
+                                state["gps_sats"] = int(sats)
+                            fix_q = parts[6]
+                            if fix_q in ['1', '2'] and parts[2] and parts[4]:
+                                lat = parse_nmea_coord(parts[2], parts[3])
+                                lon = parse_nmea_coord(parts[4], parts[5])
+                                if lat is not None and lon is not None:
+                                    state["gps_fixed"] = True
+                                    state["gps_lat"] = lat
+                                    state["gps_lon"] = lon
+                                    state["lat"] = lat
+                                    state["lon"] = lon
+                                    state["gps_src"] = "SATELLITE"
+    except Exception:
+        pass
+
 def resolve_auto_location():
-    """Tu dong dinh vi: Neu la Wi-Fi da khai bao thi lay toa do chuan 100%, neu la mang moi thi tu dong dinh vi qua IP"""
+    """Tu dong dinh vi:
+       1. Neu GPS ve tinh da chot toa do (A/Fix) -> Dung toa do ve tinh thuc te 100%
+       2. Neu chua co song ve tinh (trong phong kin) -> Dung bang Wi-Fi da biet (NHA TRO 102...)
+       3. Neu la Wi-Fi moi -> Tu dong fallback qua IP Public
+    """
+    # 1. Uu tien 1: Toa do ve tinh tu phan cung GPS NEO-6M
+    if state.get("gps_fixed") and state.get("gps_lat") is not None:
+        state["lat"] = state["gps_lat"]
+        state["lon"] = state["gps_lon"]
+        state["gps_src"] = "SATELLITE"
+        print("==================================================")
+        print("🛰️ [GPS-SATELLITE] TOA DO VE TINH THUC TE TU NEO-6M:")
+        print(">> Toa do (Lat, Lon) : {}, {}".format(state["lat"], state["lon"]))
+        print(">> So ve tinh nhan   : {}".format(state.get("gps_sats", 0)))
+        print(">> Xem tren Google Maps: https://www.google.com/maps?q={},{}".format(state["lat"], state["lon"]))
+        print("==================================================")
+        return True
+
     if not wlan.isconnected():
         return False
 
     ssid = state.get("connected_ssid", "")
     wifi_locs = getattr(config, "WIFI_LOCATIONS", {})
 
-    # 1. Kiem tra xem mang Wi-Fi vua ket noi co trong danh sach toa do chuan khong
+    # 2. Uu tien 2: Kiem tra mang Wi-Fi da khai bao trong danh sach
     if ssid and ssid in wifi_locs:
         target = wifi_locs[ssid]
         state["lat"] = target.get("lat")
         state["lon"] = target.get("lon")
         state["address"] = target.get("address", ssid)
+        state["gps_src"] = "WIFI"
         print("==================================================")
-        print("📍 [GPS-AUTO] TU DONG NHAN DIEN THEO WI-FI '{}'".format(ssid))
+        print("📍 [GPS-WIFI] TU DONG NHAN DIEN THEO WI-FI '{}'".format(ssid))
         print(">> Toa do (Lat, Lon) : {}, {}".format(state["lat"], state["lon"]))
         print(">> Dia chi chinh xac : {}".format(state["address"]))
         print(">> Xem tren Google Maps: https://www.google.com/maps?q={},{}".format(state["lat"], state["lon"]))
         print("==================================================")
         return True
 
-    # 2. Neu la mang Wi-Fi moi hoan toan -> Tu dong dinh vi qua IP Public (Tự động 100% không cần cài đặt)
+    # 3. Uu tien 3: Wi-Fi moi hoan toan -> Tu dong dinh vi qua IP Public (Fallback)
     print(">> [GPS-AUTO] Wi-Fi '{}' la mang moi, dang dinh vi tu dong qua IP...".format(ssid or "Moi"))
     r = None
     try:
@@ -328,6 +443,7 @@ def resolve_auto_location():
 
                 state["lat"] = lat
                 state["lon"] = lon
+                state["gps_src"] = "IP"
                 loc_text = "{}, {}".format(city, region) if city else region
                 state["address"] = "{}, {}".format(loc_text, country) if loc_text else (ssid or "Wi-Fi Vi tri")
 
@@ -463,7 +579,9 @@ def send_to_backend():
         return False
 
     loc_display = None
-    if state["address"]:
+    if state.get("gps_fixed") and state.get("gps_lat") is not None:
+        loc_display = "GPS Vệ tinh ({:.4f}, {:.4f})".format(state["lat"], state["lon"])
+    elif state.get("address"):
         if state["lat"] is not None and state["lon"] is not None:
             loc_display = "{} ({:.4f}, {:.4f})".format(state["address"], state["lat"], state["lon"])
         else:
@@ -562,47 +680,68 @@ def send_to_backend():
         gc.collect()
 
 # ==============================================================
-# 9. GIAO DIEN OLED 128x64 TOAN DIEN
+# 9. GIAO DIEN OLED 128x64 TOAN DIEN (CO TRANG THAI GPS VE TINH)
 # ==============================================================
 def draw_oled(blink=False):
     if not oled: return
     o = oled
     o.fill(0)
 
-    # 1. Header: Ma thiet bi & Trang thai ket noi
-    st = "OFFLINE" if state["offline"] else state["status"]
+    # 1. Header: Ma thiet bi & Trang thai GPS + Server
     o.fill_rect(0, 0, 128, 11, 1)
     o.text(config.DEVICE_CODE, 2, 2, 0)
-    w = len(st) * 8 + 4
-    if not (blink and state["status"] == "DANGER"):
-        o.fill_rect(128 - w, 1, w, 9, 0)
-        o.text(st, 128 - w + 2, 2, 1)
+
+    # Kí hiệu GPS tren Header:
+    if state.get("gps_fixed"):
+        gps_tag = "SAT*" if blink else "SAT "
+    elif state.get("gps_sats", 0) > 0:
+        gps_tag = "S:{}".format(state["gps_sats"])
+    elif state.get("gps_src") == "WIFI":
+        gps_tag = "WIFI"
+    else:
+        gps_tag = "GPS."
+
+    st = "OFF" if state["offline"] else state["status"]
+    tag = "{}|{}".format(gps_tag, st)
+    w = len(tag) * 8 + 4
+    o.fill_rect(128 - w, 1, w, 9, 0)
+    o.text(tag, 128 - w + 2, 2, 1)
 
     # 2. Hang 1: Khong khi (T & H)
     t_str = "--.-" if state["air_t"] is None else "{:.1f}".format(state["air_t"])
     h_str = "--.-" if state["air_h"] is None else "{:.1f}".format(state["air_h"])
     o.text("Air:{}C {}%".format(t_str, h_str), 0, 14, 1)
 
-    # 3. Hang 2: Que inox nuoc (DS18B20) & Nhiet do chip Pico
+    # 3. Hang 2: Que inox nuoc (DS18B20) & Quang tro LDR
     p_str = "--.-" if state["probe"] is None else "{:.1f}".format(state["probe"])
-    pi_str = "--" if state.get("pico_t") is None else "{:.0f}".format(state["pico_t"])
-    o.text("Nuoc:{}C Pi:{}C".format(p_str, pi_str), 0, 26, 1)
+    o.text("Nuoc:{}C Toi:{}%".format(p_str, state["light_pct"]), 0, 26, 1)
 
-    # 4. Hang 3: Quang tro & Trang thai Relay
+    # 4. Hang 3: Quang tro & Trang thai Relay & Toa do thu gon
     r_str = "BAT" if state["relay"] else "TAT"
-    o.text("Toi:{}% R:{} [{}]".format(state["light_pct"], r_str, state["mode"][:1]), 0, 38, 1)
+    mode_str = state["mode"][:1]
+    if state["lat"] is not None and state["lon"] is not None:
+        loc_short = "{:.3f},{:.3f}".format(state["lat"], state["lon"])
+    else:
+        loc_short = "Tim ve tinh.."
+    o.text("R:{} [{}] {}".format(r_str, mode_str, loc_short[:7]), 0, 38, 1)
 
-    # 5. Hang 4: Tin nhan server / Ly do relay / IP
+    # 5. Hang 4: Footer luan chuyen thong tin mượt mà (3 giay / man hinh)
+    now_sec = time.ticks_ms() // 1000
+    cycle = (now_sec // 3) % 3
+
     if state["msg"]:
         footer = "> " + state["msg"]
     elif state["reason"]:
         footer = "! " + state["reason"]
     elif state["alert"]:
         footer = "! " + state["alert"]
-    elif wifi_connected:
+    elif cycle == 0 and state.get("lat") is not None and state.get("lon") is not None:
+        src_prefix = "SAT:" if state.get("gps_fixed") else "GPS:"
+        footer = "{}{:.3f},{:.3f}".format(src_prefix, state["lat"], state["lon"])
+    elif cycle == 1 and wifi_connected:
         footer = "IP:" + wifi_ip
     else:
-        footer = "Pico Offline"
+        footer = state.get("connected_ssid") or "Pico 2 W Online"
 
     o.text(footer[:16], 0, 52, 1)
     o.show()
@@ -625,6 +764,9 @@ def main():
 
     while True:
         now = time.ticks_ms()
+
+        # 0. Doc du lieu GPS tu UART0 khong chan (non-blocking)
+        poll_gps()
 
         # 1. Tu dong thu lai ket noi Wi-Fi neu mat mang
         if not wlan.isconnected() and time.ticks_diff(now, last_wifi_retry) > 10000:

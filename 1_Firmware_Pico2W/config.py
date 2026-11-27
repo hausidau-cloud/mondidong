@@ -5,12 +5,9 @@
 # 1. DANH SACH WI-FI (Tu dong quet va ket noi mang san co)
 WIFI_LIST = [
     ("NHA TRO 102", "0902511322"),
-    ("Duy Thuc_2", "thuchuong"),
-    ("Duy thuc", "thuchuong"),
     ("_hhau.05_", "00000000"),
-   
     ("Bekind Coffee", "camonquykhach"),
-    ("Quan Buu", "0777803936"),
+    
 ]
 
 # 2. DIA CHI BACKEND C# (Cloud Server Render hoac Localhost)
@@ -45,6 +42,11 @@ PIN_LDR_ADC  = 26     # GP26 (Chan 31, ADC0)
 # - Module Relay 5V dieu khien den/thiet bi:
 PIN_RELAY    = 13     # GP13 (Chan 17)
 RELAY_ACTIVE_HIGH = True  # True: Muc 1 (HIGH) la DONG/BAT relay; False neu relay kich muc Thap
+
+# - Module GPS U-blox NEO-6M (UART0):
+PIN_GPS_TX   = 0      # GP0 (Chan 1 - Pico TX noi vao RX cua GPS)
+PIN_GPS_RX   = 1      # GP1 (Chan 2 - Pico RX noi vao TX cua GPS)
+GPS_BAUDRATE = 9600
 
 # 6. NGUONG DIEU KHIEN DUC PHONG (FAIL-SAFE KHI MAT KET NOI SERVER)
 # Khi mat mang hoac backend tat > 30 giay, Pico tu dung cac nguong nay de bat/tat relay:
