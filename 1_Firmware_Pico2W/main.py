@@ -279,6 +279,11 @@ def oled_msg(title, l1="", l2="", l3=""):
 
 def connect_wifi_auto():
     global wifi_connected, wifi_ip, wifi_ssid
+    if wlan.isconnected():
+        wifi_connected = True
+        wifi_ip = wlan.ifconfig()[0]
+        return True
+
     wlan.active(True)
     try:
         wlan.config(pm=0xa11140)  # Tat che do tiet kiem pin -> song khoe
@@ -290,7 +295,16 @@ def connect_wifi_auto():
     for ssid, password in config.WIFI_LIST:
         print(">> Thu ket noi: '{}' ...".format(ssid))
         oled_msg("WI-FI CONNECT", ssid[:14], "Dang ket noi...")
-        wlan.connect(ssid, password)
+        try:
+            wlan.disconnect()
+            time.sleep_ms(200)
+        except Exception:
+            pass
+        try:
+            wlan.connect(ssid, password)
+        except Exception as e:
+            print(">> Loi wlan.connect:", e)
+            continue
         wait = 10
         while wait > 0:
             if wlan.isconnected():
@@ -307,7 +321,7 @@ def connect_wifi_auto():
             pico_led.value(1)
             print(">> KET NOI WI-FI THANH CONG! IP:", wifi_ip)
             oled_msg("WI-FI ONLINE!", ssid[:14], "IP:", wifi_ip)
-            time.sleep(2)
+            time.sleep(1)
             resolve_auto_location()
             return True
 
@@ -315,7 +329,7 @@ def connect_wifi_auto():
     wifi_connected = False
     print(">> Khong ket noi duoc Wi-Fi, chay Offline.")
     oled_msg("WI-FI OFFLINE", "Chay cuc bo", "Offline Mode")
-    time.sleep(1.5)
+    time.sleep(1)
     return False
 
 # ==============================================================
