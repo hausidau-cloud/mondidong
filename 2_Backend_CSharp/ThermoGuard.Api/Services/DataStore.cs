@@ -163,6 +163,115 @@ public class DataStore
                 history.Reverse();
                 TeamMessages.AddRange(history);
             }
+
+            // Fallback tự động khởi tạo trạm mặc định nếu DB chưa có
+            if (Stations.Count == 0)
+            {
+                var st1 = new StationItem
+                {
+                    Id = 1,
+                    Name = "Tram1",
+                    Location = "phong a (10.8220, 106.6257)",
+                    Description = "Trạm giám sát IoT - phong a",
+                    RelayLabel = "Hệ thống Phun sương / Rơ-le 5V",
+                    InviteCode = "TG-S1-8842",
+                    CreatedAt = TimeHelper.VnNowStr
+                };
+                Stations.Add(st1);
+
+                var dev1 = new Device
+                {
+                    Id = 1,
+                    StationId = 1,
+                    DeviceCode = "PICO 1",
+                    ApiKey = "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+                    Name = "Tram1",
+                    Profile = "cabinet",
+                    Location = "phong a (10.8220, 106.6257)",
+                    Description = "Trạm giám sát IoT - phong a",
+                    RelayLabel = "Hệ thống Phun sương / Rơ-le 5V",
+                    RelayMode = "AUTO",
+                    RelayState = 0,
+                    Status = "OK",
+                    AirTemp = 28.5,
+                    AirHum = 65.0,
+                    ProbeTemp = 28.0,
+                    PicoTemp = 32.5,
+                    DewPoint = 21.2,
+                    LightPct = 15,
+                    LightRaw = 12000,
+                    AirTempMax = 40.0,
+                    AirHumMax = 75.0,
+                    ProbeTempMin = 0.0,
+                    ProbeTempMax = 60.0,
+                    DewMargin = 3.0,
+                    Hysteresis = 1.5,
+                    SendInterval = 3,
+                    OfflineAfter = 60,
+                    Rssi = -55,
+                    LastSeen = TimeHelper.VnNowStr,
+                    LastSeenTime = DateTime.UtcNow
+                };
+                Devices.Add(dev1);
+
+                var st2 = new StationItem
+                {
+                    Id = 2,
+                    Name = "Tram2",
+                    Location = "Phòng Thực Nghiệm Nấm (10.8255, 106.6297)",
+                    Description = "Trạm giám sát vi khí hậu ESP32 - DHT11",
+                    RelayLabel = "Quạt thông gió đối lưu",
+                    InviteCode = "TG-S2-8842",
+                    CreatedAt = TimeHelper.VnNowStr
+                };
+                Stations.Add(st2);
+
+                var dev2 = new Device
+                {
+                    Id = 2,
+                    StationId = 2,
+                    DeviceCode = "ESP-01",
+                    ApiKey = "a1b2c3d4e5f60718293a4b5c6d7e8f90",
+                    Name = "Tram2",
+                    Profile = "aquarium",
+                    Location = "Phòng Thực Nghiệm Nấm (10.8255, 106.6297)",
+                    Description = "Trạm giám sát vi khí hậu phòng thí nghiệm ESP32",
+                    RelayLabel = "Quạt thông gió đối lưu",
+                    RelayMode = "AUTO",
+                    RelayState = 0,
+                    Status = "OK",
+                    AirTemp = 27.8,
+                    AirHum = 70.0,
+                    ProbeTemp = 26.5,
+                    DewPoint = 21.8,
+                    AirTempMax = 38.0,
+                    AirHumMax = 80.0,
+                    ProbeTempMin = 0.0,
+                    ProbeTempMax = 50.0,
+                    DewMargin = 2.5,
+                    Hysteresis = 1.0,
+                    SendInterval = 3,
+                    OfflineAfter = 60,
+                    Rssi = -60,
+                    LastSeen = TimeHelper.VnNowStr,
+                    LastSeenTime = DateTime.UtcNow
+                };
+                Devices.Add(dev2);
+
+                try
+                {
+                    if (!db.Stations.Any())
+                    {
+                        db.Stations.AddRange(st1, st2);
+                    }
+                    if (!db.Devices.Any())
+                    {
+                        db.Devices.AddRange(dev1, dev2);
+                    }
+                    db.SaveChanges();
+                }
+                catch { }
+            }
         }
         catch (Exception ex)
         {
