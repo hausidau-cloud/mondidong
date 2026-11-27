@@ -290,22 +290,44 @@ def connect_wifi_auto():
     except Exception:
         pass
 
-    oled_msg("PICO 2 W IOT", "Ket noi Wi-Fi...", "Dang quet mang")
+    oled_msg("PICO 2 W IOT", "Ket noi Wi-Fi...", "Dang quet song")
 
-    for ssid, password in config.WIFI_LIST:
-        print(">> Thu ket noi: '{}' ...".format(ssid))
+    # 1. Quet xem mang nao trong WIFI_LIST dang thuc su phat song
+    visible_ssids = set()
+    try:
+        scan_results = wlan.scan()
+        for item in scan_results:
+            try:
+                name = item[0].decode('utf-8').strip()
+                if name:
+                    visible_ssids.add(name)
+            except Exception:
+                pass
+    except Exception as e:
+        print(">> Scan loi, fallback thu lan luot:", e)
+
+    print(">> Cac mang Wi-Fi nhin thay:", visible_ssids)
+
+    # 2. Uu tien ket noi mang co song
+    candidates = []
+    for ssid, pwd in config.WIFI_LIST:
+        if not visible_ssids or ssid in visible_ssids:
+            candidates.append((ssid, pwd))
+
+    # Neu khong thay mang nao quen, thu tat ca
+    if not candidates:
+        candidates = config.WIFI_LIST
+
+    for ssid, password in candidates:
+        print(">> Dang ket noi Wi-Fi: '{}' ...".format(ssid))
         oled_msg("WI-FI CONNECT", ssid[:14], "Dang ket noi...")
-        try:
-            wlan.disconnect()
-            time.sleep_ms(200)
-        except Exception:
-            pass
         try:
             wlan.connect(ssid, password)
         except Exception as e:
-            print(">> Loi wlan.connect:", e)
+            print(">> Loi connect:", e)
             continue
-        wait = 10
+
+        wait = 12
         while wait > 0:
             if wlan.isconnected():
                 break
