@@ -74,6 +74,7 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
     try {
       final available = await _speech.initialize(
         debugLogging: false,
+        options: [stt.SpeechToText.androidNoBluetooth],
         onStatus: (status) {
           if (!mounted) return;
           if (status == 'listening') {
@@ -95,11 +96,11 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
           setState(() {
             _isListening = false;
             if (err.errorMsg == 'error_speech_timeout') {
-              _statusMessage = 'Hết thời gian chờ. Bạn hãy chạm lại micro hoặc chọn nút gợi ý bên dưới.';
+              _statusMessage = 'Hết thời gian chờ câu lệnh. Chạm lại micro để nói hoặc chọn nút gợi ý.';
             } else if (err.errorMsg == 'error_no_match') {
-              _statusMessage = 'Chưa nghe rõ câu lệnh. Vui lòng nói to rõ hơn hoặc chọn lệnh mẫu.';
+              _statusMessage = 'Chưa nghe rõ câu lệnh. Bạn chạm lại micro nói to hơn hoặc chọn gợi ý nhé.';
             } else {
-              _statusMessage = 'Lưu ý: Máy ảo Android có thể chưa bật mic host. Bạn có thể bấm chọn nút gợi ý hoặc gõ lệnh!';
+              _statusMessage = 'Micro đã sẵn sàng! Chạm nút Micro bên dưới để bắt đầu nói.';
             }
           });
         },
@@ -114,36 +115,34 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
       if (mounted) {
         setState(() {
           _speechEnabled = available;
-          if (!available) {
-            _statusMessage = 'Chế độ mô phỏng giọng nói sẵn sàng! Chạm nút micro hoặc chọn gợi ý bên dưới để ra lệnh.';
-          }
+          _statusMessage = 'Micro đã sẵn sàng! Chạm nút Micro tròn bên dưới và bắt đầu nói.';
         });
-        if (available) {
-          _startListening();
-        }
       }
     } catch (e) {
       if (mounted) {
         setState(() {
           _speechEnabled = false;
-          _statusMessage = 'Chế độ mô phỏng giọng nói sẵn sàng! Chạm nút micro hoặc chọn gợi ý bên dưới để ra lệnh.';
+          _statusMessage = 'Chế độ mô phỏng giọng nói sẵn sàng! Chạm nút micro hoặc chọn gợi ý bên dưới.';
         });
       }
     }
   }
 
   Future<void> _startListening() async {
-    if (!_speechEnabled) {
-      // Neu may ao khong co Google Speech Service -> chay che do mo phong thong minh
-      _simulateVoicePrompt();
-      return;
+    if (!_speech.isAvailable && !_speechEnabled) {
+      await _initSpeech();
+      if (!_speechEnabled) {
+        _simulateVoicePrompt();
+        return;
+      }
     }
 
     setState(() {
       _wordsSpoken = '';
       _executionResult = null;
       _isSuccess = false;
-      _statusMessage = 'Đang lắng nghe... Hãy nói "Bật hệ thống phun sương"';
+      _isListening = true;
+      _statusMessage = 'Đang lắng nghe... Hãy nói to: "Bật hệ thống phun sương"';
     });
 
     HapticFeedback.mediumImpact();
@@ -155,17 +154,17 @@ class _VoiceControlSheetState extends State<VoiceControlSheet> with SingleTicker
           setState(() {
             _wordsSpoken = result.recognizedWords;
           });
-          if (result.finalResult && _wordsSpoken.isNotEmpty) {
+          if (result.finalResult && _wordsSpoken.trim().isNotEmpty) {
             _executeVoiceCommand(_wordsSpoken);
           }
         },
         listenOptions: stt.SpeechListenOptions(
           partialResults: true,
-          cancelOnError: true,
+          cancelOnError: false,
           listenMode: stt.ListenMode.confirmation,
           localeId: _selectedLocaleId,
           listenFor: const Duration(seconds: 10),
-          pauseFor: const Duration(seconds: 2),
+          pauseFor: const Duration(seconds: 3),
         ),
       );
     } catch (e) {
